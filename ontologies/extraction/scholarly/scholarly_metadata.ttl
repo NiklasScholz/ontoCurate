@@ -1,0 +1,355 @@
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema:  <https://schema.org/> .
+@prefix bibo:    <http://purl.org/ontology/bibo/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix foaf:    <http://xmlns.com/foaf/0.1/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix cito:    <http://purl.org/spar/cito>.
+@prefix event: <http://purl.org/NET/c4dm/event.owl#> .
+@prefix smo:     <http://example.org/scholarly-metadata-ontology#> . # consider changing to actual URL
+
+# ========================
+#   ONTOLOGY DEFINITION
+# ========================
+smo: a owl:Ontology ;
+    dcterms:title       "Scholarly Metadata Ontology (no citations)"@en ;
+    dcterms:description "Ontology for (CEUR-WS) scholarly use case, extracting metadata from scholarly conference papers, proceedings, and journal articles and relationships between them."@en ;
+    dcterms:created     "2026-05-01"^^xsd:date ;
+    owl:versionInfo     "1.0" .
+
+# ========================
+#     CLASS DEFINITION
+# ========================
+
+bibo:AcademicArticle a owl:Class ;
+    rdfs:label   "Academic Article"@en ;
+    rdfs:subClassOf bibo:Document;
+    rdfs:comment "A scholarly paper published in proceedings or a journal issue."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Proceedings a owl:Class ;
+    rdfs:label   "Proceedings"@en ;
+    rdfs:subClassOf bibo:Document;
+    rdfs:comment "A compiled volume of papers produced from a conference."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Conference a owl:Class ;
+    rdfs:label   "Conference"@en ;
+    rdfs:subClassOf schema:Event;
+    rdfs:comment "An academic conference event at which papers are presented."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Workshop a owl:Class ;
+    rdfs:label   "Workshop"@en ;
+    rdfs:subClassOf schema:Event;
+    rdfs:comment "An academic workshop event, typically co-located with a main conference. Features a less rigorous review process than the main conference venue."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Issue a owl:Class ;
+    rdfs:subClassOf bibo:Document ;
+    rdfs:label   "Journal Issue"@en ;
+    rdfs:comment "A single issue of a journal, identified by volume and issue number."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Journal a owl:Class ;
+    rdfs:label   "Journal"@en ;
+    rdfs:subClassOf bibo:Collection ;
+    rdfs:comment "A periodical scholarly publication consisting of issues."@en ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:Series a owl:Class ;
+    rdfs:label   "Series"@en ;
+    rdfs:subClassOf bibo:Collection ;
+    rdfs:comment "A publication series, e.g. LNCS or CEUR-WS."@en ;
+    rdfs:isDefinedBy bibo: .
+
+schema:Person a owl:Class ;
+    rdfs:subClassOf foaf:Agent ;
+    rdfs:label   "Person"@en ;
+    rdfs:comment "A human agent; used to represent authors and editors."@en ;
+    rdfs:isDefinedBy schema: .
+
+schema:Organization a owl:Class ;
+    rdfs:subClassOf foaf:Agent ;
+    rdfs:label   "Organization"@en ;
+    rdfs:comment "An institution or company; used to represent author affiliations, publishers, and corporate authors."@en ;
+    rdfs:isDefinedBy schema: .
+
+# ====================================
+#          PAPER PROPERTIES
+#    (domain: bibo:AcademicArticle)
+# ====================================
+
+cito:cites a owl:ObjectProperty ;
+    rdfs:label   "cites"@en ;
+    rdfs:comment "Links a citing paper to a paper in its reference list. May be omitted for testing"@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   bibo:AcademicArticle ;
+    rdfs:isDefinedBy cito: .
+
+dcterms:title a owl:DatatypeProperty ;
+    rdfs:label   "title"@en ;
+    rdfs:comment "The title of the paper, proceedings, journal, or series."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:AcademicArticle bibo:Proceedings
+                                 bibo:Journal bibo:Series ) ] ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy dcterms: .
+
+bibo:abstract a owl:DatatypeProperty ;
+    rdfs:label   "abstract"@en ;
+    rdfs:comment "A summary of the paper's content."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
+
+schema:keywords a owl:DatatypeProperty ;
+    rdfs:label   "keywords"@en ;
+    rdfs:comment "Keywords from the paper where they are typically seperated with commas."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy schema: .
+
+schema:author a owl:ObjectProperty ; # bibo defines it as list for capturing author order, however this is not supported by linkML/ontoGPT
+    rdfs:label   "author"@en ;
+    rdfs:comment "Links a paper to one of its authors. Per schema.org, the author can be a schema:Person or a schema:Organization (e.g. a research consortium, standards body, or corporate author such as IBM Research)."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   [ a owl:Class ;
+                   owl:unionOf ( schema:Person schema:Organization ) ] ;
+    rdfs:isDefinedBy schema: .
+
+dcterms:isPartOf a owl:ObjectProperty ;
+    rdfs:label   "is part of"@en ;
+    rdfs:comment "Links a paper to its containing bibo:Proceedings or bibo:Issue; links a bibo:Issue to its bibo:Journal; links bibo:Proceedings to its bibo:Series."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:AcademicArticle bibo:Proceedings bibo:Issue ) ] ;
+    rdfs:range   [ a owl:Class ;
+                   owl:unionOf ( bibo:Proceedings bibo:Issue bibo:Journal bibo:Series ) ] ;
+    rdfs:isDefinedBy dcterms: .
+
+bibo:presentedAt a owl:ObjectProperty ;
+    rdfs:label   "presented at"@en ;
+    rdfs:comment "Links a paper to the bibo:Conference or bibo:Workshop at which it was presented."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop ) ] ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:doi a owl:DatatypeProperty ;
+    rdfs:label   "DOI"@en ;
+    rdfs:comment "Digital Object Identifier of the paper. Should not be the full URL, but just the ID."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
+
+schema:url a owl:DatatypeProperty ;
+    rdfs:label   "URL"@en ;
+    rdfs:comment "A URL providing direct access to the full text of the paper."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:anyURI ;
+    rdfs:isDefinedBy schema: .
+
+schema:inLanguage a owl:DatatypeProperty ;
+    rdfs:label   "language"@en ;
+    rdfs:comment "The language in which the paper is written, as a BCP 47 string, e.g. \"en\" or \"de\"."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy schema: .
+
+schema:datePublished a owl:DatatypeProperty ;
+    rdfs:label   "publication date"@en ;
+    rdfs:comment "The exact publication date of the paper in ISO 8601 format (YYYY-MM-DD). Found as \"published YYYY-MM-DD\" in CEUR-WS papers."@en ;
+    rdfs:domain  bibo:AcademicArticle ;
+    rdfs:range   xsd:date ;
+    rdfs:isDefinedBy schema: .
+
+# ================================================
+#              PERSON PROPERTIES
+# (domain: schema:Person, i.e. author & editor)
+# Usage of foaf in order to differ between raw string and extract full names
+# ================================================
+
+foaf:givenName a owl:DatatypeProperty ;
+    rdfs:label   "given name"@en ;
+    rdfs:comment "The first (given) name of the person. Optional — populated for main paper authors when confident, left empty for reference list authors."@en ;
+    rdfs:domain  schema:Person ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy foaf: .
+
+foaf:familyName a owl:DatatypeProperty ;
+    rdfs:label   "family name"@en ;
+    rdfs:comment "The last (family) name of the person."@en ;
+    rdfs:domain  schema:Person ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy foaf: .
+
+foaf:name a owl:DatatypeProperty ;
+    rdfs:label   "full name"@en ;
+    rdfs:comment "The full name of the person as a single string. Used to provide the name of the person exactly as it appears in the source text (e.g., abbreviations from citations)."@en ;
+    rdfs:domain  schema:Person ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy foaf: .
+
+schema:email a owl:DatatypeProperty ;
+    rdfs:label   "email"@en ;
+    rdfs:comment "The email address of the person."@en ;
+    rdfs:domain  schema:Person ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy schema: .
+
+schema:affiliation a owl:ObjectProperty ;
+    rdfs:label   "affiliation"@en ;
+    rdfs:comment "Links a person to the schema:Organization they are affiliated with."@en ;
+    rdfs:domain  schema:Person ;
+    rdfs:range   schema:Organization ;
+    rdfs:isDefinedBy schema: .
+
+schema:identifier a owl:DatatypeProperty ;
+    rdfs:label   "identifier"@en ;
+    rdfs:comment "A persistent identifier for the person (e.g. ORCID URI) or organization (e.g. ROR URI). Only used if provided in source text otherwise linked with owl:sameAs"@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( schema:Person schema:Organization ) ] ;
+    rdfs:range   xsd:anyURI ;
+    rdfs:isDefinedBy schema: .
+
+# =======================================
+#         ORGANIZATION PROPERTIES
+#     (domain: schema:Organization)
+# =======================================
+
+# schema:name is already declared above.
+# schema:location defined below
+
+
+# ==========================================
+#        PROCEEDINGS PROPERTIES
+#       (domain: bibo:Proceedings)
+# =========================================
+
+#  dcterms:title defined above
+#  dcterms:isPartOf -> bibo:Series; defined above
+
+bibo:editor a owl:ObjectProperty ;
+    rdfs:label   "editor"@en ;
+    rdfs:comment "Links a proceedings volume or journal to one of its editors (schema:Person)."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Proceedings bibo:Journal ) ] ;
+    rdfs:range   [ a owl:Class ;
+                   owl:unionOf ( schema:Person schema:Organization ) ] ; # adapted range from bibo as we have full data control
+    rdfs:isDefinedBy bibo: .
+
+dcterms:issued a owl:DatatypeProperty ;
+    rdfs:label   "publication year"@en ;
+    rdfs:comment "The date the proceedings or journal issue was published. If full date is unknown, normalization is used (first day/month)."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Proceedings bibo:Issue ) ] ;
+    rdfs:range   xsd:date ;
+    rdfs:isDefinedBy dcterms: .
+
+dcterms:publisher a owl:ObjectProperty ;
+    rdfs:label   "publisher"@en ;
+    rdfs:comment "The organization (agent) responsible for publishing the proceedings or journal."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Proceedings bibo:Journal ) ] ;
+    rdfs:range   schema:Organization ;
+    rdfs:isDefinedBy dcterms: .
+
+bibo:volume a owl:DatatypeProperty ;
+    rdfs:label   "volume"@en ;
+    rdfs:comment "The volume number of the proceedings or journal issue. Range as string defined as roman numbers or similar are possible."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Proceedings bibo:Issue ) ] ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
+
+# =======================================
+#  CONFERENCE / WORKSHOP PROPERTIES
+# =======================================
+
+schema:name a owl:DatatypeProperty ;
+    rdfs:label   "name"@en ;
+    rdfs:comment "The full name of the conference, workshop, organization."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop schema:Organization ) ] ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy schema: .
+
+schema:location a owl:DatatypeProperty ;
+    rdfs:label   "location"@en ;
+    rdfs:comment "The city and country where the conference or workshop takes place, e.g. \"Vienna, Austria\". Also used to express the location of an Organization. Restricted on xsd:string."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop schema:Organization ) ] ; # Domain: Events and Organization
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy schema: .
+
+schema:startDate a owl:DatatypeProperty ;
+    rdfs:label   "start date"@en ;
+    rdfs:comment "The opening date of the conference or workshop in ISO 8601 format. Omitted when not stated in the source."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop ) ] ;
+    rdfs:range   xsd:date .
+
+schema:endDate a owl:DatatypeProperty ;
+    rdfs:label   "end date"@en ;
+    rdfs:comment "The closing date of the conference or workshop in ISO 8601 format. Omitted when not stated in the source."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop ) ] ;
+    rdfs:range   xsd:date .
+
+schema:superEvent a owl:ObjectProperty;
+    rdfs:label "part of event"@en;
+    rdfs:comment "An event (Conference) that this event (Workshop) is a part of."@en;
+    rdfs:domain bibo:Workshop;
+    rdfs:range bibo:Conference.
+
+# No existing ontology has a good counter (having Event as domain), hence we define our own.
+smo:edition a owl:DatatypeProperty ;
+    rdfs:label   "edition"@en ;
+    rdfs:comment "The edition or occurrence number of a workshop or conference event, e.g. \"10th\". Defined explicitly, since common ontologies do not provide a good solution for it."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Conference bibo:Workshop ) ] ;
+    rdfs:range   xsd:integer .
+
+# =======================================
+#       JOURNAL ISSUE PROPERTIES
+#         (domain: bibo:Issue)
+#
+# =======================================
+
+#  dcterms:issued defined above
+#  bibo:volume   defined above
+#  dcterms:isPartOf -> bibo:Journal; defined above
+
+bibo:issue a owl:DatatypeProperty ;
+    rdfs:label   "issue number"@en ;
+    rdfs:comment "The issue number within a journal volume. String to allow for roman numbers"@en ;
+    rdfs:domain  bibo:Issue ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
+
+# =================================
+#       JOURNAL PROPERTIES
+#     (domain: bibo:Journal)
+# =================================
+
+#  dcterms:title; defined above
+#  dcterms:publisher; defined above
+
+bibo:issn a owl:DatatypeProperty ;
+    rdfs:label   "ISSN (print)"@en ;
+    rdfs:comment "The print International Standard Serial Number of the journal or series."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Journal bibo:Series ) ] ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
+
+bibo:eissn a owl:DatatypeProperty ;
+    rdfs:label   "ISSN (electronic)"@en ;
+    rdfs:comment "The electronic International Standard Serial Number of the journal or series."@en ;
+    rdfs:domain  [ a owl:Class ;
+                   owl:unionOf ( bibo:Journal bibo:Series ) ] ;
+    rdfs:range   xsd:string ;
+    rdfs:isDefinedBy bibo: .
