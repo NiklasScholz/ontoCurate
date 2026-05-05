@@ -1,0 +1,202 @@
+@prefix paco: <https://example.org/provenance-and-curation-ontology/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix schema: <https://schema.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+# ONTOLOGY DEFINITION
+#################################################################
+
+paco: a owl:Ontology ;
+    rdfs:label "Knowledge Graph Lab Provenance and Curation Ontology" ;
+    rdfs:comment "Ontology for representing extracted RDF candidate statements, provenance, curation activities, and final KG materialization." .
+
+#################################################################
+# CLASS DEFINITION
+#################################################################
+
+paco:CandidateStatement a owl:Class ;
+    rdfs:label "Candidate Statement" ;
+    rdfs:comment "An extracted or user-created candidate RDF statement with provenance and curation metadata." .
+
+paco:SourceDocument a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Source Document" ;
+    rdfs:comment "A document, usually a PDF, from which statements are extracted." .
+
+paco:Curator a owl:Class ;
+    rdfs:subClassOf prov:Agent ;
+    rdfs:label "Curator" ;
+    rdfs:comment "A user who edits, accepts, rejects, or creates statements." .
+
+paco:ExtractionActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Extraction Activity" ;
+    rdfs:comment "An activity in which OntoGPT or another extraction system extracts candidate statements from a source document." .
+
+paco:EditingActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Editing Activity" ;
+    rdfs:comment "An activity in which a curator creates a revised version of a candidate statement." .
+
+paco:AcceptingActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Accepting Activity" ;
+    rdfs:comment "An activity in which a curator accepts a candidate statement for inclusion in the final knowledge graph." .
+
+paco:RejectingActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Rejecting Activity" ;
+    rdfs:comment "An activity in which a curator rejects a candidate statement." .
+
+paco:CreationActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Creation Activity" ;
+    rdfs:comment "An activity in which a curator manually creates a new candidate statement." .
+
+#################################################################
+# CURATION STATUS INDIVIDUALS
+#################################################################
+
+paco:CurationStatus a owl:Class ;
+    rdfs:label "Curation Status" .
+
+paco:pending a paco:CurationStatus ;
+    rdfs:label "pending" .
+
+paco:edited a paco:CurationStatus ;
+    rdfs:label "edited" .
+
+paco:accepted a paco:CurationStatus ;
+    rdfs:label "accepted" .
+
+paco:rejected a paco:CurationStatus ;
+    rdfs:label "rejected" .
+
+#################################################################
+# AGENT INDIVIDUALS
+#################################################################
+
+paco:ontogpt a prov:Agent ;
+    rdfs:label "Onto GPT" .
+
+#################################################################
+# OBJECT PROPERTIES
+#################################################################
+
+paco:subject a owl:ObjectProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:label "subject" ;
+    rdfs:comment "The current subject used for the final KG if the statement is accepted." .
+
+paco:predicate a owl:ObjectProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:label "predicate" ;
+    rdfs:comment "The current predicate used for the final KG if the statement is accepted." .
+
+paco:object a owl:ObjectProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:label "object" ;
+    rdfs:comment "The current object used for the final KG if the statement is accepted. Can be an IRI or a literal." .
+
+paco:origin a owl:ObjectProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range prov:Agent ;
+    rdfs:label "origin" ;
+    rdfs:comment "The original source of the statement idea, e.g. OntoGPT or a user." .
+
+paco:curationStatus a owl:ObjectProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range paco:CurationStatus ;
+    rdfs:label "curation status" ;
+    rdfs:comment "The current curation status of the statement." .
+
+#################################################################
+# DATA PROPERTIES
+#################################################################
+
+paco:textSpan a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:string ;
+    rdfs:label "text span" ;
+    rdfs:comment "The text span from which the statement was extracted." .
+
+paco:textSpanStart a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:integer ;
+    rdfs:label "text span start" .
+
+paco:textSpanEnd a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:integer ;
+    rdfs:label "text span end" .
+
+paco:confidence a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:float ;
+    rdfs:label "confidence" ;
+    rdfs:comment "Confidence score between 0 and 1." .
+
+paco:createdAt a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "created at" .
+
+paco:extractedAt a owl:DatatypeProperty ;
+    rdfs:domain paco:ExtractionActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "extracted at" .
+
+paco:editedAt a owl:DatatypeProperty ;
+    rdfs:domain paco:EditingActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "edited at" .
+
+paco:acceptedAt a owl:DatatypeProperty ;
+    rdfs:domain paco:AcceptingActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "accepted at" .
+
+paco:rejectedAt a owl:DatatypeProperty ;
+    rdfs:domain paco:RejectingActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "rejected at" .
+
+paco:manuallyCreatedAt a owl:DatatypeProperty ;
+    rdfs:domain paco:CreationActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "manually created at" .
+
+#################################################################
+# NOTES FOR PROV-O USAGE
+#################################################################
+
+# Recommended usage:
+#
+# Extraction:
+#   extractionActivity prov:used sourceDocument .
+#   extractionActivity prov:wasAssociatedWith paco:OntoGPT .
+#   extractionActivity prov:generated candidateStatement .
+#
+# Editing:
+#   editingActivity prov:used oldCandidateStatement .
+#   editingActivity prov:wasAssociatedWith curator .
+#   editingActivity prov:generated newCandidateStatement .
+#   newCandidateStatement prov:wasDerivedFrom oldCandidateStatement .
+#
+# Manual creation:
+#   creationActivity prov:wasAssociatedWith curator .
+#   creationActivity prov:generated candidateStatement .
+#
+# Acceptance:
+#   acceptingActivity prov:used previousCandidateStatement .
+#   acceptingActivity prov:wasAssociatedWith curator .
+#   acceptingActivity prov:generated acceptedCandidateStatement .
+#
+# Rejection:
+#   rejectingActivity prov:used previousCandidateStatement .
+#   rejectingActivity prov:wasAssociatedWith curator .
+#   rejectingActivity prov:generated rejectedCandidateStatement .
