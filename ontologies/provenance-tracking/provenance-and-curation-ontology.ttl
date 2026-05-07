@@ -97,7 +97,7 @@ paco:predicate a owl:ObjectProperty ;
     rdfs:label "predicate" ;
     rdfs:comment "The current predicate used for the final KG if the statement is accepted." .
 
-paco:object a owl:ObjectProperty ;
+paco:object a rdf:Property ;
     rdfs:domain paco:CandidateStatement ;
     rdfs:label "object" ;
     rdfs:comment "The current object used for the final KG if the statement is accepted. Can be an IRI or a literal." .
