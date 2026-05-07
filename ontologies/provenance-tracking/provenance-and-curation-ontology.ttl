@@ -19,6 +19,7 @@ paco: a owl:Ontology ;
 #################################################################
 
 paco:CandidateStatement a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
     rdfs:label "Candidate Statement" ;
     rdfs:comment "An extracted or user-created candidate RDF statement with provenance and curation metadata." .
 
