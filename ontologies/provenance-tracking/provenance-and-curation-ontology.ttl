@@ -170,6 +170,13 @@ paco:manuallyCreatedAt a owl:DatatypeProperty ;
     rdfs:range xsd:dateTime ;
     rdfs:label "manually created at" .
 
+
+paco:isCurrentVersion a owl:DatatypeProperty ;
+    rdfs:domain paco:CandidateStatement ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is current version" ;
+    rdfs:comment "Indicates whether this statement version is the current active version within its derivation chain." .
+
 #################################################################
 # NOTES FOR PROV-O USAGE
 #################################################################
