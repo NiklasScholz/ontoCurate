@@ -1,12 +1,14 @@
 import axios from "axios";
 import {
     ArrowLeftIcon,
+    CheckIcon,
     EditIcon,
     ShareIcon,
     TrashIcon,
     XIcon,
 } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
+import MarkdownView from "./MarkdownView";
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -128,6 +130,101 @@ function WorkspacesView({
     );
 }
 
+type Document = {
+    text: string;
+    annotations: {
+        subject: string;
+        predicate: string;
+        value: string;
+        span_start: number;
+        span_end: number;
+        confidence: number;
+    }[];
+};
+
+function DocumentView({
+    workspace,
+    name,
+}: {
+    workspace: string;
+    name: string;
+}) {
+    const [doc, setDoc] = useState<Document | undefined>(undefined);
+
+    const [selected, setSelected] = useState<number | undefined>(undefined);
+
+    useEffect(() => {
+        axios
+            .get("/api/documents/get", { params: { workspace, name } })
+            .then((res) => setDoc(res.data));
+    }, []);
+
+    return (
+        <div className="bg-nord6 flex h-full flex-col gap-2 rounded p-4 shadow-xl">
+            {doc ? (
+                <div className="grid h-full grid-cols-[1fr_auto_1fr] gap-4">
+                    <div className="flex h-full flex-col gap-4 overflow-scroll">
+                        {doc.annotations
+                            .filter((_triple, i) => i < 10)
+                            .map((triple, i) => {
+                                return (
+                                    <button
+                                        className={`relative rounded-lg p-2 text-sm ${i === selected ? "bg-nord3" : "bg-nord4"}`}
+                                        onClick={() => setSelected(i)}
+                                    >
+                                        <div className="text-nord3 absolute right-2 bottom-2 text-xs">
+                                            {i}/{doc.annotations.length}
+                                        </div>
+                                        <div className="bg-nord6 mb-2 grid grid-cols-3 gap-4 p-2 wrap-anywhere">
+                                            <div>{triple.subject}</div>
+                                            <div>{triple.predicate}</div>
+                                            <div>{triple.value}</div>
+                                        </div>
+                                        <div className="flex justify-center gap-4">
+                                            <button
+                                                className="bg-nord14 h-7 rounded px-2"
+                                                onClick={() => {}}
+                                            >
+                                                <CheckIcon size={16} />
+                                            </button>
+                                            <button
+                                                className="bg-nord8 h-7 rounded px-2"
+                                                onClick={() => {}}
+                                            >
+                                                <EditIcon size={16} />
+                                            </button>
+                                            <button
+                                                className="bg-nord11 h-7 rounded px-2"
+                                                onClick={() => {}}
+                                            >
+                                                <XIcon size={16} />
+                                            </button>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                    </div>
+                    <div className="bg-nord4 h-full w-0.5"></div>
+                    <MarkdownView
+                        text={doc.text}
+                        span={
+                            selected === undefined
+                                ? undefined
+                                : {
+                                      start: doc.annotations[selected]
+                                          .span_start,
+                                      end: doc.annotations[selected].span_end,
+                                  }
+                        }
+                    />
+                </div>
+            ) : (
+                <Spinner />
+            )}
+        </div>
+    );
+}
+
 function WorkspaceView({
     workspace,
     onBack,
@@ -140,13 +237,19 @@ function WorkspaceView({
         | undefined
     >(undefined);
 
+    const [openDocument, setOpenDocument] = useState<string | undefined>(
+        undefined,
+    );
+
     useEffect(() => {
         axios
             .get("/api/documents", { params: { workspace } })
             .then((res) => setDocuments(res.data));
     }, []);
 
-    return (
+    return openDocument ? (
+        <DocumentView workspace={workspace} name={openDocument} />
+    ) : (
         <div className="bg-nord6 flex w-160 flex-col gap-2 rounded p-4 shadow-xl">
             <div className="relative mb-4">
                 <button
@@ -180,7 +283,9 @@ function WorkspaceView({
                             <div className="flex gap-2">
                                 <button
                                     className="bg-nord8 h-7 rounded px-2"
-                                    onClick={() => {}}
+                                    onClick={() => {
+                                        setOpenDocument(d.name);
+                                    }}
                                 >
                                     <EditIcon size={16} />
                                 </button>
@@ -230,7 +335,7 @@ export default function App({}) {
     const [user, setUser] = useState<string | undefined>("a");
 
     return (
-        <div className="bg-nord7 text-nord0 box-border flex min-h-screen items-center justify-center px-6 py-4">
+        <div className="bg-nord7 text-nord0 box-border flex h-screen items-center justify-center px-6 py-4">
             {user ? (
                 <LoggedInView onBack={() => setUser(undefined)} />
             ) : (

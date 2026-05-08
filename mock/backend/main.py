@@ -1,6 +1,13 @@
 from fastapi import FastAPI, File, UploadFile
+import json
 
 app = FastAPI()
+
+with open("input.md", "r") as file:
+    MARKDOWN = file.read()
+
+with open("provenance.json", "r") as file:
+    JSON = json.load(file)
 
 
 @app.post("/login")
@@ -57,3 +64,8 @@ async def documents_upload(workspace: str, file: UploadFile = File()):
 @app.delete("/documents/delete")
 async def documents_delete(workspace: str, name: str):
     return None
+
+
+@app.get("/documents/get")
+async def documents_get(workspace: str, name: str):
+    return {"text": MARKDOWN, "annotations": JSON["annotations"]}

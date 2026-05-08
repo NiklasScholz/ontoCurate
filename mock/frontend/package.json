@@ -10,7 +10,12 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@codemirror/lang-markdown": "^6.5.0",
+		"@codemirror/language": "^6.12.3",
+		"@codemirror/state": "^6.6.0",
+		"@codemirror/view": "^6.42.1",
 		"@tailwindcss/vite": "^4.2.4",
+		"@types/codemirror": "^5.60.17",
 		"axios": "^1.16.0",
 		"lucide-react": "^1.14.0",
 		"react": "^19.2.5",
