@@ -20,7 +20,7 @@ Two architectural approaches were considered:
 
 ## Considered Options
 
-### Option 1: API-based Models via KIConnect NRW
+### Option 1: API-based Models via KIConnect NRW (Chosen)
 
 The API endpoint `https://chat.kiconnect.nrw/api/v1` provides access to multiple hosted LLMs and embedding models.  
 Only models with sufficiently high rate limits were considered (i.e. OpenAI GPT OSS 120B, Mistral Small 4 119B).
