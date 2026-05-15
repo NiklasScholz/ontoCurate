@@ -90,11 +90,13 @@ paco:ontogpt a prov:Agent ;
 
 paco:subject a owl:ObjectProperty ;
     rdfs:domain paco:CandidateStatement ;
+    rdfs:range rdfs:Resource ;
     rdfs:label "subject" ;
     rdfs:comment "The current subject used for the final KG if the statement is accepted." .
 
 paco:predicate a owl:ObjectProperty ;
     rdfs:domain paco:CandidateStatement ;
+    rdfs:range rdfs:Property ;
     rdfs:label "predicate" ;
     rdfs:comment "The current predicate used for the final KG if the statement is accepted." .
 
