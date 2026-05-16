@@ -22,7 +22,7 @@ async def logout():
 
 @app.get("/workspaces")
 async def workspaces():
-    return [{"name": "bar"}, {"name": "baz"}, {"name": "foo"}]
+    return [{"name": "dev-test"}, {"name": "baz"}, {"name": "foo"}]
 
 
 @app.post("/workspaces/create")
@@ -39,19 +39,19 @@ async def workspaces_delete(name: str):
 async def documents(workspace: str):
     return [
         {
-            "name": "a.pdf",
-            "extractedCount": 51,
-            "pendingCount": 0,
+            "name": "paper1.pdf",
+            "extractedCount": 1253,
+            "pendingCount": 1234,
         },
         {
-            "name": "b.pdf",
-            "extractedCount": 42,
-            "pendingCount": 0,
+            "name": "paper2.pdf",
+            "extractedCount": 1451,
+            "pendingCount": 1451,
         },
         {
-            "name": "c.pdf",
-            "extractedCount": 49,
-            "pendingCount": 12,
+            "name": "paper3.pdf",
+            "extractedCount": 556,
+            "pendingCount": 556,
         },
     ]
 
@@ -69,3 +69,24 @@ async def documents_delete(workspace: str, name: str):
 @app.get("/documents/get")
 async def documents_get(workspace: str, name: str):
     return {"text": MARKDOWN, "annotations": JSON["annotations"]}
+
+
+@app.get("/kg/neighborhood")
+async def kg_neighborhood(entity: str):
+    incoming = []
+    outgoing = []
+    for triple in JSON["annotations"]:
+        if triple["value"] == entity:
+            incoming.append({
+                "edge": triple["predicate"],
+                "node": triple["subject"],
+            })
+        if triple["subject"] == entity:
+            outgoing.append({
+                "edge": triple["predicate"],
+                "node": triple["value"],
+            })
+    return {
+        "incoming": incoming,
+        "outgoing": outgoing
+    }

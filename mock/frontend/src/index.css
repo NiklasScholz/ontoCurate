@@ -12,6 +12,7 @@
 	--color-nord6: #ECEFF4;
 	--color-nord7: #8FBCBB;
 	--color-nord8: #88C0D0;
+	--color-nord8-light: color-mix(in srgb, #88C0D0 70%, white 30%);
 	--color-nord9: #81A1C1;
 	--color-nord10: #5E81AC;
 	--color-nord11: #BF616A;
