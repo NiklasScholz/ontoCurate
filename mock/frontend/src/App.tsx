@@ -320,7 +320,7 @@ function TripleView({
     onRight: () => void;
 }) {
     return (
-        <div className="bg-nord6 flex h-full w-full flex-col gap-2 rounded p-4 shadow-xl">
+        <div className="bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl">
             <div className="">
                 <h1 className="text-center text-xl">
                     Triple {index + 1}/{total}
@@ -427,9 +427,11 @@ function TripleView({
 function DocumentView({
     workspace,
     name,
+    onBack,
 }: {
     workspace: string;
     name: string;
+    onBack: () => void;
 }) {
     const [doc, setDoc] = useState<Document | undefined>(undefined);
 
@@ -454,7 +456,17 @@ function DocumentView({
             onRight={() => setSelected(selected + 1)}
         />
     ) : (
-        <div className="bg-nord6 flex h-full flex-col gap-2 rounded p-4 shadow-xl">
+        <div className="bg-nord6 flex h-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl">
+            <div className="relative mb-4">
+                <button
+                    className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
+                    onClick={onBack}
+                >
+                    <ArrowLeftIcon size={16} />
+                </button>
+                <h1 className="text-center text-xl">Document {name}</h1>
+            </div>
+
             {doc ? (
                 <div className="grid h-full grid-cols-[1fr_auto_1fr] gap-4">
                     <div className="flex h-full flex-col overflow-scroll">
@@ -525,7 +537,11 @@ function WorkspaceView({
     }, []);
 
     return openDocument ? (
-        <DocumentView workspace={workspace} name={openDocument} />
+        <DocumentView
+            workspace={workspace}
+            name={openDocument}
+            onBack={() => setOpenDocument(undefined)}
+        />
     ) : (
         <div className="bg-nord6 flex w-160 flex-col gap-2 rounded p-4 shadow-xl">
             <div className="relative mb-4">
