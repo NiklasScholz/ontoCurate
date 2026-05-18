@@ -18,7 +18,7 @@ Oxigraph is used to store provenance data, candidate statements, curation activi
 
 PostgreSQL is used for operational application data such as authentication, workspace management, document caching, and extraction pipeline tracking.
 
-This approach allows semantic and relational data to be handled using technologies best suited for their respective requirements. :contentReference[oaicite:0]{index=0}
+This approach allows semantic and relational data to be handled using technologies best suited for their respective requirements.
 
 ### Consequences
 
