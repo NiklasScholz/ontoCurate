@@ -1,3 +1,7 @@
 /.venv/
 /.idea/
-*secret*
+secrets.env
+*.egg-info/
+.venv/
+.env
+__pycache__/

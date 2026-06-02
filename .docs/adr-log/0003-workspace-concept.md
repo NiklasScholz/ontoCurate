@@ -8,19 +8,19 @@ The requirements document does not make the overall flow of the web application 
 
 (1) Single-user application: The most straightforward; behaves like an Electron app.
 
-![Option 1](./0003/1.svg)
+![Option 1](0003/1.svg)
 
 (2) Single-user webapp: Shared server but with segregated state for each client.
 
-![Option 2](./0003/2.svg)
+![Option 2](0003/2.svg)
 
 (3) Collaborative with global knowledge graph: All users interact with the same knowledge graph.
 
-![Option 3](./0003/3.svg)
+![Option 3](0003/3.svg)
 
 (4) Collaborative with multiple workspaces: All users interact with the same, shared state, but that state is separated into multiple segregated knowledge graphs (termed "workspaces"), allowing users to choose whether and with whom to collaborate.
 
-![Option 4](./0003/4.svg)
+![Option 4](0003/4.svg)
 
 ## Decision Outcome
 

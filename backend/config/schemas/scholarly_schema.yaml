@@ -1,0 +1,448 @@
+id: http://example.org/scholarly-metadata-ontology
+name: scholarly-metadata-ontology
+title: Scholarly Metadata Ontology
+description: >-
+  Application ontology for extracting metadata from scholarly conference papers,
+  proceedings, and journal articles. Reuses bibo:, schema:, dcterms:, foaf:, and cito:.
+
+prefixes:
+  linkml:  https://w3id.org/linkml/
+  schema:  http://schema.org/
+  bibo:    http://purl.org/ontology/bibo/
+  dcterms: http://purl.org/dc/terms/
+  foaf:    http://xmlns.com/foaf/0.1/
+  cito:    http://purl.org/spar/cito/
+  smo:     http://example.org/scholarly-metadata-ontology#
+
+default_prefix: smo
+default_range: string
+
+imports:
+  - linkml:types
+
+# ═══════════════════════════════════════════════════════════
+#  CLASSES
+# ═══════════════════════════════════════════════════════════
+
+classes:
+
+  AcademicArticle:
+    tree_root: true
+    class_uri: bibo:AcademicArticle
+    description: A scholarly paper published in proceedings or a journal issue.
+    slots:
+      - id
+      - title_paper
+      - abstract
+      - keywords
+      - authors
+      - corporate_authors
+      - published_in_proceedings
+      - published_in_issue
+      - presented_at
+      - presented_at_workshop
+      - doi
+      - url
+      - language
+      - publication_date
+      - cites
+
+  CitedAcademicArticle:
+    class_uri: bibo:AcademicArticle
+    description: A scholarly article cited in the given document.
+    slots:
+      - id
+      - title_paper
+      - authors
+      - corporate_authors
+      - published_in_proceedings
+      - published_in_issue
+      - presented_at
+      - presented_at_workshop
+      - doi
+      - url
+      - publication_date
+
+  Person:
+    class_uri: schema:Person
+    description: A human agent; used to represent authors and editors.
+    slots:
+      - id
+      - name
+      - given_name
+      - family_name
+      - email
+      - affiliation
+      - identifier
+
+  Organization:
+    class_uri: schema:Organization
+    description: An institution or company; used for affiliations, publishers, and corporate authors.
+    slots:
+      - id
+      - org_name
+      - location
+      - identifier
+
+  Proceedings:
+    class_uri: bibo:Proceedings
+    description: >-
+      A compiled volume of papers produced from a conference or workshop.
+      Always include the volume number when available (e.g. CEUR-WS proceedings always carry a
+      volume number such as "Vol-1234" — extract it from the paper header or URL).
+    slots:
+      - id
+      - title
+      - editors
+      - publication_year
+      - publisher
+      - volume
+      - in_series
+
+  Conference:
+    class_uri: bibo:Conference
+    description: An academic conference event at which papers are presented.
+    slots:
+      - id
+      - conf_name
+      - location
+      - start_date
+      - end_date
+
+  Workshop:
+    class_uri: bibo:Workshop
+    description: >-
+      An academic workshop event, sometimes co-located with a main conference. Include both Workshop & Conference information
+    slots:
+      - id
+      - workshop_name
+      - location
+      - start_date
+      - end_date
+      - part_of_conference
+
+  Issue:
+    class_uri: bibo:Issue
+    description: A single issue of a journal, identified by volume and issue number.
+    slots:
+      - id
+      - publication_year
+      - volume
+      - issue_number
+      - in_journal
+
+  Journal:
+    class_uri: bibo:Journal
+    description: A periodical scholarly publication consisting of issues.
+    slots:
+      - id
+      - title
+      - editors
+      - issn
+      - eissn
+      - publisher
+
+  Series:
+    class_uri: bibo:Series
+    description: A publication series, e.g. LNCS or CEUR-WS.
+    slots:
+      - id
+      - series_name
+      - issn
+      - eissn
+
+
+# ═══════════════════════════════════════════════════════════
+#  SLOTS
+# ═══════════════════════════════════════════════════════════
+
+slots:
+
+  # ── Identifier (shared by all entity classes) ───────────
+
+  id:
+    identifier: true
+    slot_uri: schema:identifier
+    range: uriorcurie
+    ifabsent: http://example.org/scholarly-metadata-ontology/AUTO
+    description: "Unique identifier for this entity. Always output the literal value AUTO."
+
+  # ── Paper ───────────────────────────────────────────────
+
+  title:
+    slot_uri: dcterms:title
+    range: string
+    description: >-
+      The title of this specific proceedings volume or journal — NOT the series name.
+      Use the title exactly as it appears in the document if one is explicitly given.
+      Only if no explicit title is present, construct one from available context using
+      the pattern "Proceedings of the [Full Event Name] [Year] ([Acronym])", applicable
+      to both workshop and conference proceedings, e.g.
+      "Proceedings of the Workshop on Software and Knowledge Engineering 2025 (SNE 2025)" or
+      "Proceedings of the 24th International Semantic Web Conference 2025 (ISWC 2025)".
+      Never put the series name (e.g. "CEUR Workshop Proceedings") here — that belongs in in_series.
+
+  title_paper:
+    slot_uri: dcterms:title
+    range: string
+    description: The title of the paper.
+
+  abstract:
+    slot_uri: bibo:abstract
+    range: string
+    description: A summary of the paper's content.
+
+  keywords:
+    slot_uri: schema:keywords
+    range: string
+    multivalued: true
+    description: >-
+      Keywords from the paper. Output each keyword as a separate item separated by " ; "
+      (space-semicolon-space). Example: knowledge graphs ; semantic web ; ontology matching
+
+  authors:
+    slot_uri: schema:author
+    range: Person
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Individual human authors of the paper.
+      List ALL authors on a SINGLE LINE, each author separated by " ; " (space-semicolon-space).
+      CRITICAL: the semicolon " ; " is the ONLY author separator - never use it for any other purpose inside an author entry.
+      Within one author entry use ONLY commas to separate fields - never a semicolon.
+      CRITICAL: each author appears EXACTLY ONCE — do NOT repeat an author for multiple affiliations. If an author has more than one affiliation, list all their affiliations in the same list entry.
+      Format per author: Full Name, email, ORCID URI, Organization1 Name, Location, Organization2 Name, Location, ....
+      Email and ORCID should be omitted if unknown; use the bare ORCID URI (https://orcid.org/…), not just the number.
+      Example: Jane Doe, jane@example.com, https://orcid.org/0000-0001-2345-6789, MIT, Cambridge MA USA ; John Smith, , , Stanford University, Stanford CA USA
+
+  corporate_authors:
+    slot_uri: schema:author
+    range: Organization
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Corporate, consortium, or standards-body authors credited directly as authors
+      (e.g. "W3C", "IBM Research", "The ATLAS Collaboration").
+      Only use when the credited entity is explicitly an organization - never for individual affiliations.
+      Provide only the organization name and location if known.
+
+  published_in_proceedings:
+    slot_uri: dcterms:isPartOf
+    inlined: true
+    range: Proceedings
+    description: >-
+      The proceedings volume in which this paper was published. Give all information you have on it.
+      CRITICAL: always extract the volume number (e.g. "3963" from a CEUR-WS URL like
+      ceur-ws.org/Vol-3963/ or from a "Volume X" statement in the paper header).
+
+  published_in_issue:
+    slot_uri: dcterms:isPartOf
+    range: Issue
+    inlined: true
+    description: The journal issue in which this paper was published. Also give journal name, if no journal publication, omit it.
+
+  presented_at:
+    slot_uri: bibo:presentedAt
+    range: Conference
+    inlined: true
+    description: The conference at which this paper was presented. Conference papers only. Include all information about the Conference
+
+  presented_at_workshop:
+    slot_uri: bibo:presentedAt
+    range: Workshop
+    inlined: true
+    description: >-
+      The workshop at which this paper was presented. Workshop papers only.
+      Include: full workshop name, location (city, country), start and end dates (ISO 8601).
+      For the parent conference (part_of_conference): only include it if the source text
+      explicitly uses the word "Conference" to name a parent event — leave it blank otherwise.
+
+  doi:
+    slot_uri: bibo:doi
+    range: string
+    description: Digital Object Identifier of the paper. The bare ID only, not the full URL. Do not use this field if none is given.
+
+  url:
+    slot_uri: schema:url
+    range: uri
+    description: URL providing direct access to the full text of the paper. Leave blank if not available — never output placeholder text.
+
+  language:
+    slot_uri: schema:inLanguage
+    range: string
+    description: Language of the paper as a BCP 47 string, e.g. "en" or "de".
+
+  publication_date:
+    slot_uri: schema:datePublished
+    range: date
+    description: >-
+      The exact publication date of this paper in ISO 8601 format (YYYY-MM-DD).
+      Found as "published YYYY-MM-DD" in CEUR-WS papers. Normalise to first day/month if not all date information is given.
+
+  cites:
+    slot_uri: cito:cites
+    range: CitedAcademicArticle
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Each entry in the paper's reference list.
+      List every reference separated by " ; ".
+      For each reference provide the full reference string and separate references by semi-colon.
+      Example: Knowledge Graphs, Hogan et al., 2021, 10.1145/3447772 ; Attention Is All You Need, Vaswani et al., 2017,
+
+  # ── Person ──────────────────────────────────────────────
+
+  name:
+    slot_uri: foaf:name
+    range: string
+    required: true
+    description: >-
+      Full name of the person as a single string, exactly as it appears in the
+      source text (e.g. "Hogan, A." or "Ashish Vaswani"). Always populated.
+
+  given_name:
+    slot_uri: foaf:givenName
+    range: string
+    description: >-
+      The first (given) name of the person. Optional — populated for main paper
+      authors when confident. Do not fill if the full name is not given (e.g. J. [family name])
+
+  family_name:
+    slot_uri: foaf:familyName
+    range: string
+    description: The last (family) name of the person.
+
+  email:
+    slot_uri: schema:email
+    range: string
+    description: Email address of the person.
+
+  affiliation:
+    slot_uri: schema:affiliation
+    range: Organization
+    multivalued: true
+    inlined_as_list: true
+    description: Organizations the person is affiliated with. Include all relevant information about the Organization.
+
+  identifier:
+    slot_uri: schema:identifier
+    range: uri
+    description: >-
+      Persistent identifier for the person (e.g. ORCID URI)
+      or organization (e.g. ROR URI).
+      Leave blank if not available — never output placeholder text.
+
+  # ── Organization ────────────────────────────────────────
+
+  org_name:
+    slot_uri: schema:name
+    range: string
+    description: The name of the organization.
+
+  location:
+    slot_uri: schema:location
+    range: string
+    description: >-
+      City and country of the conference, workshop, or organization,
+      e.g. "Vienna, Austria".
+
+  # ── Proceedings ─────────────────────────────────────────
+
+  editors:
+    slot_uri: bibo:editor
+    range: Person
+    multivalued: true
+    inlined_as_list: true
+    description: Editors of the proceedings or journal. Include all information about the editors that is given.
+
+  publication_year:
+    slot_uri: dcterms:issued
+    range: string
+    description: >-
+      Year the proceedings or journal issue was published, e.g. "2024".
+      Uses string to accommodate roman numerals and partial dates.
+
+  publisher:
+    slot_uri: dcterms:publisher
+    inlined: true
+    range: Organization
+    description: The organization responsible for publishing this resource. Include all relevant information about the organization you have given.
+
+  volume:
+    slot_uri: bibo:volume
+    range: string
+    description: Volume number of the proceedings or journal issue.
+
+  in_series:
+    slot_uri: dcterms:isPartOf
+    inlined: true
+    range: Series
+    description: >-
+      The publication series this proceedings belongs to (e.g. "CEUR Workshop Proceedings"
+      or "Lecture Notes in Computer Science"). This is the overarching series name, NOT the
+      title of the specific volume. Include ISSN/EISSN if available. Omit if not given.
+
+  # ── Conference / Workshop ────────────────────────────────
+
+  series_name:
+    slot_uri: schema:name
+    range: string
+    description: >-
+      The name of the publication series, e.g. "CEUR Workshop Proceedings" or
+      "Lecture Notes in Computer Science (LNCS)". This is the series identifier,
+      not the title of any individual volume within it.
+
+  conf_name:
+    slot_uri: schema:name
+    range: string
+    description: Full name of the conference.
+
+  workshop_name:
+    slot_uri: schema:name
+    range: string
+    description: Full name of the workshop.
+
+  start_date:
+    slot_uri: schema:startDate
+    range: string
+    description: Opening date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+
+  end_date:
+    slot_uri: schema:endDate
+    range: string
+    description: Closing date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+
+  part_of_conference:
+    slot_uri: schema:superEvent
+    inlined: true
+    range: Conference
+    description: >-
+      The parent conference this workshop is co-located with (e.g. ISWC 2024).
+      ONLY populate this field if the source text explicitly contains the word "Conference"
+      naming a parent event. If no such explicit mention exists, leave this field blank —
+      do NOT infer or guess a parent conference.
+
+  # ── Journal Issue ────────────────────────────────────────
+
+  issue_number:
+    slot_uri: bibo:issue
+    range: string
+    description: Issue number within a journal volume.
+
+  in_journal:
+    slot_uri: dcterms:isPartOf
+    inlined: true
+    range: Journal
+    description: The journal this issue belongs to. Also include ISSN and EISSN if known, otherwise omit.
+
+  # ── Journal / Series ─────────────────────────────────────
+
+  issn:
+    slot_uri: bibo:issn
+    range: string
+    description: Print ISSN of the journal or series.
+
+  eissn:
+    slot_uri: bibo:eissn
+    range: string
+    description: Electronic ISSN of the journal or series.

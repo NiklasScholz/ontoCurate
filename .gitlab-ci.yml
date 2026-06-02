@@ -1,0 +1,42 @@
+stages:
+  - lint
+  - test
+
+
+backend-lint:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet autoflake isort black
+  script:
+    - autoflake --check --remove-all-unused-imports -r backend/app/
+    - isort --check backend/app/
+    - black --check backend/app/
+
+backend-test:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - cd backend
+    - pip install --quiet -e ".[dev]"
+  script:
+    - pytest tests/ -v
+
+
+frontend-lint:
+  stage: lint
+  image: node:20-slim
+  before_script:
+    - cd frontend
+    - npm ci --quiet
+  script:
+    - npm run lint
+
+frontend-test:
+  stage: test
+  image: node:20-slim
+  before_script:
+    - cd frontend
+    - npm ci --quiet
+  script:
+    - npm test
