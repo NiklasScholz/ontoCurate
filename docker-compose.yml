@@ -1,0 +1,78 @@
+services:
+  backend:
+    build: ./backend
+    platform: linux/arm64
+    volumes:
+      - ./backend:/app
+      - oxigraph_data:/data/oxigraph
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://onto:onto@postgres:5432/onto
+      - REDIS_URL=redis://redis:6379
+      - OXIGRAPH_URL=http://oxigraph:7878
+      - OXIGRAPH_DATA_PATH=/data/oxigraph
+    env_file:
+      - backend/secrets.env
+    depends_on:
+      - postgres
+      - redis
+      - oxigraph
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build: ./backend
+    platform: linux/arm64
+    volumes:
+      - ./backend:/app
+      - oxigraph_data:/data/oxigraph
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://onto:onto@postgres:5432/onto
+      - REDIS_URL=redis://redis:6379
+      - OXIGRAPH_URL=http://oxigraph:7878
+      - OXIGRAPH_DATA_PATH=/data/oxigraph
+    env_file:
+      - backend/secrets.env
+    depends_on:
+      - postgres
+      - redis
+      - oxigraph
+    command: celery -A app.worker.celery_app worker --loglevel=info
+
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: onto
+      POSTGRES_PASSWORD: onto
+      POSTGRES_DB: onto
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  oxigraph:
+    image: ghcr.io/oxigraph/oxigraph:latest
+    ports:
+      - "7878:7878"
+    volumes:
+      - oxigraph_data:/data
+      - ./infra/oxigraph/config.toml:/config.toml:ro
+    command: serve --location /data --bind 0.0.0.0:7878
+
+volumes:
+  postgres_data:
+  oxigraph_data:
