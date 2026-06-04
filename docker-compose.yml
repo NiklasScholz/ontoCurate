@@ -1,7 +1,6 @@
 services:
   backend:
     build: ./backend
-    platform: linux/arm64
     volumes:
       - ./backend:/app
       - oxigraph_data:/data/oxigraph
@@ -22,7 +21,6 @@ services:
 
   worker:
     build: ./backend
-    platform: linux/arm64
     volumes:
       - ./backend:/app
       - oxigraph_data:/data/oxigraph
@@ -76,3 +74,4 @@ services:
 volumes:
   postgres_data:
   oxigraph_data:
+
