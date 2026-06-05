@@ -22,7 +22,7 @@ _TMP_BASE = Path("/tmp/ontocurate")
 @celery_app.task(bind=True, name="runs.extract_document")
 def extract_document_task(self, document_id: str, run_id: str) -> str:
     """
-    Extracts RDF triples from a document using OntoGPT 
+    Extracts RDF triples from a document using OntoGPT
     - Reads document source content from database
     - Calls app.pipeline.extraction.extract_document
     - Writes candidate statements (Turtle) to the workspace curation graph
@@ -33,7 +33,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
     tmp_dir = _TMP_BASE / self.request.id
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    
+
     async def _process() -> None:
         run_uuid = UUID(run_id)
         document_uuid = UUID(document_id)
@@ -70,7 +70,9 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
             try:
                 from app.store.writer import write_candidate_statements_from_ttl
 
-                write_candidate_statements_from_ttl(str(run_id), str(document_id), ttl_path, str(doc.workspace_id))
+                write_candidate_statements_from_ttl(
+                    str(run_id), str(document_id), ttl_path, str(doc.workspace_id)
+                )
             except Exception:
                 logger.exception("Failed to write candidate statements to store")
 

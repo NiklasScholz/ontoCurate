@@ -43,12 +43,18 @@ def extract_document(
     yaml_out = output_dir / f"{stem}_extraction.yaml"
     ttl_out = output_dir / f"{stem}_extraction.ttl"
 
-    _extract_onto(input_path, schema_path, yaml_out, model=model, api_base=api_base, api_key=api_key)
+    _extract_onto(
+        input_path,
+        schema_path,
+        yaml_out,
+        model=model,
+        api_base=api_base,
+        api_key=api_key,
+    )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     _yaml_to_turtle(yaml_out, ttl_out, schema_path)
 
     return yaml_out, ttl_out
-
 
 
 def _extract_onto(
@@ -73,13 +79,20 @@ def _extract_onto(
         cmd += ["-vvv"]
     cmd += [
         "extract",
-        "-i", str(input_path),
-        "-t", str(schema_path),
-        "-m", model,
-        "--model-provider", "openai",
-        "--api-base", base_url,
-        "-O", output_format,
-        "-o", str(output_path),
+        "-i",
+        str(input_path),
+        "-t",
+        str(schema_path),
+        "-m",
+        model,
+        "--model-provider",
+        "openai",
+        "--api-base",
+        base_url,
+        "-O",
+        output_format,
+        "-o",
+        str(output_path),
     ]
     subprocess.run(cmd, env=env, check=True)
 
@@ -97,7 +110,8 @@ def _name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     slots = raw.get("slots", {})
     return tuple(
-        slot_name for slot_name, defn in slots.items()
+        slot_name
+        for slot_name, defn in slots.items()
         if isinstance(defn, dict) and defn.get("range", "string") == "string"
     )
 
@@ -111,7 +125,9 @@ def _single_name_slots_from_schema(schema_path: Path) -> list[str]:
         if slot_name in excluded or not isinstance(defn, dict):
             continue
         uri = defn.get("slot_uri", "")
-        if "schema:name" in uri or (slot_name.endswith("_name") and slot_name != "name"):
+        if "schema:name" in uri or (
+            slot_name.endswith("_name") and slot_name != "name"
+        ):
             result.append(slot_name)
     return result
 
@@ -120,7 +136,7 @@ def _align_key_pairs_from_schema(schema_path: Path) -> list[tuple[str, str]]:
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     slots = raw.get("slots", {})
     family_slots = {n for n in slots if "family" in n.lower()}
-    given_slots  = {n for n in slots if "given"  in n.lower()}
+    given_slots = {n for n in slots if "given" in n.lower()}
     pairs: set[tuple[str, str]] = set()
     for cls_def in raw.get("classes", {}).values():
         if not isinstance(cls_def, dict):
@@ -132,11 +148,10 @@ def _align_key_pairs_from_schema(schema_path: Path) -> list[tuple[str, str]]:
     return list(pairs)
 
 
-
-_YEAR_RE    = re.compile(r"\b((?:19|20)\d{2})\b")
+_YEAR_RE = re.compile(r"\b((?:19|20)\d{2})\b")
 _ORDINAL_RE = re.compile(r"\b\d+(?:st|nd|rd|th)\b", re.IGNORECASE)
-_PUNCT_RE   = re.compile(r"[^\w\s]")
-_PAREN_RE   = re.compile(r"\(([^)]+)\)")
+_PUNCT_RE = re.compile(r"[^\w\s]")
+_PAREN_RE = re.compile(r"\(([^)]+)\)")
 
 
 def _extract_year(name: str) -> str | None:
@@ -159,7 +174,9 @@ def _names_match(a: str, b: str) -> bool:
     a_norm, b_norm = _norm_name(a), _norm_name(b)
     if a_norm == b_norm:
         return True
-    shorter, longer = (a_norm, b_norm) if len(a_norm) <= len(b_norm) else (b_norm, a_norm)
+    shorter, longer = (
+        (a_norm, b_norm) if len(a_norm) <= len(b_norm) else (b_norm, a_norm)
+    )
     if shorter and shorter in longer:
         return True
     a_parens, b_parens = _parentheticals(a), _parentheticals(b)
@@ -214,8 +231,8 @@ def _given_compatible(a: str | None, b: str | None) -> bool:
     return longer.lower().startswith(shorter.lower())
 
 
-
 _INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
+
 
 def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> str:
     """Generates a stable, TTL-safe URI for an entity that lacks one."""
@@ -237,7 +254,11 @@ def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") ->
                 if len(local) > 40:
                     truncated = local[:40]
                     last_underscore = truncated.rfind("_")
-                    local = truncated[:last_underscore] if last_underscore > 0 else truncated
+                    local = (
+                        truncated[:last_underscore]
+                        if last_underscore > 0
+                        else truncated
+                    )
                 break
     digest = hashlib.md5(
         json.dumps({**obj, "_doc": doc_name}, sort_keys=True, default=str).encode()
@@ -245,7 +266,7 @@ def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") ->
     return f"smo:{local}_{digest}"
 
 
-# Cleaning of results so ttl conversion does not fail 
+# Cleaning of results so ttl conversion does not fail
 _URI_RE = re.compile(r"^https?://\S+$")
 
 
@@ -255,7 +276,7 @@ def _is_valid_uri(value: str) -> bool:
 
 def _normalize_unicode(value: str) -> str:
     unicode_hyphens = str.maketrans("­‐‑‒–—―−－", "---------")
-    unicode_spaces  = str.maketrans("       　", "        ")
+    unicode_spaces = str.maketrans("       　", "        ")
     return value.translate(unicode_hyphens).translate(unicode_spaces)
 
 
@@ -283,8 +304,13 @@ def _clean_result(
 
         if "id" in cleaned and isinstance(cleaned["id"], str):
             raw_id = cleaned["id"].strip()
-            if (not raw_id or raw_id == "AUTO" or raw_id.startswith("AUTO:")
-                    or raw_id.endswith(":AUTO") or raw_id.endswith("/AUTO")):
+            if (
+                not raw_id
+                or raw_id == "AUTO"
+                or raw_id.startswith("AUTO:")
+                or raw_id.endswith(":AUTO")
+                or raw_id.endswith("/AUTO")
+            ):
                 cleaned["id"] = _fallback_id(cleaned, name_fields, doc_name=doc_name)
         if "id" not in cleaned and any(cleaned.get(f) for f in name_fields):
             cleaned["id"] = _fallback_id(cleaned, name_fields, doc_name=doc_name)
@@ -332,32 +358,45 @@ def clean_extraction(
     raw_text = output_path.read_text(encoding="utf-8").replace("\x00", "")
     data = yaml.safe_load(raw_text)
 
-    uri_fields  = _uri_fields_from_schema(schema_path)
+    uri_fields = _uri_fields_from_schema(schema_path)
     name_fields = _name_fields_from_schema(schema_path)
 
-    data = _clean_result(data, uri_fields, name_fields, defaultdict(int), doc_name=doc_name)
+    data = _clean_result(
+        data, uri_fields, name_fields, defaultdict(int), doc_name=doc_name
+    )
 
     output_path.write_text(
         yaml.dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
+
 def _yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()
 
     sv = SchemaView(str(schema_path))
-    root_class_name = next(
-        name for name, c in sv.all_classes().items() if c.tree_root
-    )
+    root_class_name = next(name for name, c in sv.all_classes().items() if c.tree_root)
     py_target_class = python_module.__dict__[root_class_name]
 
     raw = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
     extracted = raw.get("extracted_object")
-    data = extracted if extracted is not None else {
-        k: v for k, v in raw.items()
-        if k not in {"input_text", "raw_completion_output", "prompt", "named_entities", "extracted_object"}
-    }
+    data = (
+        extracted
+        if extracted is not None
+        else {
+            k: v
+            for k, v in raw.items()
+            if k
+            not in {
+                "input_text",
+                "raw_completion_output",
+                "prompt",
+                "named_entities",
+                "extracted_object",
+            }
+        }
+    )
 
     yaml_str = yaml.dump(data, allow_unicode=True, sort_keys=False)
     yaml_str = re.sub(r"(?m)^(\s*)- null\s*$\n?", "", yaml_str)

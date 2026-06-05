@@ -7,7 +7,7 @@ from pathlib import Path
 
 _PATCHES_DIR = Path(__file__).parent
 
-# Patched fiel paths 
+# Patched fiel paths
 _PATCHES: dict[str, str] = {
     "spires_engine.py": "ontogpt.engines.spires_engine",
 }
@@ -25,11 +25,15 @@ def apply_patches(verbose: bool = True) -> None:
         try:
             spec = importlib.util.find_spec(module_path)
         except ModuleNotFoundError:
-            print(f"[apply_patches] WARNING: module not installed, skipping: {module_path}")
+            print(
+                f"[apply_patches] WARNING: module not installed, skipping: {module_path}"
+            )
             continue
 
         if spec is None or spec.origin is None:
-            print(f"[apply_patches] WARNING: cannot locate installed file for: {module_path}")
+            print(
+                f"[apply_patches] WARNING: cannot locate installed file for: {module_path}"
+            )
             continue
 
         target = Path(spec.origin)

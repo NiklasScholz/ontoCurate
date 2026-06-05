@@ -1,5 +1,5 @@
-from uuid import UUID
 from typing import Optional
+from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,13 +12,17 @@ class RunRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, workspace_id: UUID, triggered_by: Optional[UUID], model: str) -> Run:
+    async def create(
+        self, workspace_id: UUID, triggered_by: Optional[UUID], model: str
+    ) -> Run:
         # If no triggering user supplied, create a system user
         if triggered_by is None:
             user_repo = UserRepository(self.session)
             user = await user_repo.get_by_email("system@localhost")
             if user is None:
-                user = await user_repo.create(email="system@localhost", password_encrypt="")
+                user = await user_repo.create(
+                    email="system@localhost", password_encrypt=""
+                )
             triggered_by = user.id
 
         run = Run(workspace_id=workspace_id, triggered_by=triggered_by, model=model)

@@ -13,9 +13,8 @@ def test_write_candidate_statements_from_ttl(tmp_path, monkeypatch):
     ttl_file = tmp_path / "sample.ttl"
     ttl_file.write_text(ttl_text, encoding="utf-8")
 
-    from backend.app.core.config import settings
-    from backend.app.store.writer import write_candidate_statements_from_ttl
     from backend.app.store.client import curation_graph, sparql_select
+    from backend.app.store.writer import write_candidate_statements_from_ttl
 
     workspace_id = "test-ws"
 

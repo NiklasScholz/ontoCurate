@@ -1,16 +1,16 @@
 import time
-from typing import Annotated, List
+from typing import Annotated
 from uuid import UUID
 
-from app.store.client import curation_graph, sparql_select
-from app.repositories.workspace import WorkspaceRepository
-from fastapi import APIRouter, Depends, File, UploadFile, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from pydantic import WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import get_session
 
+from app.core.database import get_session
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
-from pydantic import WithJsonSchema
+from app.repositories.workspace import WorkspaceRepository
+from app.store.client import curation_graph, sparql_select
 from app.tasks import build_pipeline
 
 router = APIRouter(prefix="/extraction", tags=["extraction"])
@@ -62,32 +62,48 @@ def _candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]
 
     return records
 
-UploadFileType = Annotated[UploadFile, WithJsonSchema({"type": "string", "format": "binary"})]
+
+UploadFileType = Annotated[
+    UploadFile, WithJsonSchema({"type": "string", "format": "binary"})
+]
+
 
 @router.post("/", status_code=202)
-async def create_documents(files: list[UploadFileType] = File(...), workspace_id: UUID = Query(...), session: AsyncSession = Depends(get_session)):
-    triggered_by = None # will be replaced by user
+async def create_documents(
+    files: list[UploadFileType] = File(...),
+    workspace_id: UUID = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    triggered_by = None  # will be replaced by user
     run_repo = RunRepository(session)
     doc_repo = DocumentRepository(session)
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        workspace = await workspace_repo.create_with_id(name="Default Workspace", workspace_id=workspace_id)
+        workspace = await workspace_repo.create_with_id(
+            name="Default Workspace", workspace_id=workspace_id
+        )
     model = "gpt-oss-120b"
-    
-    run = await run_repo.create(workspace_id=workspace_id, triggered_by=triggered_by, model=model)
+
+    run = await run_repo.create(
+        workspace_id=workspace_id, triggered_by=triggered_by, model=model
+    )
     documents = []
     for file in files:
         filename = file.filename or str(time.time())
         content = await file.read()
         if filename.lower().endswith(".pdf"):
             # pass raw bytes for PDFs
-            doc = await doc_repo.create_pdf(workspace_id=workspace_id, filename=filename, raw_bytes=content)
+            doc = await doc_repo.create_pdf(
+                workspace_id=workspace_id, filename=filename, raw_bytes=content
+            )
             await run_repo.add_task(run.id, doc.id, task_name="Markdown Conversion")
         else:
             # UploadFile.read() returns bytes -> decode to text for source_content
             text = content.decode("utf-8", errors="replace")
-            doc = await doc_repo.create_markdown(workspace_id=workspace_id, filename=filename, source_content=text)
+            doc = await doc_repo.create_markdown(
+                workspace_id=workspace_id, filename=filename, source_content=text
+            )
             await run_repo.add_task(run.id, doc.id, task_name="Extracting")
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
     build_pipeline(documents, str(run.id)).delay()
@@ -100,7 +116,9 @@ async def get_run():
 
 
 @router.get("/{run_id}/statements")
-async def get_run_statements(run_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_run_statements(
+    run_id: UUID, session: AsyncSession = Depends(get_session)
+):
     run_repo = RunRepository(session)
     run = await run_repo.get_by_id(run_id)
     if run is None:
@@ -108,12 +126,14 @@ async def get_run_statements(run_id: UUID, session: AsyncSession = Depends(get_s
 
     graph = curation_graph(str(run.workspace_id))
 
-    payload = sparql_select(f"""
+    payload = sparql_select(
+        f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{ ?s ?p ?o }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+    """
+    )
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"])

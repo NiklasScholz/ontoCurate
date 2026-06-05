@@ -1,11 +1,11 @@
-from celery import chain, chord, group
+from celery import chain, group
 
-#from .annotate import annotate_document_task
+# from .annotate import annotate_document_task
 from .convert import convert_pdf_task
-from .test import ping_task, slow_task
 from .extract import extract_document_task
-#from .lookup import lookup_task
-#from .merge import merge_task
+
+# from .lookup import lookup_task
+# from .merge import merge_task
 
 
 def _document_chain(document_id: str, file_type: str, run_id: str):

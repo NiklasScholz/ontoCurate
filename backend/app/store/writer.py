@@ -68,7 +68,11 @@ def _build_candidate_statement_triples(
         Triple(extraction_activity, rdf_type, prov_activity),
         Triple(extraction_activity, prov_used, source_document),
         Triple(extraction_activity, prov_associated_with, ontogpt_agent),
-        Triple(extraction_activity, paco_extracted_at, Literal(now, datatype=NamedNode(f"{xsd}dateTime"))),
+        Triple(
+            extraction_activity,
+            paco_extracted_at,
+            Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+        ),
     ]
 
     for index, quad in enumerate(parsed_quads):
@@ -89,7 +93,11 @@ def _build_candidate_statement_triples(
                 Triple(candidate, paco_object, quad.object),
                 Triple(candidate, paco_origin, ontogpt_agent),
                 Triple(candidate, paco_status, paco_pending),
-                Triple(candidate, paco_created_at, Literal(now, datatype=NamedNode(f"{xsd}dateTime"))),
+                Triple(
+                    candidate,
+                    paco_created_at,
+                    Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+                ),
                 Triple(candidate, paco_current, Literal(True)),
                 Triple(candidate, prov_generated_by, extraction_activity),
                 Triple(candidate, prov_derived_from, source_document),
@@ -100,7 +108,10 @@ def _build_candidate_statement_triples(
 
 
 def write_candidate_statements_from_ttl(
-    run_id: Union[str, None], document_id: Union[str, None], ttl_path: Union[str, Path], workspace_id: str
+    run_id: Union[str, None],
+    document_id: Union[str, None],
+    ttl_path: Union[str, Path],
+    workspace_id: str,
 ) -> None:
     """Load Turtle file into the workspace curation graph.
 
@@ -114,12 +125,16 @@ def write_candidate_statements_from_ttl(
     try:
         from pyoxigraph import RdfFormat, parse, serialize
     except Exception as exc:
-        raise RuntimeError(f"pyoxigraph parsing is unavailable; cannot import candidate statements: {exc}")
+        raise RuntimeError(
+            f"pyoxigraph parsing is unavailable; cannot import candidate statements: {exc}"
+        )
 
     try:
         parsed_quads = list(parse(input=ttl_text, format=RdfFormat.TURTLE))
     except Exception as exc:
-        raise RuntimeError(f"Failed to parse Turtle for candidate-statement import: {exc}")
+        raise RuntimeError(
+            f"Failed to parse Turtle for candidate-statement import: {exc}"
+        )
 
     triples = _build_candidate_statement_triples(
         parsed_quads=parsed_quads,
