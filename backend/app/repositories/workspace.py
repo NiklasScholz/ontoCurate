@@ -38,6 +38,13 @@ class WorkspaceRepository:
         await self.session.refresh(workspace)
         return workspace
 
+    async def create_with_id(self, name: str, workspace_id: UUID) -> Workspace:
+        workspace = Workspace(id=workspace_id, name=name)
+        self.session.add(workspace)
+        await self.session.commit()
+        await self.session.refresh(workspace)
+        return workspace
+
     async def delete(self, workspace_id: UUID) -> None:
         workspace = await self.get_by_id(workspace_id)
         if workspace:

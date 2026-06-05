@@ -20,9 +20,7 @@ default_range: string
 imports:
   - linkml:types
 
-# ═══════════════════════════════════════════════════════════
 #  CLASSES
-# ═══════════════════════════════════════════════════════════
 
 classes:
 
@@ -152,13 +150,11 @@ classes:
       - eissn
 
 
-# ═══════════════════════════════════════════════════════════
 #  SLOTS
-# ═══════════════════════════════════════════════════════════
 
 slots:
 
-  # ── Identifier (shared by all entity classes) ───────────
+  # Identifier (shared by all entity classes) 
 
   id:
     identifier: true
@@ -167,7 +163,7 @@ slots:
     ifabsent: http://example.org/scholarly-metadata-ontology/AUTO
     description: "Unique identifier for this entity. Always output the literal value AUTO."
 
-  # ── Paper ───────────────────────────────────────────────
+  # Paper 
 
   title:
     slot_uri: dcterms:title
@@ -290,7 +286,7 @@ slots:
       For each reference provide the full reference string and separate references by semi-colon.
       Example: Knowledge Graphs, Hogan et al., 2021, 10.1145/3447772 ; Attention Is All You Need, Vaswani et al., 2017,
 
-  # ── Person ──────────────────────────────────────────────
+  # Person 
 
   name:
     slot_uri: foaf:name
@@ -332,7 +328,7 @@ slots:
       or organization (e.g. ROR URI).
       Leave blank if not available — never output placeholder text.
 
-  # ── Organization ────────────────────────────────────────
+  # Organization 
 
   org_name:
     slot_uri: schema:name
@@ -346,7 +342,7 @@ slots:
       City and country of the conference, workshop, or organization,
       e.g. "Vienna, Austria".
 
-  # ── Proceedings ─────────────────────────────────────────
+  #  Proceedings
 
   editors:
     slot_uri: bibo:editor
@@ -382,7 +378,7 @@ slots:
       or "Lecture Notes in Computer Science"). This is the overarching series name, NOT the
       title of the specific volume. Include ISSN/EISSN if available. Omit if not given.
 
-  # ── Conference / Workshop ────────────────────────────────
+  #  Conference / Workshop 
 
   series_name:
     slot_uri: schema:name
@@ -422,7 +418,7 @@ slots:
       naming a parent event. If no such explicit mention exists, leave this field blank —
       do NOT infer or guess a parent conference.
 
-  # ── Journal Issue ────────────────────────────────────────
+  #  Journal Issue 
 
   issue_number:
     slot_uri: bibo:issue
@@ -435,7 +431,7 @@ slots:
     range: Journal
     description: The journal this issue belongs to. Also include ISSN and EISSN if known, otherwise omit.
 
-  # ── Journal / Series ─────────────────────────────────────
+  #  Journal / Series 
 
   issn:
     slot_uri: bibo:issn
