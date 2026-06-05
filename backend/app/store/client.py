@@ -39,9 +39,7 @@ def data_graph(workspace_id: str) -> str:
 
 def drop_workspace_graphs(workspace_id: str) -> None:
     """Remove all graphs for a workspace. Called when a workspace is deleted."""
-    sparql_update(
-        f"""
+    sparql_update(f"""
         DROP SILENT GRAPH <{curation_graph(workspace_id)}> ;
         DROP SILENT GRAPH <{data_graph(workspace_id)}>
-    """
-    )
+    """)
