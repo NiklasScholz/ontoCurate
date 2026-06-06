@@ -65,7 +65,7 @@ def _extract_onto(
     api_base: str | None = None,
     api_key: str | None = None,
     output_format: str = "yaml",
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> None:
     env = os.environ.copy()
     if api_base:
@@ -98,6 +98,7 @@ def _extract_onto(
 
 
 def _uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
+    "Returns all uri fields in the schema to be cleaned (ensuring no errors in ttl conversion)"
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return frozenset(
         name
@@ -107,6 +108,7 @@ def _uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
 
 
 def _name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
+    "Returns all string fields in the schema that are likely to be names, to be cleaned for better ID generation and ttl conversion."
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     slots = raw.get("slots", {})
     return tuple(
@@ -114,121 +116,6 @@ def _name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
         for slot_name, defn in slots.items()
         if isinstance(defn, dict) and defn.get("range", "string") == "string"
     )
-
-
-def _single_name_slots_from_schema(schema_path: Path) -> list[str]:
-    raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
-    slots = raw.get("slots", {})
-    excluded = {n for n in slots if "family" in n.lower() or "given" in n.lower()}
-    result = []
-    for slot_name, defn in slots.items():
-        if slot_name in excluded or not isinstance(defn, dict):
-            continue
-        uri = defn.get("slot_uri", "")
-        if "schema:name" in uri or (
-            slot_name.endswith("_name") and slot_name != "name"
-        ):
-            result.append(slot_name)
-    return result
-
-
-def _align_key_pairs_from_schema(schema_path: Path) -> list[tuple[str, str]]:
-    raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
-    slots = raw.get("slots", {})
-    family_slots = {n for n in slots if "family" in n.lower()}
-    given_slots = {n for n in slots if "given" in n.lower()}
-    pairs: set[tuple[str, str]] = set()
-    for cls_def in raw.get("classes", {}).values():
-        if not isinstance(cls_def, dict):
-            continue
-        cls_slots = set(cls_def.get("slots", []))
-        for fs in cls_slots & family_slots:
-            for gs in cls_slots & given_slots:
-                pairs.add((fs, gs))
-    return list(pairs)
-
-
-_YEAR_RE = re.compile(r"\b((?:19|20)\d{2})\b")
-_ORDINAL_RE = re.compile(r"\b\d+(?:st|nd|rd|th)\b", re.IGNORECASE)
-_PUNCT_RE = re.compile(r"[^\w\s]")
-_PAREN_RE = re.compile(r"\(([^)]+)\)")
-
-
-def _extract_year(name: str) -> str | None:
-    m = _YEAR_RE.search(name)
-    return m.group(1) if m else None
-
-
-def _norm_name(name: str) -> str:
-    name = _YEAR_RE.sub("", name)
-    name = _ORDINAL_RE.sub("", name)
-    name = _PUNCT_RE.sub(" ", name)
-    return " ".join(name.lower().split())
-
-
-def _parentheticals(name: str) -> list[str]:
-    return [_norm_name(m) for m in _PAREN_RE.findall(name) if m.strip()]
-
-
-def _names_match(a: str, b: str) -> bool:
-    a_norm, b_norm = _norm_name(a), _norm_name(b)
-    if a_norm == b_norm:
-        return True
-    shorter, longer = (
-        (a_norm, b_norm) if len(a_norm) <= len(b_norm) else (b_norm, a_norm)
-    )
-    if shorter and shorter in longer:
-        return True
-    a_parens, b_parens = _parentheticals(a), _parentheticals(b)
-    for ap in a_parens:
-        if ap == b_norm or ap in b_norm or b_norm in ap:
-            return True
-        for bp in b_parens:
-            if ap == bp:
-                return True
-    for bp in b_parens:
-        if bp == a_norm or bp in a_norm or a_norm in bp:
-            return True
-    a_core = _norm_name(_PAREN_RE.sub("", a))
-    b_core = _norm_name(_PAREN_RE.sub("", b))
-    if a_core and b_core:
-        short_core, long_core = (
-            (a_core, b_core) if len(a_core) <= len(b_core) else (b_core, a_core)
-        )
-        if len(short_core) >= 15 and long_core.startswith(short_core):
-            return True
-    return False
-
-
-def _entity_year(entity: dict, name_slot: str) -> str | None:
-    year = _extract_year(entity.get(name_slot, ""))
-    if year:
-        return year
-    for k, v in entity.items():
-        if k == name_slot:
-            continue
-        if isinstance(v, str):
-            m = _YEAR_RE.search(v)
-            if m:
-                return m.group(1)
-    return None
-
-
-def _richer_name(a: str, b: str) -> str:
-    return a if len(_norm_name(a)) >= len(_norm_name(b)) else b
-
-
-def _given_compatible(a: str | None, b: str | None) -> bool:
-    if not a and not b:
-        return False
-    if not a or not b:
-        return True
-    a = a.strip().rstrip(".")
-    b = b.strip().rstrip(".")
-    if a.lower() == b.lower():
-        return True
-    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
-    return longer.lower().startswith(shorter.lower())
 
 
 _INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
@@ -262,7 +149,9 @@ def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") ->
                 break
     digest = hashlib.md5(
         json.dumps({**obj, "_doc": doc_name}, sort_keys=True, default=str).encode()
-    ).hexdigest()[:6]
+    ).hexdigest()[
+        :6
+    ]  # ensures no conflicts during conversion. Same entities will be linked later during alignment phases.
     return f"smo:{local}_{digest}"
 
 
@@ -287,6 +176,7 @@ def _clean_result(
     counters: defaultdict,
     doc_name: str = "",
 ) -> object:
+    """Recursively clean the extraction result to ensure TTL conversion does not fail."""
     if isinstance(obj, dict):
         cleaned: dict = {}
         for k, v in obj.items():
@@ -372,6 +262,7 @@ def clean_extraction(
 
 
 def _yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
+    """Converts cleaned YAML output to Turtle RDF file using linkML"""
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()
 

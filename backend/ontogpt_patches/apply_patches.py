@@ -1,5 +1,4 @@
-"""Applies project-local patches to installed third-party packages.
-"""
+"""Applies project-local patches to installed third-party packages."""
 
 import importlib.util
 import shutil
@@ -7,15 +6,15 @@ from pathlib import Path
 
 _PATCHES_DIR = Path(__file__).parent
 
-# Patched fiel paths
-_PATCHES: dict[str, str] = {
-    "spires_engine.py": "ontogpt.engines.spires_engine",
+# Maps patch filename 
+_PATCHES: dict[str, tuple[str, str]] = {
+    "spires_engine.py": ("ontogpt", "engines/spires_engine.py"),
 }
 
 
 def apply_patches(verbose: bool = True) -> None:
     """Copy every patch file over the corresponding installed module file."""
-    for patch_filename, module_path in _PATCHES.items():
+    for patch_filename, (top_level_pkg, rel_path) in _PATCHES.items():
         patch_src = _PATCHES_DIR / patch_filename
 
         if not patch_src.exists():
@@ -23,20 +22,26 @@ def apply_patches(verbose: bool = True) -> None:
             continue
 
         try:
-            spec = importlib.util.find_spec(module_path)
+            spec = importlib.util.find_spec(top_level_pkg)
         except ModuleNotFoundError:
             print(
-                f"[apply_patches] WARNING: module not installed, skipping: {module_path}"
+                f"[apply_patches] WARNING: package not installed, skipping: {top_level_pkg}"
             )
             continue
 
-        if spec is None or spec.origin is None:
+        if spec is None or not spec.submodule_search_locations:
             print(
-                f"[apply_patches] WARNING: cannot locate installed file for: {module_path}"
+                f"[apply_patches] WARNING: cannot locate package: {top_level_pkg}"
             )
             continue
 
-        target = Path(spec.origin)
+        pkg_root = Path(next(iter(spec.submodule_search_locations)))
+        target = pkg_root / rel_path
+
+        if not target.exists():
+            print(f"[apply_patches] WARNING: target file not found: {target}")
+            continue
+
         shutil.copy2(patch_src, target)
         if verbose:
             print(f"[apply_patches] Patched {target}")

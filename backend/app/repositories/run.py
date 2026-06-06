@@ -35,12 +35,6 @@ class RunRepository:
         result = await self.session.execute(select(Run).where(Run.id == run_id))
         return result.scalar_one_or_none()
 
-    async def update_status(self, run_id: UUID, status: str) -> None:
-        run = await self.get_by_id(run_id)
-        if run:
-            run.status = status
-            await self.session.commit()
-
     async def add_task(self, run_id: UUID, document_id: UUID, task_name) -> RunTask:
         run_doc = RunTask(run_id=run_id, document_id=document_id, task_name=task_name)
         self.session.add(run_doc)
@@ -65,3 +59,9 @@ class RunRepository:
         self, run_id: UUID, document_id: UUID, status: str
     ) -> None:
         await self.update_document_status(run_id, document_id, status)
+
+    async def get_tasks_by_run(self, run_id: UUID) -> list[RunTask]:
+        result = await self.session.execute(
+            select(RunTask).where(RunTask.run_id == run_id)
+        )
+        return list(result.scalars().all())

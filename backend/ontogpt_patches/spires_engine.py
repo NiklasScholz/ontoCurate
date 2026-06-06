@@ -64,7 +64,7 @@ class SPIRESEngine(KnowledgeEngine):
 
     @staticmethod
     def _as_object_dict(
-        value: Union[pydantic.BaseModel, Dict[str, Any]]
+        value: Union[pydantic.BaseModel, Dict[str, Any]],
     ) -> Dict[str, Any]:
         if isinstance(value, dict):
             return value

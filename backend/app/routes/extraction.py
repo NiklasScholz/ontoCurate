@@ -7,9 +7,11 @@ from pydantic import WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.exceptions import NotFoundException
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
+from app.schemas.run import RunDetailResponse
 from app.store.client import curation_graph, sparql_select
 from app.tasks import build_pipeline
 
@@ -63,6 +65,29 @@ def _candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]
     return records
 
 
+_IN_PROGRESS_STATUSES = {"extracting", "converting"}
+
+
+def _derive_run_status(task_statuses: list[str]) -> str:
+    """Compute overall run status from individual task statuses.
+
+    Priority:
+      1. Any task still in progress  → "running"
+      2. Any task failed             → "failed"
+      3. All tasks done              → "completed"
+      4. Default                     → "queued"
+    """
+    if not task_statuses:
+        return "queued"
+    if any(s in _IN_PROGRESS_STATUSES for s in task_statuses):
+        return "running"
+    if any(s == "failed" for s in task_statuses):
+        return "failed"
+    if all(s == "done" for s in task_statuses):
+        return "completed"
+    return "queued"
+
+
 UploadFileType = Annotated[
     UploadFile, WithJsonSchema({"type": "string", "format": "binary"})
 ]
@@ -110,9 +135,24 @@ async def create_documents(
     return {"run_id": run.id, "status": "queued"}
 
 
-@router.get("/{run_id}")
-async def get_run():
-    pass
+@router.get("/{run_id}", response_model=RunDetailResponse)
+async def get_run(run_id: UUID, session: AsyncSession = Depends(get_session)):
+    run_repo = RunRepository(session)
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        raise NotFoundException(f"Run {run_id} not found")
+    tasks = await run_repo.get_tasks_by_run(run_id)
+    return RunDetailResponse(
+        id=run.id,
+        status=_derive_run_status([t.status for t in tasks]),
+        model=run.model,
+        created_at=run.created_at,
+        updated_at=run.updated_at,
+        documents=[
+            {"document_id": t.document_id, "status": t.status, "task_name": t.task_name}
+            for t in tasks
+        ],
+    )
 
 
 @router.get("/{run_id}/statements")

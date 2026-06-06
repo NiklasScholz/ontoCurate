@@ -7,17 +7,22 @@ from pydantic import BaseModel
 class RunDocumentResponse(BaseModel):
     document_id: UUID
     status: str
+    task_name: str
     model_config = {"from_attributes": True}
 
 
 class RunResponse(BaseModel):
     id: UUID
-    status: str
     model: str | None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RunDetailResponse(RunResponse):
+    status: str
+    documents: list[RunDocumentResponse]
 
 
 class StatementDecision(BaseModel):
