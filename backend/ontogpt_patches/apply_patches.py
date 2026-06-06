@@ -1,4 +1,4 @@
-"""Applies project-local patches to installed third-party packages."""
+"""Applies our patches to ontoGPT"""
 
 import importlib.util
 import shutil
@@ -6,7 +6,7 @@ from pathlib import Path
 
 _PATCHES_DIR = Path(__file__).parent
 
-# Maps patch filename 
+# Maps patch filename
 _PATCHES: dict[str, tuple[str, str]] = {
     "spires_engine.py": ("ontogpt", "engines/spires_engine.py"),
 }
@@ -30,9 +30,7 @@ def apply_patches(verbose: bool = True) -> None:
             continue
 
         if spec is None or not spec.submodule_search_locations:
-            print(
-                f"[apply_patches] WARNING: cannot locate package: {top_level_pkg}"
-            )
+            print(f"[apply_patches] WARNING: cannot locate package: {top_level_pkg}")
             continue
 
         pkg_root = Path(next(iter(spec.submodule_search_locations)))
