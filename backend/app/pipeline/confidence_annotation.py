@@ -1,10 +1,5 @@
 """Per-document confidence annotation.
-2 seperate confidence scores:
-- Literal triples (data properties) are scored based on the confidence of the text span match in the source document.
-    --> 1.0 exact match, 0.95 case-insensitive match, 0.0-0.94 partial match based on fuzzy string similarity + extra penalty if out of window
-- Entity triples (object properties) are scored based on the confidence of their connected literal triples,
-
-Search windows are declared per predicate in provenance_config.yaml for each schema
+See .docs/technical-logic-document/0001-extraction-confidence-score-logic.md for detailed description of the logic and rules used.
 """
 
 from __future__ import annotations
@@ -104,13 +99,9 @@ def build_norm_map(text: str) -> tuple[str, list[int]]:
 
 
 def build_intraword_pattern(value: str) -> str:
-    """Build a regex that allows optional whitespace anywhere — between characters
+    """Build a regex that allows optional whitespace anywhere between characters
     within a token and between tokens.
-
-    Using \\s* throughout means it handles whitespace noise regardless of which
-    side it appears on:
-    - source has intra-word splits: 'Constr\\nuction' matches value 'Construction'
-    - value has intra-word splits:  'Know\\nledge' in value matches 'Knowledge' in source
+    E.g. 'Know\nledge' in value matches 'Knowledge' in source
     """
     norm = re.sub(r"\s+", " ", value).strip()
     words = norm.split(" ")
@@ -158,8 +149,7 @@ def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] |
     if idx >= 0:  # case insensitive match
         return offset + idx, offset + idx + len(value), 0.95
 
-    # Normalized match — handles any whitespace noise (inter- or intra-word) in source or value.
-    # Fast path: collapse whitespace runs and do a plain substring search.
+    # Normalized match
     norm_text, pos_map = build_norm_map(text)
     norm_value = re.sub(r"\s+", " ", value).strip()
     idx = norm_text.lower().find(norm_value.lower())
@@ -167,13 +157,12 @@ def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] |
         orig_start = pos_map[idx]
         orig_end = pos_map[idx + len(norm_value) - 1] + 1
         return offset + orig_start, offset + orig_end, 0.9
-    # Slow path: allow \s* between every character to catch intra-word splits on either side.
     pattern = build_intraword_pattern(value)
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
         return offset + m.start(), offset + m.end(), 0.9
 
-    # Abbreviation match - value may appear as an acronym (e.g. "KG Graph" for "Knowledge Graph").
+    # Abbreviation match
     abbrev = try_abbreviation_match(text, value)
     if abbrev:
         return offset + abbrev[0], offset + abbrev[1], 0.75
@@ -286,9 +275,7 @@ def split_sentences(text: str) -> list[tuple[int, str]]:
     for m in pattern.finditer(text):
         chunk = text[last : m.start()]
         stripped = chunk.strip()
-        # Don't split after abbreviation-like tokens (≤4-char word + period),
-        # e.g. "Stud.", "High.", "Educ.", "al.", "Fig.", author initials "D.".
-        # Accumulate by leaving `last` unchanged so the next chunk includes this text.
+        # Don't split after abbreviation-like tokens
         if stripped and _ABBREV_RE.search(stripped):
             continue
         if stripped:
