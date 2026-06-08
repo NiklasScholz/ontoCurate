@@ -170,14 +170,12 @@ async def get_run_statements(
 
     graph = curation_graph(str(run.workspace_id))
 
-    payload = sparql_select(
-        f"""
+    payload = sparql_select(f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{ ?s ?p ?o }}
         }}
         ORDER BY ?s ?p ?o
-    """
-    )
+    """)
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"])
