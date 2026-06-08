@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
@@ -43,7 +44,7 @@ def extract_document(
     yaml_out = output_dir / f"{stem}_extraction.yaml"
     ttl_out = output_dir / f"{stem}_extraction.ttl"
 
-    _extract_onto(
+    extract_onto(
         input_path,
         schema_path,
         yaml_out,
@@ -52,12 +53,12 @@ def extract_document(
         api_key=api_key,
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
-    _yaml_to_turtle(yaml_out, ttl_out, schema_path)
+    yaml_to_turtle(yaml_out, ttl_out, schema_path)
 
     return yaml_out, ttl_out
 
 
-def _extract_onto(
+def extract_onto(
     input_path: Path,
     schema_path: Path,
     output_path: Path,
@@ -94,10 +95,14 @@ def _extract_onto(
         "-o",
         str(output_path),
     ]
-    subprocess.run(cmd, env=env, check=True)
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, cmd, output=result.stdout, stderr=result.stderr
+        )
 
 
-def _uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
+def uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
     "Returns all uri fields in the schema to be cleaned (ensuring no errors in ttl conversion)"
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return frozenset(
@@ -107,7 +112,7 @@ def _uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
     )
 
 
-def _name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
+def name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
     "Returns all string fields in the schema that are likely to be names, to be cleaned for better ID generation and ttl conversion."
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     slots = raw.get("slots", {})
@@ -118,10 +123,10 @@ def _name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
     )
 
 
-_INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
+INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
 
 
-def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> str:
+def fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> str:
     """Generates a stable, TTL-safe URI for an entity that lacks one."""
     value = obj.get("name") if "name" in name_fields else None
     if value and isinstance(value, str):
@@ -131,13 +136,13 @@ def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") ->
             local = f"{parts[-1]}_{initials}"
         else:
             local = value.strip()
-        local = _INVALID_LOCAL_RE.sub("", local.replace(" ", "_"))
+        local = INVALID_LOCAL_RE.sub("", local.replace(" ", "_"))
     else:
         local = "entity"
         for field in name_fields:
             name = obj.get(field)
             if name and isinstance(name, str):
-                local = _INVALID_LOCAL_RE.sub("", name.replace(" ", "_"))
+                local = INVALID_LOCAL_RE.sub("", name.replace(" ", "_"))
                 if len(local) > 40:
                     truncated = local[:40]
                     last_underscore = truncated.rfind("_")
@@ -156,20 +161,26 @@ def _fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") ->
 
 
 # Cleaning of results so ttl conversion does not fail
-_URI_RE = re.compile(r"^https?://\S+$")
+URI_RE = re.compile(r"^https?://\S+$")
 
 
-def _is_valid_uri(value: str) -> bool:
-    return bool(_URI_RE.match(value.strip()))
+def is_valid_uri(value: str) -> bool:
+    return bool(URI_RE.match(value.strip()))
 
 
-def _normalize_unicode(value: str) -> str:
+def normalize_unicode(value: str) -> str:
+    """Clean unicode characters that may cause low confidence scores"""
     unicode_hyphens = str.maketrans("­‐‑‒–—―−－", "---------")
     unicode_spaces = str.maketrans("       　", "        ")
-    return value.translate(unicode_hyphens).translate(unicode_spaces)
+    value = value.translate(unicode_hyphens).translate(unicode_spaces)
+    return "".join(
+        ch
+        for ch in value
+        if unicodedata.category(ch) not in ("Cc", "Cf") or ch in ("\n", "\r", "\t")
+    )
 
 
-def _clean_result(
+def clean_result(
     obj: object,
     uri_fields: frozenset[str],
     name_fields: tuple[str, ...],
@@ -180,14 +191,14 @@ def _clean_result(
     if isinstance(obj, dict):
         cleaned: dict = {}
         for k, v in obj.items():
-            v = _clean_result(v, uri_fields, name_fields, counters, doc_name=doc_name)
+            v = clean_result(v, uri_fields, name_fields, counters, doc_name=doc_name)
             if k in uri_fields and isinstance(v, str):
-                norm = _normalize_unicode(v.strip())
-                if not _is_valid_uri(norm):
+                norm = normalize_unicode(v.strip())
+                if not is_valid_uri(norm):
                     continue
                 v = norm
             elif isinstance(v, str):
-                v = _normalize_unicode(v)
+                v = normalize_unicode(v)
             if v == []:
                 continue
             cleaned[k] = v
@@ -201,14 +212,14 @@ def _clean_result(
                 or raw_id.endswith(":AUTO")
                 or raw_id.endswith("/AUTO")
             ):
-                cleaned["id"] = _fallback_id(cleaned, name_fields, doc_name=doc_name)
+                cleaned["id"] = fallback_id(cleaned, name_fields, doc_name=doc_name)
         if "id" not in cleaned and any(cleaned.get(f) for f in name_fields):
-            cleaned["id"] = _fallback_id(cleaned, name_fields, doc_name=doc_name)
+            cleaned["id"] = fallback_id(cleaned, name_fields, doc_name=doc_name)
         return cleaned
 
     if isinstance(obj, list):
         cleaned_list = [
-            _clean_result(item, uri_fields, name_fields, counters, doc_name=doc_name)
+            clean_result(item, uri_fields, name_fields, counters, doc_name=doc_name)
             for item in obj
         ]
         merged: dict[str, dict] = {}
@@ -234,7 +245,7 @@ def _clean_result(
         return list(merged.values()) + no_id
 
     if isinstance(obj, str):
-        return _normalize_unicode(obj)
+        return normalize_unicode(obj)
     return obj
 
 
@@ -248,10 +259,10 @@ def clean_extraction(
     raw_text = output_path.read_text(encoding="utf-8").replace("\x00", "")
     data = yaml.safe_load(raw_text)
 
-    uri_fields = _uri_fields_from_schema(schema_path)
-    name_fields = _name_fields_from_schema(schema_path)
+    uri_fields = uri_fields_from_schema(schema_path)
+    name_fields = name_fields_from_schema(schema_path)
 
-    data = _clean_result(
+    data = clean_result(
         data, uri_fields, name_fields, defaultdict(int), doc_name=doc_name
     )
 
@@ -261,7 +272,7 @@ def clean_extraction(
     )
 
 
-def _yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
+def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     """Converts cleaned YAML output to Turtle RDF file using linkML"""
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()

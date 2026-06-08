@@ -20,7 +20,7 @@ def _document_chain(document_id: str, file_type: str, run_id: str):
     return chain(extract)
 
 
-def build_pipeline(documents: list[dict], run_id: str):
+def build_pipeline(documents: list[dict], model: str, run_id: str):
     """
     Full Celery task graph for a pipeline run
     Requires chord when adding entity alignment & linking stages

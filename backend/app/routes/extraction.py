@@ -29,11 +29,15 @@ PACO_ORIGIN = f"{PACO}origin"
 PACO_STATUS = f"{PACO}curationStatus"
 PACO_CREATED_AT = f"{PACO}createdAt"
 PACO_CURRENT = f"{PACO}isCurrentVersion"
+PACO_CONFIDENCE = f"{PACO}confidence"
+PACO_TEXT_SPAN = f"{PACO}textSpan"
+PACO_TEXT_SPAN_START = f"{PACO}textSpanStart"
+PACO_TEXT_SPAN_END = f"{PACO}textSpanEnd"
 PROV_GENERATED_BY = f"{PROV}wasGeneratedBy"
 PROV_DERIVED_FROM = f"{PROV}wasDerivedFrom"
 
 
-def _candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]:
+def candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]:
     grouped: dict[str, dict[str, list[str]]] = {}
     for subject, predicate, obj in rows:
         grouped.setdefault(subject, {}).setdefault(predicate, []).append(obj)
@@ -59,27 +63,22 @@ def _candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]
                 "is_current_version": first(PACO_CURRENT),
                 "generated_by": first(PROV_GENERATED_BY),
                 "derived_from": first(PROV_DERIVED_FROM),
+                "confidence": first(PACO_CONFIDENCE),
+                "text_span": first(PACO_TEXT_SPAN),
+                "text_span_start": first(PACO_TEXT_SPAN_START),
+                "text_span_end": first(PACO_TEXT_SPAN_END),
             }
         )
 
     return records
 
 
-_IN_PROGRESS_STATUSES = {"extracting", "converting"}
-
-
-def _derive_run_status(task_statuses: list[str]) -> str:
-    """Compute overall run status from individual task statuses.
-
-    Priority:
-      1. Any task still in progress  → "running"
-      2. Any task failed             → "failed"
-      3. All tasks done              → "completed"
-      4. Default                     → "queued"
-    """
+def derive_run_status(task_statuses: list[str]) -> str:
+    """Compute overall run status from individual task statuses."""
+    status = {"extracting", "converting"}
     if not task_statuses:
         return "queued"
-    if any(s in _IN_PROGRESS_STATUSES for s in task_statuses):
+    if any(s in status for s in task_statuses):
         return "running"
     if any(s == "failed" for s in task_statuses):
         return "failed"
@@ -131,7 +130,7 @@ async def create_documents(
             )
             await run_repo.add_task(run.id, doc.id, task_name="Extracting")
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
-    build_pipeline(documents, str(run.id)).delay()
+    build_pipeline(documents, model, str(run.id)).delay()
     return {"run_id": run.id, "status": "queued"}
 
 
@@ -144,12 +143,17 @@ async def get_run(run_id: UUID, session: AsyncSession = Depends(get_session)):
     tasks = await run_repo.get_tasks_by_run(run_id)
     return RunDetailResponse(
         id=run.id,
-        status=_derive_run_status([t.status for t in tasks]),
+        status=derive_run_status([t.status for t in tasks]),
         model=run.model,
         created_at=run.created_at,
         updated_at=run.updated_at,
         documents=[
-            {"document_id": t.document_id, "status": t.status, "task_name": t.task_name}
+            {
+                "document_id": t.document_id,
+                "status": t.status,
+                "task_name": t.task_name,
+                "celery_task_id": t.celery_task_id,
+            }
             for t in tasks
         ],
     )
@@ -166,12 +170,14 @@ async def get_run_statements(
 
     graph = curation_graph(str(run.workspace_id))
 
-    payload = sparql_select(f"""
+    payload = sparql_select(
+        f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{ ?s ?p ?o }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+    """
+    )
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"])
@@ -182,7 +188,7 @@ async def get_run_statements(
         "run_id": run_id,
         "workspace_id": run.workspace_id,
         "graph": graph,
-        "statements": _candidate_records_from_rows(rows),
+        "statements": candidate_records_from_rows(rows),
     }
 
 

@@ -8,6 +8,7 @@ class RunDocumentResponse(BaseModel):
     document_id: UUID
     status: str
     task_name: str
+    celery_task_id: str | None = None
     model_config = {"from_attributes": True}
 
 

@@ -43,15 +43,22 @@ class RunRepository:
         return run_doc
 
     async def update_document_status(
-        self, run_id: UUID, document_id: UUID, status: str
+        self,
+        run_id: UUID,
+        document_id: UUID,
+        status: str,
+        celery_task_id: str | None = None,
     ) -> None:
+        values: dict = {"status": status}
+        if celery_task_id is not None:
+            values["celery_task_id"] = celery_task_id
         await self.session.execute(
             update(RunTask)
             .where(
                 RunTask.run_id == run_id,
                 RunTask.document_id == document_id,
             )
-            .values(status=status)
+            .values(**values)
         )
         await self.session.commit()
 

@@ -9,21 +9,22 @@ import pytest
 import yaml
 
 from app.pipeline.extraction import (
-    _clean_result,
-    _fallback_id,
-    _is_valid_uri,
-    _name_fields_from_schema,
-    _normalize_unicode,
-    _uri_fields_from_schema,
     clean_extraction,
+    clean_result,
+    extract_onto,
+    fallback_id,
+    is_valid_uri,
+    name_fields_from_schema,
+    normalize_unicode,
+    uri_fields_from_schema,
 )
 
 SCHEMA_PATH = (
     Path(__file__).parent.parent / "config" / "schemas" / "scholarly_schema.yaml"
 )
 # used for post processing tests
-URI_FIELDS = _uri_fields_from_schema(SCHEMA_PATH)
-NAME_FIELDS = _name_fields_from_schema(SCHEMA_PATH)
+URI_FIELDS = uri_fields_from_schema(SCHEMA_PATH)
+NAME_FIELDS = name_fields_from_schema(SCHEMA_PATH)
 
 
 @pytest.fixture
@@ -36,31 +37,31 @@ def schema_file() -> Path:
 
 class TestIsValidUri:
     def test_https_url(self):
-        assert _is_valid_uri("https://example.com") is True
+        assert is_valid_uri("https://example.com") is True
 
     def test_http_url(self):
-        assert _is_valid_uri("http://doi.org/10.1234/foo") is True
+        assert is_valid_uri("http://doi.org/10.1234/foo") is True
 
     def test_url_with_path_and_query(self):
-        assert _is_valid_uri("https://orcid.org/0000-0002-1234-5678") is True
+        assert is_valid_uri("https://orcid.org/0000-0002-1234-5678") is True
 
     def test_plain_text(self):
-        assert _is_valid_uri("not a uri") is False
+        assert is_valid_uri("not a uri") is False
 
     def test_auto_string(self):
-        assert _is_valid_uri("AUTO:123") is False
+        assert is_valid_uri("AUTO:123") is False
 
     def test_empty(self):
-        assert _is_valid_uri("") is False
+        assert is_valid_uri("") is False
 
     def test_ftp_scheme_rejected(self):
-        assert _is_valid_uri("ftp://example.com") is False
+        assert is_valid_uri("ftp://example.com") is False
 
     def test_leading_whitespace_stripped(self):
-        assert _is_valid_uri("  https://example.com") is True
+        assert is_valid_uri("  https://example.com") is True
 
     def test_url_with_spaces_invalid(self):
-        assert _is_valid_uri("https://example.com/path with spaces") is False
+        assert is_valid_uri("https://example.com/path with spaces") is False
 
 
 # Test Unicode Normalization
@@ -68,26 +69,50 @@ class TestIsValidUri:
 
 class TestNormalizeUnicode:
     def test_ascii_passthrough(self):
-        assert _normalize_unicode("hello world") == "hello world"
+        assert normalize_unicode("hello world") == "hello world"
 
     def test_em_dash_to_hyphen(self):
-        assert _normalize_unicode("A—B") == "A-B"
+        assert normalize_unicode("A—B") == "A-B"
 
     def test_en_dash_to_hyphen(self):
-        assert _normalize_unicode("A–B") == "A-B"
+        assert normalize_unicode("A–B") == "A-B"
 
     def test_minus_sign_to_hyphen(self):
-        assert _normalize_unicode("A−B") == "A-B"
+        assert normalize_unicode("A−B") == "A-B"
 
     def test_ideographic_space_to_ascii(self):
-        assert _normalize_unicode("A　B") == "A B"
+        assert normalize_unicode("A　B") == "A B"
 
     def test_multiple_replacements_in_one_string(self):
-        result = _normalize_unicode("AI–Conference—2023")
+        result = normalize_unicode("AI–Conference—2023")
         assert result == "AI-Conference-2023"
 
     def test_empty_string(self):
-        assert _normalize_unicode("") == ""
+        assert normalize_unicode("") == ""
+
+    def test_zero_width_space_stripped(self):
+        assert normalize_unicode("hello​world") == "helloworld"
+
+    def test_zero_width_non_joiner_stripped(self):
+        assert normalize_unicode("foo‌bar") == "foobar"
+
+    def test_zero_width_joiner_stripped(self):
+        assert normalize_unicode("foo‍bar") == "foobar"
+
+    def test_word_joiner_stripped(self):
+        assert normalize_unicode("foo⁠bar") == "foobar"
+
+    def test_null_byte_stripped(self):
+        assert normalize_unicode("foo\x00bar") == "foobar"
+
+    def test_newline_preserved(self):
+        assert normalize_unicode("line1\nline2") == "line1\nline2"
+
+    def test_tab_preserved(self):
+        assert normalize_unicode("col1\tcol2") == "col1\tcol2"
+
+    def test_mixed_invisible_and_dash(self):
+        assert normalize_unicode("A​–​B") == "A-B"
 
 
 # Test Fallback ID Generation
@@ -96,64 +121,64 @@ class TestNormalizeUnicode:
 class TestFallbackId:
     def test_person_name_formats_as_lastname_initials(self):
         obj = {"name": "John Smith"}
-        result = _fallback_id(obj, ("name",))
+        result = fallback_id(obj, ("name",))
         assert result.startswith("smo:Smith_J_")
 
     def test_three_part_name(self):
         obj = {"name": "Alice B. Chen"}
-        result = _fallback_id(obj, ("name",))
+        result = fallback_id(obj, ("name",))
         assert result.startswith("smo:Chen_AB_")
 
     def test_single_word_name(self):
         obj = {"name": "Einstein"}
-        result = _fallback_id(obj, ("name",))
+        result = fallback_id(obj, ("name",))
         assert result.startswith("smo:Einstein_")
 
     def test_fallback_to_other_field_when_no_name(self):
         obj = {"family_name": "Singla"}
-        result = _fallback_id(obj, ("name", "family_name"))
+        result = fallback_id(obj, ("name", "family_name"))
         assert result.startswith("smo:Singla_")
 
     def test_long_name_truncated_to_40_chars(self):
         obj = {"family_name": "A" * 50}
-        result = _fallback_id(obj, ("name", "family_name"))
+        result = fallback_id(obj, ("name", "family_name"))
         local_part = result[4:].rsplit("_", 1)[0]
         assert len(local_part) <= 40
 
     def test_empty_entity_uses_entity_label(self):
         obj = {}
-        result = _fallback_id(obj, ("name",))
+        result = fallback_id(obj, ("name",))
         assert result.startswith("smo:entity_")
 
     def test_stable_given_same_input(self):
         obj = {"name": "Alice Chen"}
-        assert _fallback_id(obj, ("name",)) == _fallback_id(obj, ("name",))
+        assert fallback_id(obj, ("name",)) == fallback_id(obj, ("name",))
 
     def test_different_doc_name_produces_different_id(self):
         obj = {"name": "Y. Li"}
-        r1 = _fallback_id(obj, ("name",), doc_name="Paper1")
-        r2 = _fallback_id(obj, ("name",), doc_name="Paper2")
+        r1 = fallback_id(obj, ("name",), doc_name="Paper1")
+        r2 = fallback_id(obj, ("name",), doc_name="Paper2")
         assert r1 != r2
 
     def test_same_doc_name_produces_same_id(self):
         obj = {"name": "Y. Li"}
-        r1 = _fallback_id(obj, ("name",), doc_name="Paper1")
-        r2 = _fallback_id(obj, ("name",), doc_name="Paper1")
+        r1 = fallback_id(obj, ("name",), doc_name="Paper1")
+        r2 = fallback_id(obj, ("name",), doc_name="Paper1")
         assert r1 == r2
 
     def test_result_has_smo_prefix(self):
         obj = {"name": "Test User"}
-        assert _fallback_id(obj, ("name",)).startswith("smo:")
+        assert fallback_id(obj, ("name",)).startswith("smo:")
 
     def test_special_chars_stripped_from_local_part(self):
         obj = {"family_name": "O'Brien"}
-        result = _fallback_id(obj, ("name", "family_name"))
+        result = fallback_id(obj, ("name", "family_name"))
         local_part = result[4:].rsplit("_", 1)[0]
         assert "'" not in local_part
 
     def test_six_char_hex_digest(self):
         obj = {"name": "Test"}
-        result = _fallback_id(obj, ("name",))
+        result = fallback_id(obj, ("name",))
         digest = result.rsplit("_", 1)[-1]
         assert len(digest) == 6
         assert all(c in "0123456789abcdef" for c in digest)
@@ -174,29 +199,29 @@ class TestUriFieldsFromSchema:
     }
 
     def test_returns_uri_slots(self, schema_file):
-        result = _uri_fields_from_schema(schema_file)
+        result = uri_fields_from_schema(schema_file)
         assert self.EXPECTED_URI == result
 
     def test_excludes_string_and_non_uri_slots(self, schema_file):
-        result = _uri_fields_from_schema(schema_file)
+        result = uri_fields_from_schema(schema_file)
         assert self.EXPECTED_NON_URI.isdisjoint(result)
 
     def test_doi_is_not_a_uri_field(self, schema_file):
         # currently doi has still range string (consider changing while developing)
-        assert "doi" not in _uri_fields_from_schema(schema_file)
+        assert "doi" not in uri_fields_from_schema(schema_file)
 
     def test_returns_frozenset(self, schema_file):
-        assert isinstance(_uri_fields_from_schema(schema_file), frozenset)
+        assert isinstance(uri_fields_from_schema(schema_file), frozenset)
 
     def test_empty_slots_gives_empty_frozenset(self, tmp_path):
         p = tmp_path / "s.yaml"
         p.write_text(yaml.dump({"slots": {}}))
-        assert _uri_fields_from_schema(p) == frozenset()
+        assert uri_fields_from_schema(p) == frozenset()
 
     def test_no_slots_key_gives_empty_frozenset(self, tmp_path):
         p = tmp_path / "s.yaml"
         p.write_text(yaml.dump({"classes": {}}))
-        assert _uri_fields_from_schema(p) == frozenset()
+        assert uri_fields_from_schema(p) == frozenset()
 
 
 # Test Retrieve Name Fields
@@ -212,35 +237,34 @@ class TestNameFieldsFromSchema:
         "title",
         "title_paper",
         "doi",
-        "language",
         "email",
     }
     # URI slots that must NOT appear
     EXPECTED_OUT = {"url", "identifier"}
 
     def test_returns_string_slots(self, schema_file):
-        result = _name_fields_from_schema(schema_file)
+        result = name_fields_from_schema(schema_file)
         assert self.EXPECTED_IN.issubset(set(result))
 
     def test_excludes_uri_slots(self, schema_file):
-        result = _name_fields_from_schema(schema_file)
+        result = name_fields_from_schema(schema_file)
         assert self.EXPECTED_OUT.isdisjoint(set(result))
 
     def test_returns_tuple(self, schema_file):
-        assert isinstance(_name_fields_from_schema(schema_file), tuple)
+        assert isinstance(name_fields_from_schema(schema_file), tuple)
 
     def test_default_range_string_included(self, tmp_path):
         # Slots without an explicit range key default to string
         schema = {"slots": {"my_field": {}}}
         p = tmp_path / "s.yaml"
         p.write_text(yaml.dump(schema))
-        assert "my_field" in _name_fields_from_schema(p)
+        assert "my_field" in name_fields_from_schema(p)
 
 
 # Test Post Processing
 class TestCleanResult:
     def _clean(self, obj, uri_fields=URI_FIELDS, name_fields=NAME_FIELDS):
-        return _clean_result(obj, uri_fields, name_fields, defaultdict(int))
+        return clean_result(obj, uri_fields, name_fields, defaultdict(int))
 
     def test_invalid_uri_field_removed(self):
         result = self._clean({"identifier": "not-a-uri", "name": "Test"})
@@ -388,16 +412,6 @@ class TestCleanExtraction:
         result = yaml.safe_load(yaml_file.read_text())
         assert result["url"] == "https://example.com"
 
-    def test_null_bytes_stripped_before_parse(self, schema_file, tmp_path):
-        raw = b"name: John\x00 Doe\n"
-        yaml_file = tmp_path / "out.yaml"
-        yaml_file.write_bytes(raw)
-
-        clean_extraction(yaml_file, schema_file)
-
-        result = yaml.safe_load(yaml_file.read_text())
-        assert "\x00" not in result.get("name", "")
-
     def test_none_list_elements_removed(self, schema_file, tmp_path):
         raw = {"authors": [None, {"name": "Jane"}]}
         yaml_file = tmp_path / "out.yaml"
@@ -434,11 +448,10 @@ class TestCleanExtraction:
 # Basic Tests for OntoGPT
 class TestExtractOnto:
     def test_calls_ontogpt_extract(self, tmp_path):
-        from app.pipeline.extraction import _extract_onto
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            _extract_onto(
+            extract_onto(
                 tmp_path / "paper.md",
                 tmp_path / "schema.yaml",
                 tmp_path / "out.yaml",
@@ -459,14 +472,14 @@ class TestExtractOnto:
 
     def test_subprocess_error_propagated(self, tmp_path):
         # ensures application catch errors prroduced by subprocess
-        from app.pipeline.extraction import _extract_onto
+        from app.pipeline.extraction import extract_onto
 
         with patch(
             "subprocess.run",
             side_effect=subprocess.CalledProcessError(1, "ontogpt"),
         ):
             with pytest.raises(subprocess.CalledProcessError):
-                _extract_onto(
+                extract_onto(
                     tmp_path / "paper.md",
                     tmp_path / "schema.yaml",
                     tmp_path / "out.yaml",

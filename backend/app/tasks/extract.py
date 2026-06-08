@@ -1,22 +1,24 @@
 import asyncio
 import logging
-import shutil
 from pathlib import Path
 from uuid import UUID
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.pipeline.confidence_annotation import annotate_confidence
 from app.pipeline.extraction import extract_document
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
+from app.store.writer import write_candidate_statements_from_ttl
+from app.tasks.annotate_align import annotate_and_align_document_task
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SCHEMA = (
+DEFAULT_SCHEMA = (
     Path(__file__).parent.parent.parent / "config" / "schemas" / "scholarly_schema.yaml"
 )
-_TMP_BASE = Path("/tmp/ontocurate")
+TMP_BASE = Path("/tmp/ontocurate")
 
 
 @celery_app.task(bind=True, name="runs.extract_document")
@@ -25,22 +27,21 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
     Extracts RDF triples from a document using OntoGPT
     - Reads document source content from database
     - Calls app.pipeline.extraction.extract_document
-    - Writes candidate statements (Turtle) to the workspace curation graph
+    - Chains annotate_and_align_document_task for per-document post-processing
     - Updates task status to "extracting" -> "done" or "failed"
-    - Temp Directory gets deleted after writing to database (possible to comment out for debugging)
     """
     logger.info("[%s] Extracting: document=%s", run_id, document_id)
 
-    tmp_dir = _TMP_BASE / self.request.id
+    tmp_dir = TMP_BASE / self.request.id
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    async def _process() -> None:
+    async def process() -> tuple[Path, str]:
         run_uuid = UUID(run_id)
         document_uuid = UUID(document_id)
 
         async with AsyncSessionLocal() as session:
             await RunRepository(session).update_document_status(
-                run_uuid, document_uuid, "extracting"
+                run_uuid, document_uuid, "extracting", celery_task_id=self.request.id
             )
 
         async with AsyncSessionLocal() as session:
@@ -49,7 +50,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
         try:
             schema_path = (
-                Path(run.schema_path) if run and run.schema_path else _DEFAULT_SCHEMA
+                Path(run.schema_path) if run and run.schema_path else DEFAULT_SCHEMA
             )
             model = (run.model if run and run.model else None) or settings.default_model
 
@@ -66,15 +67,17 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 api_key=settings.openai_api_key,
             )
 
-            # Persist candidate statements into the workspace curation graph
-            try:
-                from app.store.writer import write_candidate_statements_from_ttl
-
-                write_candidate_statements_from_ttl(
-                    str(run_id), str(document_id), ttl_path, str(doc.workspace_id)
-                )
-            except Exception:
-                logger.exception("Failed to write candidate statements to store")
+            provenance_path = annotate_confidence(
+                md_file, ttl_path, tmp_dir, schema_path=schema_path
+            )
+            write_candidate_statements_from_ttl(
+                run_id,
+                document_id,
+                ttl_path,
+                str(doc.workspace_id),
+                provenance_path,
+                model=model,
+            )
 
             async with AsyncSessionLocal() as session:
                 await RunRepository(session).update_document_status(
@@ -82,6 +85,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 )
 
             logger.info("[%s] Extraction complete: document=%s", run_id, document_id)
+            return ttl_path, provenance_path, str(doc.workspace_id), model
 
         except Exception:
             async with AsyncSessionLocal() as session:
@@ -91,10 +95,16 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
             logger.exception("[%s] Extraction failed: document=%s", run_id, document_id)
             raise
 
-    try:
-        asyncio.run(_process())
+    ttl_path, provenance_path, workspace_id, model = asyncio.run(process())
 
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+    annotate_and_align_document_task.delay(
+        model,
+        document_id,
+        run_id,
+        str(tmp_dir),
+        str(ttl_path),
+        str(provenance_path),
+        workspace_id,
+    )
 
     return document_id

@@ -20,6 +20,13 @@ default_range: string
 imports:
   - linkml:types
 
+types:
+  Year:
+    base: int
+    uri: xsd:gYear
+    minimum_value: 1000
+    maximum_value: 9999
+
 #  CLASSES
 
 classes:
@@ -41,7 +48,6 @@ classes:
       - presented_at_workshop
       - doi
       - url
-      - language
       - publication_date
       - cites
 
@@ -104,6 +110,7 @@ classes:
       - id
       - conf_name
       - location
+      - event_year
       - start_date
       - end_date
 
@@ -115,6 +122,7 @@ classes:
       - id
       - workshop_name
       - location
+      - event_year
       - start_date
       - end_date
       - part_of_conference
@@ -263,17 +271,12 @@ slots:
     range: uri
     description: URL providing direct access to the full text of the paper. Leave blank if not available — never output placeholder text.
 
-  language:
-    slot_uri: schema:inLanguage
-    range: string
-    description: Language of the paper as a BCP 47 string, e.g. "en" or "de".
-
   publication_date:
     slot_uri: schema:datePublished
-    range: date
+    range: Year
     description: >-
-      The exact publication date of this paper in ISO 8601 format (YYYY-MM-DD).
-      Found as "published YYYY-MM-DD" in CEUR-WS papers. Normalise to first day/month if not all date information is given.
+      Publication year of this paper as a 4-digit integer (e.g. 2024).
+      Extract the year from the source — do not pad or infer month/day.
 
   cites:
     slot_uri: cito:cites
@@ -353,10 +356,8 @@ slots:
 
   publication_year:
     slot_uri: dcterms:issued
-    range: string
-    description: >-
-      Year the proceedings or journal issue was published, e.g. "2024".
-      Uses string to accommodate roman numerals and partial dates.
+    range: Year
+    description: Year the proceedings or journal issue was published, e.g. 2024.
 
   publisher:
     slot_uri: dcterms:publisher
@@ -398,15 +399,28 @@ slots:
     range: string
     description: Full name of the workshop.
 
+  event_year:
+    slot_uri: schema:startDate
+    range: Year
+    description: >-
+      Year the conference or workshop took place, e.g. 2024.
+      Always populate this when the year is known.
+
   start_date:
     slot_uri: schema:startDate
-    range: string
-    description: Opening date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+    range: date
+    description: >-
+      Opening date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+      Only populate if BOTH the start and end date are explicitly stated in the source.
+      Leave blank if only a year or partial date is available.
 
   end_date:
     slot_uri: schema:endDate
-    range: string
-    description: Closing date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+    range: date
+    description: >-
+      Closing date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
+      Only populate if BOTH the start and end date are explicitly stated in the source.
+      Leave blank if only a year or partial date is available.
 
   part_of_conference:
     slot_uri: schema:superEvent
