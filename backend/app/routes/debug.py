@@ -1,11 +1,10 @@
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends
-from pyoxigraph import Literal, NamedNode, Quad
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.workspace import Workspace
-from app.store.client import get_store
+from app.store.client import sparql_select, sparql_update
 from app.tasks.test import ping_task, slow_task
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -60,25 +59,31 @@ async def check_oxigraph():
     """
     Verifies the triple store connection, write, and query are all working.
     """
-    store = get_store()
+    graph = "https://ontocurate.org/debug"
+    subject = "https://ontocurate.org/debug/subject"
+    predicate = "https://ontocurate.org/debug/predicate"
 
-    test_graph = NamedNode("https://ontocurate.org/debug")
-    test_subject = NamedNode("https://ontocurate.org/debug/subject")
-    test_predicate = NamedNode("https://ontocurate.org/debug/predicate")
-    test_object = Literal("hello world")
+    sparql_update(f"""
+        INSERT DATA {{
+            GRAPH <{graph}> {{
+                <{subject}> <{predicate}> "hello world" .
+            }}
+        }}
+    """)
 
-    quad = Quad(test_subject, test_predicate, test_object, test_graph)
-    store.add(quad)
+    result = sparql_select(f"""
+        SELECT ?o WHERE {{
+            GRAPH <{graph}> {{ <{subject}> <{predicate}> ?o }}
+        }}
+    """)
 
-    results = list(
-        store.quads_for_pattern(test_subject, test_predicate, None, test_graph)
-    )
-    store.remove(quad)
+    sparql_update(f"DROP SILENT GRAPH <{graph}>")
 
-    if not results:
+    bindings = result.get("results", {}).get("bindings", [])
+    if not bindings:
         return {"oxigraph": "error", "detail": "triple not found after write"}
 
     return {
         "oxigraph": "ok",
-        "write_read": str(results[0].object),
+        "write_read": bindings[0]["o"]["value"],
     }
