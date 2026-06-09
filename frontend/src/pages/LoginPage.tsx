@@ -1,11 +1,15 @@
 import { useState, type ChangeEvent } from "react";
 import Root from "../components/Root";
+import { client } from "../client";
+import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
     const [formData, setFormData] = useState({
         username: "",
         password: "",
     });
+
+    const navigate = useNavigate();
 
     const onChange = (e: ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({
@@ -37,7 +41,10 @@ export default function LoginPage() {
                 <div className="flex justify-center">
                     <button
                         className="bg-nord8 h-7 rounded px-2"
-                        onClick={() => {}}
+                        onClick={async () => {
+                            await client.POST("/auth/login");
+                            navigate("/workspaces");
+                        }}
                     >
                         Submit
                     </button>

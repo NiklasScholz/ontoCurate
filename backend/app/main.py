@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import Base, engine
 from app.core.logging import setup_logging
@@ -33,6 +34,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(debug_router)
 app.include_router(documents_router)
 app.include_router(extractions_router)
@@ -43,3 +52,8 @@ app.include_router(workspaces_router)
 @app.get("/health", tags=["meta"])
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/openapi", tags=["meta"])
+async def openapi():
+    return app.openapi()
