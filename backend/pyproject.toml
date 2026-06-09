@@ -21,6 +21,7 @@ dependencies = [
     "redis",
     "python-multipart",
     "pydantic-settings",
+    "ontogpt",
 ]
 
 [project.optional-dependencies]
