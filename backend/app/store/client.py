@@ -39,6 +39,14 @@ def data_graph(workspace_id: str) -> str:
     return f"https://ontocurate.org/workspaces/{workspace_id}/graphs/data"
 
 
+def export_graph_ttl(graph_iri: str) -> str:
+    """Return all triples in a named graph as a Turtle string."""
+    return sparql_select(f"""
+        CONSTRUCT {{ ?s ?p ?o }}
+        WHERE {{ GRAPH <{graph_iri}> {{ ?s ?p ?o }} }}
+    """)
+
+
 def drop_workspace_graphs(workspace_id: str) -> None:
     """Remove all graphs for a workspace. Called when a workspace is deleted."""
     sparql_update(f"""

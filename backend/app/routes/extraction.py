@@ -130,7 +130,7 @@ async def create_documents(
             )
             await run_repo.add_task(run.id, doc.id, task_name="Extracting")
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
-    build_pipeline(documents, model, str(run.id)).delay()
+    build_pipeline(documents, model, str(run.id), str(workspace_id)).delay()
     return {"run_id": run.id, "status": "queued"}
 
 
@@ -208,6 +208,54 @@ async def reject_statement():
 @router.patch("/{run_id}/statements/{statement_id:path}", status_code=200)
 async def edit_statement():
     pass
+
+
+@router.get("/{run_id}/alignments")
+async def get_run_alignments(
+    run_id: UUID, session: AsyncSession = Depends(get_session)
+):
+    """Return all owl:sameAs CandidateStatements produced by inner-document alignment for a run."""
+    run_repo = RunRepository(session)
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        raise NotFoundException(f"Run {run_id} not found")
+
+    graph = curation_graph(str(run.workspace_id))
+    paco = "https://example.org/provenance-and-curation-ontology/"
+    owl_same_as = "http://www.w3.org/2002/07/owl#sameAs"
+
+    payload = sparql_select(f"""
+        SELECT ?stmt ?duplicate ?canonical ?confidence ?status WHERE {{
+            GRAPH <{graph}> {{
+                ?stmt <{paco}predicate> <{owl_same_as}> ;
+                      <{paco}subject>   ?duplicate ;
+                      <{paco}object>    ?canonical ;
+                      <{paco}curationStatus> ?status .
+                OPTIONAL {{ ?stmt <{paco}confidence> ?confidence . }}
+            }}
+        }}
+        ORDER BY ?canonical ?duplicate
+    """)
+
+    alignments = [
+        {
+            "statement_id": b["stmt"]["value"],
+            "duplicate": b["duplicate"]["value"],
+            "canonical": b["canonical"]["value"],
+            "confidence": (
+                float(b["confidence"]["value"]) if "confidence" in b else None
+            ),
+            "status": b["status"]["value"].split("/")[-1],
+        }
+        for b in payload.get("results", {}).get("bindings", [])
+    ]
+
+    return {
+        "run_id": run_id,
+        "workspace_id": run.workspace_id,
+        "count": len(alignments),
+        "alignments": alignments,
+    }
 
 
 @router.get("/{run_id}/entities")

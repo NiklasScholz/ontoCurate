@@ -10,7 +10,6 @@ from app.pipeline.extraction import extract_document
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.store.writer import write_candidate_statements_from_ttl
-from app.tasks.annotate_align import annotate_and_align_document_task
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -97,7 +96,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
     ttl_path, provenance_path, workspace_id, model = asyncio.run(process())
 
-    annotate_and_align_document_task.delay(
+    return (
         model,
         document_id,
         run_id,
@@ -106,5 +105,3 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
         str(provenance_path),
         workspace_id,
     )
-
-    return document_id

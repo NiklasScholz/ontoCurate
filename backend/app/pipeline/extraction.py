@@ -97,6 +97,14 @@ def extract_onto(
     ]
     result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if result.returncode != 0:
+        import logging
+
+        logging.getLogger(__name__).error(
+            "ontogpt failed (exit %d)\nstdout: %s\nstderr: %s",
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
         raise subprocess.CalledProcessError(
             result.returncode, cmd, output=result.stdout, stderr=result.stderr
         )

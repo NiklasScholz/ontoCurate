@@ -248,3 +248,103 @@ def accept_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
 
 def reject_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
     pass
+
+
+def write_alignment_results(
+    alignments: list[tuple[str, str, float]],
+    workspace_id: str,
+    run_id: str | None = None,
+    document_id: str | None = None,
+) -> None:
+    """Writes owl:sameAs CandidateStatements for proposed entity alignments."""
+    if not alignments:
+        return
+
+    try:
+        from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
+    except Exception as exc:
+        raise RuntimeError(f"pyoxigraph unavailable: {exc}")
+
+    paco = "https://example.org/provenance-and-curation-ontology/"
+    prov = "http://www.w3.org/ns/prov#"
+    rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    owl = "http://www.w3.org/2002/07/owl#"
+    xsd = "http://www.w3.org/2001/XMLSchema#"
+    schema = "https://schema.org/"
+
+    run_key = run_id or "unknown-run"
+    doc_key = document_id or "unknown-document"
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    rdf_type = NamedNode(f"{rdf}type")
+    owl_same_as = NamedNode(f"{owl}sameAs")
+
+    alignment_agent = NamedNode(f"{paco}entity-alignment")
+    alignment_activity = NamedNode(
+        f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
+    )
+    extraction_activity = NamedNode(
+        f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/extraction"
+    )
+
+    triples = [
+        Triple(alignment_agent, rdf_type, NamedNode(f"{prov}SoftwareAgent")),
+        Triple(
+            alignment_agent, NamedNode(f"{schema}name"), Literal("entity-alignment")
+        ),
+        Triple(alignment_activity, rdf_type, NamedNode(f"{paco}AlignmentActivity")),
+        Triple(alignment_activity, rdf_type, NamedNode(f"{prov}Activity")),
+        Triple(
+            alignment_activity, NamedNode(f"{prov}wasAssociatedWith"), alignment_agent
+        ),
+        Triple(
+            alignment_activity, NamedNode(f"{prov}wasInformedBy"), extraction_activity
+        ),
+        Triple(
+            alignment_activity,
+            NamedNode(f"{paco}createdAt"),
+            Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+        ),
+    ]
+
+    for canonical, duplicate, score in alignments:
+        fingerprint = sha256(
+            f"{workspace_id}|{run_key}|{doc_key}|{duplicate}|{canonical}".encode()
+        ).hexdigest()[:24]
+        candidate = NamedNode(
+            f"https://example.org/workspaces/{workspace_id}/candidate-statements/{fingerprint}"
+        )
+        triples.extend(
+            [
+                Triple(candidate, rdf_type, NamedNode(f"{paco}CandidateStatement")),
+                Triple(candidate, rdf_type, NamedNode(f"{prov}Entity")),
+                Triple(candidate, NamedNode(f"{paco}subject"), NamedNode(duplicate)),
+                Triple(candidate, NamedNode(f"{paco}predicate"), owl_same_as),
+                Triple(candidate, NamedNode(f"{paco}object"), NamedNode(canonical)),
+                Triple(candidate, NamedNode(f"{paco}origin"), alignment_agent),
+                Triple(
+                    candidate,
+                    NamedNode(f"{paco}curationStatus"),
+                    NamedNode(f"{paco}pending"),
+                ),
+                Triple(
+                    candidate,
+                    NamedNode(f"{paco}confidence"),
+                    Literal(str(round(score, 6)), datatype=NamedNode(f"{xsd}float")),
+                ),
+                Triple(
+                    candidate,
+                    NamedNode(f"{paco}createdAt"),
+                    Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+                ),
+                Triple(candidate, NamedNode(f"{paco}isCurrentVersion"), Literal(True)),
+                Triple(
+                    candidate, NamedNode(f"{prov}wasGeneratedBy"), alignment_activity
+                ),
+                Triple(alignment_activity, NamedNode(f"{prov}generated"), candidate),
+            ]
+        )
+
+    graph = curation_graph(workspace_id)
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+    sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
