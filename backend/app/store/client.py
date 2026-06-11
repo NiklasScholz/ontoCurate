@@ -12,6 +12,7 @@ def sparql_select(query: str) -> dict:
             "Content-Type": "application/sparql-query",
             "Accept": "application/sparql-results+json",
         },
+        timeout=30.0,
     )
     response.raise_for_status()
     return response.json()
@@ -23,6 +24,7 @@ def sparql_update(query: str) -> None:
         f"{settings.oxigraph_url}/update",
         content=query.encode(),
         headers={"Content-Type": "application/sparql-update"},
+        timeout=120.0,
     )
     response.raise_for_status()
 

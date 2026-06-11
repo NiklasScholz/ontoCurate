@@ -22,6 +22,9 @@ dependencies = [
     "python-multipart",
     "pydantic-settings",
     "ontogpt",
+    "rapidfuzz",
+    "rdflib",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]

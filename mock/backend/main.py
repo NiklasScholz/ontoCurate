@@ -1,5 +1,6 @@
-from fastapi import FastAPI, File, UploadFile
 import json
+
+from fastapi import FastAPI, File, UploadFile
 
 app = FastAPI()
 
@@ -77,16 +78,17 @@ async def kg_neighborhood(entity: str):
     outgoing = []
     for triple in JSON["annotations"]:
         if triple["value"] == entity:
-            incoming.append({
-                "edge": triple["predicate"],
-                "node": triple["subject"],
-            })
+            incoming.append(
+                {
+                    "edge": triple["predicate"],
+                    "node": triple["subject"],
+                }
+            )
         if triple["subject"] == entity:
-            outgoing.append({
-                "edge": triple["predicate"],
-                "node": triple["value"],
-            })
-    return {
-        "incoming": incoming,
-        "outgoing": outgoing
-    }
+            outgoing.append(
+                {
+                    "edge": triple["predicate"],
+                    "node": triple["value"],
+                }
+            )
+    return {"incoming": incoming, "outgoing": outgoing}
