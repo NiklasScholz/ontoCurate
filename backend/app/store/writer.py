@@ -3,41 +3,30 @@ from uuid import uuid4
 
 from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
 
-from app.store.client import curation_graph, sparql_select, sparql_update
-
-PACO = "https://example.org/provenance-and-curation-ontology/"
-PROV = "http://www.w3.org/ns/prov#"
-
-
-PACO_SUBJECT = f"{PACO}subject"
-PACO_PREDICATE = f"{PACO}predicate"
-PACO_OBJECT = f"{PACO}object"
-PACO_STATUS = f"{PACO}curationStatus"
-PACO_CREATED_AT = f"{PACO}createdAt"
-PACO_CURRENT = f"{PACO}isCurrentVersion"
-PACO_CONFIDENCE = f"{PACO}confidence"
-PACO_CURATOR = f"{PACO}Curator"
-
-PROV_GENERATED_BY = f"{PROV}wasGeneratedBy"
-PROV_DERIVED_FROM = f"{PROV}wasDerivedFrom"
-RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-XSD = "http://www.w3.org/2001/XMLSchema#"
-XSD_DATETIME = f"{XSD}dateTime"
-
-RDF_TYPE = f"{RDF}type"
-
-PACO_CANDIDATE = f"{PACO}CandidateStatement"
-PACO_ACCEPTING_ACTIVITY = f"{PACO}AcceptingActivity"
-PACO_ACCEPTED = f"{PACO}accepted"
-PACO_ACCEPTED_AT = f"{PACO}acceptedAt"
-PACO_ORIGIN = f"{PACO}origin"
-
-PROV_ACTIVITY = f"{PROV}Activity"
-PROV_ENTITY = f"{PROV}Entity"
-PROV_AGENT = f"{PROV}Agent"
-PROV_USED = f"{PROV}used"
-PROV_GENERATED = f"{PROV}generated"
-PROV_ASSOCIATED_WITH = f"{PROV}wasAssociatedWith"
+from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
+from app.store.utils import (
+    PACO_ACCEPTED,
+    PACO_ACCEPTED_AT,
+    PACO_ACCEPTING_ACTIVITY,
+    PACO_CANDIDATE,
+    PACO_CREATED_AT,
+    PACO_CURATOR,
+    PACO_CURRENT,
+    PACO_OBJECT,
+    PACO_ORIGIN,
+    PACO_PREDICATE,
+    PACO_STATUS,
+    PACO_SUBJECT,
+    PROV_ACTIVITY,
+    PROV_AGENT,
+    PROV_ASSOCIATED_WITH,
+    PROV_DERIVED_FROM,
+    PROV_ENTITY,
+    PROV_GENERATED_BY,
+    PROV_USED,
+    RDF_TYPE,
+    XSD_DATETIME,
+)
 
 
 def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
@@ -46,6 +35,7 @@ def write_candidate_statements(statements: list[dict], workspace_id: str) -> Non
 
 def accept_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
     graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
 
     # Retrieve the statement via the statement id
     payload = sparql_select(
@@ -133,7 +123,6 @@ def accept_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
             Triple(curator, rdf_type, prov_agent),
             Triple(accepting_activity, NamedNode(PROV_ASSOCIATED_WITH), curator),
             Triple(accepting_activity, NamedNode(PROV_USED), NamedNode(stmt_id)),
-            Triple(accepting_activity, NamedNode(PROV_GENERATED), new_statement),
             Triple(
                 accepting_activity,
                 NamedNode(PACO_ACCEPTED_AT),
@@ -159,11 +148,23 @@ def accept_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
 
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
 
+    # write tripples to curation graph
     sparql_update(
         f"""
         INSERT DATA {{
             GRAPH <{graph}> {{
                 {triples_text}
+            }}
+        }}
+    """
+    )
+
+    # write tripples to accepted graph
+    sparql_update(
+        f"""
+        INSERT DATA {{
+            GRAPH <{accepted_graph}> {{
+                <{old_subject}> <{old_predicate}> <{old_object}> .
             }}
         }}
     """
