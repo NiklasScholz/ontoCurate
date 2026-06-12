@@ -3,8 +3,58 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Union
+from uuid import uuid4
 
-from app.store.client import curation_graph, sparql_update
+from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
+
+from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
+from app.store.utils import (
+    N_OWL_SAME_AS,
+    N_PACO_ACCEPTED,
+    N_PACO_ACCEPTED_AT,
+    N_PACO_ACCEPTING_ACTIVITY,
+    N_PACO_ALIGNMENT_ACTIVITY,
+    N_PACO_CANDIDATE,
+    N_PACO_CONFIDENCE,
+    N_PACO_CREATED_AT,
+    N_PACO_CURATOR,
+    N_PACO_CURRENT,
+    N_PACO_ENTITY_ALIGNMENT,
+    N_PACO_EXTRACTED_AT,
+    N_PACO_EXTRACTION_ACTIVITY,
+    N_PACO_OBJECT,
+    N_PACO_ONTOGPT,
+    N_PACO_ORIGIN,
+    N_PACO_PENDING,
+    N_PACO_PREDICATE,
+    N_PACO_SOURCE_DOCUMENT,
+    N_PACO_STATUS,
+    N_PACO_SUBJECT,
+    N_PACO_TEXT_SPAN,
+    N_PACO_TEXT_SPAN_END,
+    N_PACO_TEXT_SPAN_START,
+    N_PROV_ACTIVITY,
+    N_PROV_AGENT,
+    N_PROV_ASSOCIATED_WITH,
+    N_PROV_DERIVED_FROM,
+    N_PROV_ENTITY,
+    N_PROV_GENERATED,
+    N_PROV_GENERATED_BY,
+    N_PROV_INFORMED_BY,
+    N_PROV_SOFTWARE_AGENT,
+    N_PROV_USED,
+    N_RDF_TYPE,
+    N_SCHEMA_NAME,
+    N_XSD_DATETIME,
+    N_XSD_FLOAT,
+    N_XSD_INTEGER,
+    N_XSD_STRING,
+    PACO_CURRENT,
+    PACO_OBJECT,
+    PACO_PREDICATE,
+    PACO_SUBJECT,
+    create_source_document_entity,
+)
 
 
 def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
@@ -37,13 +87,7 @@ def build_candidate_statement_triples(
     provenance_index: dict | None = None,
     model: str = "",
 ):
-    from pyoxigraph import Literal, NamedNode, Triple
-
-    paco = "https://example.org/provenance-and-curation-ontology/"
-    prov = "http://www.w3.org/ns/prov#"
-    rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-    xsd = "http://www.w3.org/2001/XMLSchema#"
-    schema = "https://schema.org/"
+    rdf_type_uri = f"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     run_key = run_id or "unknown-run"
@@ -52,75 +96,32 @@ def build_candidate_statement_triples(
     )  # Currently only link to sql db entry, consider adding full document entity later
     workspace_key = workspace_id or "unknown-workspace"
 
-    # Define general nodes
-    rdf_type = NamedNode(f"{rdf}type")
-    schema_name = NamedNode(f"{schema}name")
-    # Define ontogpt agent
-    ontogpt_agent = NamedNode(f"{paco}ontogpt-{model}")
-    ontogpt_agent_name = Literal(f"{model}")
-    prov_agent = NamedNode(f"{prov}SoftwareAgent")
-
-    # Define source document
-    source_document = NamedNode(
-        f"https://example.org/workspaces/{workspace_key}/documents/{document_key}"
-    )
-    source_document_class = NamedNode(f"{paco}SourceDocument")
-    prov_entity = NamedNode(f"{prov}Entity")
-
-    # Define Candidate Statement
-    candidate_class = NamedNode(f"{paco}CandidateStatement")
-    paco_subject = NamedNode(f"{paco}subject")
-    paco_predicate = NamedNode(f"{paco}predicate")
-    paco_object = NamedNode(f"{paco}object")
-    paco_origin = NamedNode(f"{paco}origin")
-    paco_status = NamedNode(f"{paco}curationStatus")
-    paco_text_span = NamedNode(f"{paco}textSpan")
-    paco_text_span_start = NamedNode(f"{paco}textSpanStart")
-    paco_text_span_end = NamedNode(f"{paco}textSpanEnd")
-    paco_confidence = NamedNode(f"{paco}confidence")
-    paco_pending = NamedNode(f"{paco}pending")
-    paco_created_at = NamedNode(f"{paco}createdAt")
-    paco_current = NamedNode(f"{paco}isCurrentVersion")
-
-    # Define Extraction Activity
+    source_document = create_source_document_entity(workspace_key, document_key)
     extraction_activity = NamedNode(
         f"https://example.org/runs/{run_key}/documents/{document_key}/activities/extraction"
     )
-    extraction_class = NamedNode(f"{paco}ExtractionActivity")
-    prov_activity = NamedNode(f"{prov}Activity")
-    prov_used = NamedNode(f"{prov}used")
-    prov_generated = NamedNode(f"{prov}generated")
-    prov_was_generated_by = NamedNode(f"{prov}wasGeneratedBy")
-    prov_associated_with = NamedNode(f"{prov}wasAssociatedWith")
-    prov_derived_from = NamedNode(f"{prov}wasDerivedFrom")
-    paco_extracted_at = NamedNode(f"{paco}extractedAt")
 
     triples = [
-        Triple(ontogpt_agent, rdf_type, prov_agent),
-        Triple(ontogpt_agent, schema_name, ontogpt_agent_name),
-        Triple(source_document, rdf_type, source_document_class),
-        Triple(source_document, rdf_type, prov_entity),
-        Triple(extraction_activity, rdf_type, extraction_class),
-        Triple(extraction_activity, rdf_type, prov_activity),
-        Triple(extraction_activity, prov_used, source_document),
-        Triple(extraction_activity, prov_associated_with, ontogpt_agent),
+        Triple(N_PACO_ONTOGPT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
+        Triple(N_PACO_ONTOGPT, N_SCHEMA_NAME, Literal("ontogpt")),
+        Triple(source_document, N_RDF_TYPE, N_PACO_SOURCE_DOCUMENT),
+        Triple(source_document, N_RDF_TYPE, N_PROV_ENTITY),
+        Triple(extraction_activity, N_RDF_TYPE, N_PACO_EXTRACTION_ACTIVITY),
+        Triple(extraction_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
+        Triple(extraction_activity, N_PROV_USED, source_document),
+        Triple(extraction_activity, N_PROV_ASSOCIATED_WITH, N_PACO_ONTOGPT),
         Triple(
             extraction_activity,
-            paco_extracted_at,
-            Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+            N_PACO_EXTRACTED_AT,
+            Literal(now, datatype=N_XSD_DATETIME),
         ),
     ]
 
     index_lookup = provenance_index or {}
-    rdf_type_uri = f"{rdf}type"
 
     for index, quad in enumerate(parsed_quads):
         if quad.predicate.value == rdf_type_uri:
-            key = (
-                quad.subject.value,
-                "type",
-                quad.object.value,
-            )
+            key = (quad.subject.value, "type", quad.object.value)
             if index_lookup.get(key) is None:
                 continue
         fingerprint = sha256(
@@ -134,25 +135,20 @@ def build_candidate_statement_triples(
             f"https://example.org/workspaces/{workspace_key}/candidate-statements/{fingerprint}"
         )
         candidate_triples = [
-            Triple(candidate, rdf_type, candidate_class),
-            Triple(candidate, rdf_type, prov_entity),
-            Triple(candidate, paco_subject, quad.subject),
-            Triple(candidate, paco_predicate, quad.predicate),
-            Triple(candidate, paco_object, quad.object),
-            Triple(candidate, paco_origin, ontogpt_agent),
-            Triple(candidate, paco_status, paco_pending),
-            Triple(
-                candidate,
-                paco_created_at,
-                Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
-            ),
-            Triple(candidate, paco_current, Literal(True)),
-            Triple(extraction_activity, prov_generated, candidate),
-            Triple(candidate, prov_was_generated_by, extraction_activity),
-            Triple(candidate, prov_derived_from, source_document),
+            Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
+            Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
+            Triple(candidate, N_PACO_SUBJECT, quad.subject),
+            Triple(candidate, N_PACO_PREDICATE, quad.predicate),
+            Triple(candidate, N_PACO_OBJECT, quad.object),
+            Triple(candidate, N_PACO_ORIGIN, N_PACO_ONTOGPT),
+            Triple(candidate, N_PACO_STATUS, N_PACO_PENDING),
+            Triple(candidate, N_PACO_CREATED_AT, Literal(now, datatype=N_XSD_DATETIME)),
+            Triple(candidate, N_PACO_CURRENT, Literal(True)),
+            Triple(extraction_activity, N_PROV_GENERATED, candidate),
+            Triple(candidate, N_PROV_GENERATED_BY, extraction_activity),
+            Triple(candidate, N_PROV_DERIVED_FROM, source_document),
         ]
 
-        # Attach provenance annotation
         key = (
             quad.subject.value,
             pred_local_name(quad.predicate.value),
@@ -163,8 +159,8 @@ def build_candidate_statement_triples(
             candidate_triples.append(
                 Triple(
                     candidate,
-                    paco_confidence,
-                    Literal(str(ann["confidence"]), datatype=NamedNode(f"{xsd}float")),
+                    N_PACO_CONFIDENCE,
+                    Literal(str(ann["confidence"]), datatype=N_XSD_FLOAT),
                 )
             )
             if isinstance(quad.object, Literal):
@@ -172,26 +168,18 @@ def build_candidate_statement_triples(
                     [
                         Triple(
                             candidate,
-                            paco_text_span,
-                            Literal(
-                                ann["span_text"], datatype=NamedNode(f"{xsd}string")
-                            ),
+                            N_PACO_TEXT_SPAN,
+                            Literal(ann["span_text"], datatype=N_XSD_STRING),
                         ),
                         Triple(
                             candidate,
-                            paco_text_span_start,
-                            Literal(
-                                str(ann["span_start"]),
-                                datatype=NamedNode(f"{xsd}integer"),
-                            ),
+                            N_PACO_TEXT_SPAN_START,
+                            Literal(str(ann["span_start"]), datatype=N_XSD_INTEGER),
                         ),
                         Triple(
                             candidate,
-                            paco_text_span_end,
-                            Literal(
-                                str(ann["span_end"]),
-                                datatype=NamedNode(f"{xsd}integer"),
-                            ),
+                            N_PACO_TEXT_SPAN_END,
+                            Literal(str(ann["span_end"]), datatype=N_XSD_INTEGER),
                         ),
                     ]
                 )
@@ -214,7 +202,7 @@ def write_candidate_statements_from_ttl(
     ttl_text = Path(ttl_path).read_text(encoding="utf-8")
 
     try:
-        from pyoxigraph import RdfFormat, parse, serialize
+        from pyoxigraph import RdfFormat, parse
     except Exception as exc:
         raise RuntimeError(
             f"pyoxigraph parsing is unavailable; cannot import candidate statements: {exc}"
@@ -243,7 +231,110 @@ def write_candidate_statements_from_ttl(
 
 
 def accept_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
-    pass
+    graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
+
+    payload = sparql_select(f"""
+        SELECT ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> ?p ?o
+            }}
+        }}
+        ORDER BY ?p ?o
+    """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    if not bindings:
+        raise ValueError(f"Statement {stmt_id} not found")
+
+    props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
+
+    old_subject = props.get(PACO_SUBJECT)
+    old_predicate = props.get(PACO_PREDICATE)
+    old_object = props.get(PACO_OBJECT)
+
+    if old_subject is None or old_predicate is None or old_object is None:
+        raise ValueError(f"Statement {stmt_id} is missing subject/predicate/object")
+
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    created_at = accepted_at
+
+    accepting_activity_id = (
+        f"https://example.org/workspaces/{workspace_id}/activities/accept/{uuid4()}"
+    )
+    accepted_statement_id = (
+        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
+    )
+
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> true .
+            }}
+        }}
+        INSERT {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> false .
+            }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> true .
+            }}
+        }}
+    """)
+
+    new_statement = NamedNode(accepted_statement_id)
+    accepting_activity = NamedNode(accepting_activity_id)
+    curator = NamedNode(curator_id)
+
+    triples = [
+        Triple(accepting_activity, N_RDF_TYPE, N_PACO_ACCEPTING_ACTIVITY),
+        Triple(accepting_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
+        Triple(curator, N_RDF_TYPE, N_PACO_CURATOR),
+        Triple(curator, N_RDF_TYPE, N_PROV_AGENT),
+        Triple(accepting_activity, N_PROV_ASSOCIATED_WITH, curator),
+        Triple(accepting_activity, N_PROV_USED, NamedNode(stmt_id)),
+        Triple(
+            accepting_activity,
+            N_PACO_ACCEPTED_AT,
+            Literal(accepted_at, datatype=N_XSD_DATETIME),
+        ),
+        Triple(new_statement, N_RDF_TYPE, N_PACO_CANDIDATE),
+        Triple(new_statement, N_RDF_TYPE, N_PROV_ENTITY),
+        Triple(new_statement, N_PACO_SUBJECT, NamedNode(old_subject)),
+        Triple(new_statement, N_PACO_PREDICATE, NamedNode(old_predicate)),
+        Triple(new_statement, N_PACO_OBJECT, NamedNode(old_object)),
+        Triple(new_statement, N_PACO_STATUS, N_PACO_ACCEPTED),
+        Triple(new_statement, N_PACO_CURRENT, Literal(True)),
+        Triple(
+            new_statement,
+            N_PACO_CREATED_AT,
+            Literal(created_at, datatype=N_XSD_DATETIME),
+        ),
+        Triple(new_statement, N_PACO_ORIGIN, curator),
+        Triple(new_statement, N_PROV_GENERATED_BY, accepting_activity),
+        Triple(new_statement, N_PROV_DERIVED_FROM, NamedNode(stmt_id)),
+    ]
+
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+
+    sparql_update(f"""
+        INSERT DATA {{
+            GRAPH <{graph}> {{
+                {triples_text}
+            }}
+        }}
+    """)
+
+    sparql_update(f"""
+        INSERT DATA {{
+            GRAPH <{accepted_graph}> {{
+                <{old_subject}> <{old_predicate}> <{old_object}> .
+            }}
+        }}
+    """)
 
 
 def reject_statement(stmt_id: str, curator_id: str, workspace_id: str) -> None:
@@ -260,26 +351,10 @@ def write_alignment_results(
     if not alignments:
         return
 
-    try:
-        from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
-    except Exception as exc:
-        raise RuntimeError(f"pyoxigraph unavailable: {exc}")
-
-    paco = "https://example.org/provenance-and-curation-ontology/"
-    prov = "http://www.w3.org/ns/prov#"
-    rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-    owl = "http://www.w3.org/2002/07/owl#"
-    xsd = "http://www.w3.org/2001/XMLSchema#"
-    schema = "https://schema.org/"
-
     run_key = run_id or "unknown-run"
     doc_key = document_id or "unknown-document"
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    rdf_type = NamedNode(f"{rdf}type")
-    owl_same_as = NamedNode(f"{owl}sameAs")
-
-    alignment_agent = NamedNode(f"{paco}entity-alignment")
     alignment_activity = NamedNode(
         f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
     )
@@ -288,22 +363,16 @@ def write_alignment_results(
     )
 
     triples = [
-        Triple(alignment_agent, rdf_type, NamedNode(f"{prov}SoftwareAgent")),
-        Triple(
-            alignment_agent, NamedNode(f"{schema}name"), Literal("entity-alignment")
-        ),
-        Triple(alignment_activity, rdf_type, NamedNode(f"{paco}AlignmentActivity")),
-        Triple(alignment_activity, rdf_type, NamedNode(f"{prov}Activity")),
-        Triple(
-            alignment_activity, NamedNode(f"{prov}wasAssociatedWith"), alignment_agent
-        ),
-        Triple(
-            alignment_activity, NamedNode(f"{prov}wasInformedBy"), extraction_activity
-        ),
+        Triple(N_PACO_ENTITY_ALIGNMENT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
+        Triple(N_PACO_ENTITY_ALIGNMENT, N_SCHEMA_NAME, Literal("entity-alignment")),
+        Triple(alignment_activity, N_RDF_TYPE, N_PACO_ALIGNMENT_ACTIVITY),
+        Triple(alignment_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
+        Triple(alignment_activity, N_PROV_ASSOCIATED_WITH, N_PACO_ENTITY_ALIGNMENT),
+        Triple(alignment_activity, N_PROV_INFORMED_BY, extraction_activity),
         Triple(
             alignment_activity,
-            NamedNode(f"{paco}createdAt"),
-            Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+            N_PACO_CREATED_AT,
+            Literal(now, datatype=N_XSD_DATETIME),
         ),
     ]
 
@@ -316,32 +385,26 @@ def write_alignment_results(
         )
         triples.extend(
             [
-                Triple(candidate, rdf_type, NamedNode(f"{paco}CandidateStatement")),
-                Triple(candidate, rdf_type, NamedNode(f"{prov}Entity")),
-                Triple(candidate, NamedNode(f"{paco}subject"), NamedNode(duplicate)),
-                Triple(candidate, NamedNode(f"{paco}predicate"), owl_same_as),
-                Triple(candidate, NamedNode(f"{paco}object"), NamedNode(canonical)),
-                Triple(candidate, NamedNode(f"{paco}origin"), alignment_agent),
+                Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
+                Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
+                Triple(candidate, N_PACO_SUBJECT, NamedNode(duplicate)),
+                Triple(candidate, N_PACO_PREDICATE, N_OWL_SAME_AS),
+                Triple(candidate, N_PACO_OBJECT, NamedNode(canonical)),
+                Triple(candidate, N_PACO_ORIGIN, N_PACO_ENTITY_ALIGNMENT),
+                Triple(candidate, N_PACO_STATUS, N_PACO_PENDING),
                 Triple(
                     candidate,
-                    NamedNode(f"{paco}curationStatus"),
-                    NamedNode(f"{paco}pending"),
-                ),
-                Triple(
-                    candidate,
-                    NamedNode(f"{paco}confidence"),
-                    Literal(str(round(score, 6)), datatype=NamedNode(f"{xsd}float")),
+                    N_PACO_CONFIDENCE,
+                    Literal(str(round(score, 6)), datatype=N_XSD_FLOAT),
                 ),
                 Triple(
                     candidate,
-                    NamedNode(f"{paco}createdAt"),
-                    Literal(now, datatype=NamedNode(f"{xsd}dateTime")),
+                    N_PACO_CREATED_AT,
+                    Literal(now, datatype=N_XSD_DATETIME),
                 ),
-                Triple(candidate, NamedNode(f"{paco}isCurrentVersion"), Literal(True)),
-                Triple(
-                    candidate, NamedNode(f"{prov}wasGeneratedBy"), alignment_activity
-                ),
-                Triple(alignment_activity, NamedNode(f"{prov}generated"), candidate),
+                Triple(candidate, N_PACO_CURRENT, Literal(True)),
+                Triple(candidate, N_PROV_GENERATED_BY, alignment_activity),
+                Triple(alignment_activity, N_PROV_GENERATED, candidate),
             ]
         )
 

@@ -13,6 +13,7 @@ from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.run import RunDetailResponse
 from app.store.client import curation_graph, sparql_select
+from app.store.writer import accept_statement, reject_statement
 from app.tasks import build_pipeline
 
 router = APIRouter(prefix="/extraction", tags=["extraction"])
@@ -196,8 +197,29 @@ async def bulk_accept_statements():
 
 
 @router.post("/{run_id}/statements/{statement_id:path}/accept", status_code=200)
-async def accept_statement():
-    pass
+async def accept_statement_endpoint(
+    run_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+):
+    run_repo = RunRepository(session)
+
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        return {"run_id": run_id, "error": "Run not found"}
+
+    curator_id = "https://example.org/users/todo"
+
+    accept_statement(
+        stmt_id=statement_id,
+        curator_id=curator_id,
+        workspace_id=str(run.workspace_id),
+    )
+
+    return {
+        "run_id": run_id,
+        "workspace_id": run.workspace_id,
+        "statement_id": statement_id,
+        "status": "accepted",
+    }
 
 
 @router.post("/{run_id}/statements/{statement_id:path}/reject", status_code=200)
