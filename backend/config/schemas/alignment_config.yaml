@@ -1,0 +1,124 @@
+# Entity alignment configuration.
+settings:
+  # Minimum similarity score for proposed owl:sameAs alignment 
+  default_threshold: 0.8
+
+  # Metric weights (must sum to 1.0)
+  default_weights:
+    syntactic: 0.6
+    semantic: 0.3
+    structural: 0.1
+
+  # Default fields used for syntactic similarity 
+  default_comparison_keys:
+    - name
+
+  # Default fields used for semantic similarity
+  default_semantic_text_fields:
+    - name
+
+  # Whether for every field initials should be considered during matching (i.e. single character matches first character of full token)
+  default_expand_initials: false
+
+  # Unique Keys
+  unique_keys:
+    - identifier
+    - email
+    - doi
+    - issn
+    - eissn
+
+entity_types:
+  Person:
+    threshold: 0.75
+    weights:
+      syntactic: 0.7
+      semantic: 0.0
+      structural: 0.3
+    comparison_keys:
+      - family_name
+      - name
+      - email
+    semantic_text_fields:
+      - name
+      - given_name
+      - family_name
+      - email
+    expand_initials: true
+
+  Organization:
+    threshold: 0.82
+    weights:
+      syntactic: 0.5
+      semantic: 0.4
+      structural: 0.1
+    comparison_keys:
+      - org_name
+      - location
+    semantic_text_fields:
+      - org_name
+      - location
+
+  Conference:
+    threshold: 0.88
+    weights:
+      syntactic: 0.45
+      semantic: 0.45
+      structural: 0.1
+    comparison_keys:
+      - conf_name
+      - location
+    semantic_text_fields:
+      - conf_name
+      - location
+
+  Workshop:
+    threshold: 0.85
+    weights:
+      syntactic: 0.45
+      semantic: 0.45
+      structural: 0.1
+    comparison_keys:
+      - workshop_name
+      - location
+    semantic_text_fields:
+      - workshop_name
+      - location
+
+  Proceedings:
+    threshold: 0.88
+    weights:
+      syntactic: 0.6
+      semantic: 0.3
+      structural: 0.1
+    comparison_keys:
+      - title
+      - volume
+      - publication_year
+    semantic_text_fields:
+      - title
+
+  Journal:
+    threshold: 0.9
+    weights:
+      syntactic: 0.6
+      semantic: 0.4
+      structural: 0.0
+    comparison_keys:
+      - title
+      - issn
+      - eissn
+    semantic_text_fields:
+      - title
+
+  Series:
+    threshold: 0.9
+    weights:
+      syntactic: 0.6
+      semantic: 0.4
+      structural: 0.0
+    comparison_keys:
+      - series_name
+      - issn
+    semantic_text_fields:
+      - series_name

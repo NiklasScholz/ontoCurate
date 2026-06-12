@@ -2,10 +2,14 @@
 
 predicate_windows:
 
-  # Article fields
+
   title_paper:
-    strategy: head
-    chars: 400
+    - strategy: head
+      chars: 400
+    - strategy: section
+      heading: "References"
+    - strategy: section
+      heading: "Bibliography"
 
   abstract:
     strategy: section
@@ -54,8 +58,6 @@ predicate_windows:
     strategy: head
     chars: 1500
 
-  # Organisation / venue fields
-  # Affiliations appear near the top; org names may also appear in references.
   org_name:
     - strategy: head
       chars: 1200
@@ -73,11 +75,9 @@ predicate_windows:
   series_name:
     strategy: full
 
-  # Titles of proceedings / journals are usually near the top or in a footer.
   title:
     strategy: full
 
-  # Bibliographic identifiers
   issn:
     strategy: full
 
@@ -94,17 +94,14 @@ predicate_windows:
     strategy: full
 
 settings:
-  # Confidence multiplier applied when the match falls outside the declared window.
+  # Confidence penalty applied when the match falls outside the declared window
   out_of_window_penalty: 0.8
 
-  # Additional distance-based decay for out-of-window matches.
-  # scales relative distance to closest window
+  # scales relative distance to closest window as penalty
   win_distance_penalty: 1.0
   min_penalty_factor: 0.3
 
   # Penalty to spatial outliers (i.e. those far from the median positions of all entity triples)
-  # Penalizes matches from outside the main cluster of annotations for an entity.
-  # Helps reducing confidence of matches that actually do not match the entity (e.g. taking page number as volume)
   outlier_penalty: 1.0
   min_outlier_factor: 0.2
   outlier_pentalty_entities:

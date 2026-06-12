@@ -12,10 +12,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
-    # LLM Endpoints
+    # LLM / Embedding Endpoints
     openai_api_key: str = ""
     openai_api_base: str = "https://chat.kiconnect.nrw/api/v1"
     default_model: str = "gpt-oss-120b"
+    embedding_model: str = "qwen3-embedding-8b"
 
     model_config = ConfigDict(env_file="secrets.env")
 

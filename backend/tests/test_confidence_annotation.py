@@ -493,13 +493,11 @@ class TestCollectRdfTypeTriples:
         return g
 
     def test_returns_subject_and_full_type_uri(self):
-        g = self._make_graph(
-            """
+        g = self._make_graph("""
             @prefix ex: <http://example.org/> .
             @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
             ex:paper1 rdf:type ex:Paper .
-        """
-        )
+        """)
         result = collect_rdf_type_triples(g)
         assert len(result) == 1
         subject, type_uri = result[0]
@@ -507,14 +505,12 @@ class TestCollectRdfTypeTriples:
         assert type_uri == "http://example.org/Paper"
 
     def test_multiple_types_for_same_subject(self):
-        g = self._make_graph(
-            """
+        g = self._make_graph("""
             @prefix ex: <http://example.org/> .
             @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
             ex:paper1 rdf:type ex:Paper ;
                       rdf:type ex:Entity .
-        """
-        )
+        """)
         result = collect_rdf_type_triples(g)
         assert len(result) == 2
         subjects = {s for s, _ in result}
@@ -524,24 +520,20 @@ class TestCollectRdfTypeTriples:
         assert "http://example.org/Entity" in types
 
     def test_multiple_subjects(self):
-        g = self._make_graph(
-            """
+        g = self._make_graph("""
             @prefix ex: <http://example.org/> .
             @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
             ex:paper1 rdf:type ex:Paper .
             ex:author1 rdf:type ex:Person .
-        """
-        )
+        """)
         result = collect_rdf_type_triples(g)
         assert len(result) == 2
 
     def test_no_type_triples_returns_empty(self):
-        g = self._make_graph(
-            """
+        g = self._make_graph("""
             @prefix ex: <http://example.org/> .
             ex:paper1 ex:title "Some Title" .
-        """
-        )
+        """)
         result = collect_rdf_type_triples(g)
         assert result == []
 
