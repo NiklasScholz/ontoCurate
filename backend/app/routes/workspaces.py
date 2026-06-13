@@ -35,7 +35,7 @@ async def get_workspace(
 
 @router.get("/{workspace_id}/export/provenance.ttl")
 async def export_provenance_graph(workspace_id: str):
-    ttl = export_graph_ttl(workspace_id, curation_graph(workspace_id))
+    ttl = export_graph_ttl(curation_graph(workspace_id))
     return Response(
         content=ttl,
         media_type="text/turtle",

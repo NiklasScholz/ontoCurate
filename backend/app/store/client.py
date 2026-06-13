@@ -41,10 +41,19 @@ def data_graph(workspace_id: str) -> str:
 
 def export_graph_ttl(graph_iri: str) -> str:
     """Return all triples in a named graph as a Turtle string."""
-    return sparql_select(f"""
-        CONSTRUCT {{ ?s ?p ?o }}
-        WHERE {{ GRAPH <{graph_iri}> {{ ?s ?p ?o }} }}
-    """)
+    response = httpx.post(
+        f"{settings.oxigraph_url}/query",
+        content=f"CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{
+            graph_iri
+        }> {{ ?s ?p ?o }} }}".encode(),
+        headers={
+            "Content-Type": "application/sparql-query",
+            "Accept": "text/turtle",
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    return response.text
 
 
 def drop_workspace_graphs(workspace_id: str) -> None:
