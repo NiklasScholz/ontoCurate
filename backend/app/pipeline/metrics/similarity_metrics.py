@@ -60,19 +60,19 @@ def initial_expanded_score(a: str, b: str) -> float:
 def syntactic_similarity(
     entity1: dict,
     entity2: dict,
-    comparison_keys: list[str],
+    comparison_predicates: list[str],
     expand_initials: bool = False,
 ) -> float:
     """Compute similarity based on string surface forms of entity property values.
 
-    For each field of comparison_keys returns the average syntactic similarity score
+    For each field of comparison_predicates returns the average syntactic similarity score
     If expand_initials is True, single-character tokens are treated as initials and match any token with the same prefix, boosting scores for abbreviated names.
     Otherwise, fuzz ratio score on normalised names is used.
     """
     score_fn = initial_expanded_score if expand_initials else fuzz_score
 
     field_scores = []
-    for key in comparison_keys:
+    for key in comparison_predicates:
         vals_a = [v for v in entity1["literals"].get(key, []) if v.strip()]
         vals_b = [v for v in entity2["literals"].get(key, []) if v.strip()]
         if not vals_a or not vals_b:
@@ -113,16 +113,16 @@ def get_embedding(text: str) -> list[float]:
 def semantic_similarity(
     entity1: dict,
     entity2: dict,
-    semantic_text_fields: list[str] | None = None,
+    semantic_text_predicates: list[str] | None = None,
 ) -> float:
     """Computes semantic similarity using embeddings from KI Connect NRW
-    Uses text values from specified semantic_text_fields (if both entities contain it)
+    Uses text values from specified semantic_text_predicates (if both entities contain it)
     """
-    fields = semantic_text_fields or ["name"]
+    predicates = semantic_text_predicates or ["name"]
 
     # Only include values for predicates present in both entities
     parts1, parts2 = [], []
-    for field in fields:
+    for field in predicates:
         vals1 = [v for v in entity1["literals"].get(field, []) if v.strip()]
         vals2 = [v for v in entity2["literals"].get(field, []) if v.strip()]
         if vals1 and vals2:
@@ -158,14 +158,14 @@ def combined_similarity(
     entity1: dict,
     entity2: dict,
     weights: dict[str, float] | None = None,
-    comparison_keys: list[str] | None = None,
+    comparison_predicates: list[str] | None = None,
     expand_initials: bool = False,
     threshold: float = 0.8,
-    semantic_text_fields: list[str] | None = None,
+    semantic_text_predicates: list[str] | None = None,
 ) -> float:
     """Aggregates syntactic, semantic and structural similarity according to config"""
     w = weights or {"syntactic": 0.5, "semantic": 0.35, "structural": 0.15}
-    keys = comparison_keys or ["name"]
+    keys = comparison_predicates or ["name"]
 
     score = 0.0
 
@@ -181,8 +181,8 @@ def combined_similarity(
 
     w_semantic = w.get("semantic", 0.0)
     if w_semantic > 0:
-        # ToDo: If semantic simarility is too expensive potentially skip if previous scores are already low
+        # TODO: If semantic simarility is too expensive potentially skip if previous scores are already low
         score += w_semantic * semantic_similarity(
-            entity1, entity2, semantic_text_fields
+            entity1, entity2, semantic_text_predicates
         )
     return score
