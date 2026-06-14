@@ -148,8 +148,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Run */
-        post: operations["create_run_extraction__post"];
+        /** Create Documents */
+        post: operations["create_documents_extraction__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -216,8 +216,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Accept Statement */
-        post: operations["accept_statement_extraction__run_id__statements__statement_id__accept_post"];
+        /** Accept Statement Endpoint */
+        post: operations["accept_statement_endpoint_extraction__run_id__statements__statement_id__accept_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -256,6 +256,26 @@ export interface paths {
         head?: never;
         /** Edit Statement */
         patch: operations["edit_statement_extraction__run_id__statements__statement_id__patch"];
+        trace?: never;
+    };
+    "/extraction/{run_id}/alignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Alignments
+         * @description Return all owl:sameAs CandidateStatements produced by inner-document alignment for a run.
+         */
+        get: operations["get_run_alignments_extraction__run_id__alignments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/extraction/{run_id}/entities": {
@@ -379,6 +399,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspace_id}/export/provenance.ttl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Provenance Graph */
+        get: operations["export_provenance_graph_workspaces__workspace_id__export_provenance_ttl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -417,6 +454,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_create_documents_extraction__post */
+        Body_create_documents_extraction__post: {
+            /** Files */
+            files: string[];
+        };
         /** DocumentResponse */
         DocumentResponse: {
             /**
@@ -436,6 +478,44 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** RunDetailResponse */
+        RunDetailResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Model */
+            model: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Status */
+            status: string;
+            /** Documents */
+            documents: components["schemas"]["RunDocumentResponse"][];
+        };
+        /** RunDocumentResponse */
+        RunDocumentResponse: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Status */
+            status: string;
+            /** Task Name */
+            task_name: string;
+            /** Celery Task Id */
+            celery_task_id?: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -448,6 +528,11 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkspaceCreate */
+        WorkspaceCreate: {
+            /** Name */
+            name: string;
         };
         /** WorkspaceResponse */
         WorkspaceResponse: {
@@ -692,14 +777,20 @@ export interface operations {
             };
         };
     };
-    create_run_extraction__post: {
+    create_documents_extraction__post: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_documents_extraction__post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -710,13 +801,55 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_run_extraction__run_id__get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_statements_extraction__run_id__statements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -730,24 +863,13 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-        };
-    };
-    get_run_statements_extraction__run_id__statements_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -772,11 +894,14 @@ export interface operations {
             };
         };
     };
-    accept_statement_extraction__run_id__statements__statement_id__accept_post: {
+    accept_statement_endpoint_extraction__run_id__statements__statement_id__accept_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                run_id: string;
+                statement_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -788,6 +913,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -828,6 +962,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_run_alignments_extraction__run_id__alignments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -959,7 +1124,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -970,13 +1139,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_workspace_workspaces__workspace_id__get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -990,13 +1170,24 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     delete_workspace_workspaces__workspace_id__delete: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1007,6 +1198,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_provenance_graph_workspaces__workspace_id__export_provenance_ttl_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
