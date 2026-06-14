@@ -64,13 +64,13 @@ def resolve_type_config(config: dict, entity_type: str) -> dict:
                 {"syntactic": 0.5, "semantic": 0.35, "structural": 0.15},
             ),
         ),
-        "comparison_keys": overrides.get(
-            "comparison_keys",
-            settings.get("default_comparison_keys", ["name"]),
+        "comparison_predicates": overrides.get(
+            "comparison_predicates",
+            settings.get("default_comparison_predicates", ["name"]),
         ),
-        "semantic_text_fields": overrides.get(
-            "semantic_text_fields",
-            settings.get("default_semantic_text_fields", ["name"]),
+        "semantic_text_predicates": overrides.get(
+            "semantic_text_predicates",
+            settings.get("default_semantic_text_predicates", ["name"]),
         ),
         "expand_initials": overrides.get(
             "expand_initials",
@@ -147,10 +147,10 @@ def similarity_computation(
             a,
             b,
             weights=type_cfg["weights"],
-            comparison_keys=type_cfg["comparison_keys"],
+            comparison_predicates=type_cfg["comparison_predicates"],
             expand_initials=type_cfg["expand_initials"],
             threshold=type_cfg["threshold"],
-            semantic_text_fields=type_cfg["semantic_text_fields"],
+            semantic_text_predicates=type_cfg["semantic_text_predicates"],
         )
         results.append((a, b, score))
     return results
@@ -250,11 +250,24 @@ def run_cross_document_alignment(
     scored = similarity_computation(candidates, config)
     filtered = candidate_filtering(scored, config)
 
+    if not filtered:
+        return
+
     alignments = [(a["uri"], b["uri"], score) for a, b, score in filtered]
-    if alignments:
-        logger.info(
-            "[%s] Cross-document: writing %d owl:sameAs triple(s)",
-            run_id,
-            len(alignments),
-        )
-        write_alignment_results(alignments, workspace_id, run_id)
+    logger.info(
+        "[%s] Cross-document: writing %d owl:sameAs triple(s)",
+        run_id,
+        len(alignments),
+    )
+
+    # Merge all per-document TTLs into a single graph and append sameAs triples
+    # used by further tasks
+    merged_graph = Graph()
+    for ttl_path in ttl_files:
+        merged_graph.parse(ttl_path, format="turtle")
+    for uri_a, uri_b, _score in alignments:
+        merged_graph.add((URIRef(uri_a), OWL.sameAs, URIRef(uri_b)))
+    merged_path = working_dir / "merged.ttl"
+    merged_graph.serialize(destination=merged_path, format="turtle")
+
+    write_alignment_results(alignments, workspace_id, run_id)

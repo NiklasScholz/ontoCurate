@@ -37,7 +37,8 @@ dev = [
     "httpx",
     "pydantic_settings",
     "python-multipart",
-    "python-dotenv"
+    "python-dotenv",
+    "pyoxigraph",
 ]
 
 [tool.isort]

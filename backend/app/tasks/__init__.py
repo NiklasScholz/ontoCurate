@@ -30,5 +30,5 @@ def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id:
     if len(documents) < 2:
         return doc_group
 
-    cross_doc = align_cross_document_task.s(workspace_id, run_id)
+    cross_doc = align_cross_document_task.si(workspace_id, run_id)
     return chord(doc_group, cross_doc)

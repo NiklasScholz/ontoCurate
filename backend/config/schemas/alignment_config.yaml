@@ -10,11 +10,11 @@ settings:
     structural: 0.1
 
   # Default fields used for syntactic similarity 
-  default_comparison_keys:
+  default_comparison_predicates:
     - name
 
   # Default fields used for semantic similarity
-  default_semantic_text_fields:
+  default_semantic_text_predicates:
     - name
 
   # Whether for every field initials should be considered during matching (i.e. single character matches first character of full token)
@@ -23,7 +23,6 @@ settings:
   # Unique Keys
   unique_keys:
     - identifier
-    - email
     - doi
     - issn
     - eissn
@@ -35,11 +34,11 @@ entity_types:
       syntactic: 0.7
       semantic: 0.0
       structural: 0.3
-    comparison_keys:
+    comparison_predicates:
       - family_name
       - name
       - email
-    semantic_text_fields:
+    semantic_text_predicates:
       - name
       - given_name
       - family_name
@@ -52,25 +51,26 @@ entity_types:
       syntactic: 0.5
       semantic: 0.4
       structural: 0.1
-    comparison_keys:
+    comparison_predicates:
       - org_name
       - location
-    semantic_text_fields:
+    semantic_text_predicates:
       - org_name
       - location
 
   Conference:
-    threshold: 0.88
+    threshold: 0.81
     weights:
-      syntactic: 0.45
-      semantic: 0.45
-      structural: 0.1
-    comparison_keys:
+      syntactic: 0.2
+      semantic: 0.75
+      structural: 0.05
+    comparison_predicates:
       - conf_name
       - location
-    semantic_text_fields:
+    semantic_text_predicates:
       - conf_name
       - location
+    expand_initials: true
 
   Workshop:
     threshold: 0.85
@@ -78,10 +78,10 @@ entity_types:
       syntactic: 0.45
       semantic: 0.45
       structural: 0.1
-    comparison_keys:
+    comparison_predicates:
       - workshop_name
       - location
-    semantic_text_fields:
+    semantic_text_predicates:
       - workshop_name
       - location
 
@@ -91,11 +91,11 @@ entity_types:
       syntactic: 0.6
       semantic: 0.3
       structural: 0.1
-    comparison_keys:
+    comparison_predicates:
       - title
       - volume
       - publication_year
-    semantic_text_fields:
+    semantic_text_predicates:
       - title
 
   Journal:
@@ -104,11 +104,11 @@ entity_types:
       syntactic: 0.6
       semantic: 0.4
       structural: 0.0
-    comparison_keys:
+    comparison_predicates:
       - title
       - issn
       - eissn
-    semantic_text_fields:
+    semantic_text_predicates:
       - title
 
   Series:
@@ -117,8 +117,8 @@ entity_types:
       syntactic: 0.6
       semantic: 0.4
       structural: 0.0
-    comparison_keys:
+    comparison_predicates:
       - series_name
       - issn
-    semantic_text_fields:
+    semantic_text_predicates:
       - series_name
