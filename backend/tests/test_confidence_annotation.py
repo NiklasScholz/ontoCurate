@@ -2,16 +2,16 @@
 
 import pytest
 
-from app.pipeline.confidence_annotation import (
+from app.pipeline.metrics.datatype_property_scoring import (
     apply_entity_outlier_penalty as apply_entity_outlier_penalty,
 )
-from app.pipeline.confidence_annotation import (
-    collect_rdf_type_triples as collect_rdf_type_triples,
-)
-from app.pipeline.confidence_annotation import find_span as find_span
-from app.pipeline.confidence_annotation import find_span_in as find_span_in
-from app.pipeline.confidence_annotation import (
+from app.pipeline.metrics.datatype_property_scoring import find_span as find_span
+from app.pipeline.metrics.datatype_property_scoring import find_span_in as find_span_in
+from app.pipeline.metrics.datatype_property_scoring import (
     try_abbreviation_match as try_abbreviation_match,
+)
+from app.pipeline.utils.turtle_utils import (
+    collect_rdf_type_triples as collect_rdf_type_triples,
 )
 
 
@@ -556,7 +556,7 @@ class TestEntityTypeAnnotationConfidence:
 
         from rdflib import Graph as RdflibGraph
 
-        from app.pipeline.confidence_annotation import collect_rdf_type_triples
+        from app.pipeline.utils.turtle_utils import collect_rdf_type_triples
 
         annotations = [
             self.insert_task("http://example.org/paper1", 0.8),

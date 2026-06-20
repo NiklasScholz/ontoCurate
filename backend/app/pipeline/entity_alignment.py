@@ -168,6 +168,16 @@ def candidate_filtering(
     ]
 
 
+def score_and_filter(
+    candidates: list[tuple[dict, dict]],
+    config: dict,
+) -> list[tuple[str, str, float]]:
+    """Score candidates and return only pairs above threshold as (uri_a, uri_b, score)."""
+    scored = similarity_computation(candidates, config)
+    filtered = candidate_filtering(scored, config)
+    return [(a["uri"], b["uri"], score) for a, b, score in filtered]
+
+
 def write_same_as_triples(
     ttl_path: Path,
     alignments: list[tuple[str, str, float]],
@@ -178,7 +188,7 @@ def write_same_as_triples(
     g = Graph()
     g.parse(ttl_path, format="turtle")
 
-    for uri_a, uri_b, _score in alignments:
+    for uri_a, uri_b, score in alignments:
         g.add((URIRef(uri_a), OWL.sameAs, URIRef(uri_b)))
 
     g.serialize(destination=output_path, format="turtle")
@@ -206,14 +216,11 @@ def run_inner_document_alignment(
         logger.info("[%s] No candidate pairs found, skipping alignment", run_id)
         return ttl_path
 
-    scored = similarity_computation(candidates, config)
-    filtered = candidate_filtering(scored, config)
+    alignments = score_and_filter(candidates, config)
 
-    if not filtered:
+    if not alignments:
         logger.info("[%s] No pairs above threshold, skipping alignment", run_id)
         return ttl_path
-
-    alignments = [(a["uri"], b["uri"], score) for a, b, score in filtered]
 
     logger.info("[%s] Writing %d owl:sameAs triple(s)", run_id, len(alignments))
     write_same_as_triples(ttl_path, alignments, ttl_path)
@@ -247,13 +254,11 @@ def run_cross_document_alignment(
         if a.get("source_document") != b.get("source_document")
     ]
 
-    scored = similarity_computation(candidates, config)
-    filtered = candidate_filtering(scored, config)
+    alignments = score_and_filter(candidates, config)
 
-    if not filtered:
+    if not alignments:
         return
 
-    alignments = [(a["uri"], b["uri"], score) for a, b, score in filtered]
     logger.info(
         "[%s] Cross-document: writing %d owl:sameAs triple(s)",
         run_id,
@@ -265,7 +270,7 @@ def run_cross_document_alignment(
     merged_graph = Graph()
     for ttl_path in ttl_files:
         merged_graph.parse(ttl_path, format="turtle")
-    for uri_a, uri_b, _score in alignments:
+    for uri_a, uri_b, score in alignments:
         merged_graph.add((URIRef(uri_a), OWL.sameAs, URIRef(uri_b)))
     merged_path = working_dir / "merged.ttl"
     merged_graph.serialize(destination=merged_path, format="turtle")
