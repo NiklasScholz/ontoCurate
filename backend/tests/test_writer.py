@@ -4,8 +4,8 @@ import uuid
 
 import pytest
 
-from backend.app.store.client import curation_graph, sparql_select
-from backend.app.store.writer import write_candidate_statements_from_ttl
+from app.store.client import curation_graph, sparql_select
+from app.store.writer import write_candidate_statements_from_ttl
 
 TTL_TEXT = """
 @prefix ex: <http://example.org/> .
