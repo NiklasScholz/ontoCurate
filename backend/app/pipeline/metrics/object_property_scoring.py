@@ -234,7 +234,7 @@ def annotate_object_properties(
         ann = {
             "subject": subject_uri,
             "predicate": predicate,
-            "object": object_uri,
+            "value": object_uri,
             "confidence": confidence,
             "scoring_strategy": strategy,
             "triple_type": "object_property",

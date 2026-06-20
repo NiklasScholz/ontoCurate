@@ -255,7 +255,7 @@ class TestObjectPropertyScoring:
             {
                 "subject": "s",
                 "predicate": "hasAuthor",
-                "object": f"o{i}",
+                "value": f"o{i}",
                 "confidence": 1.0,
                 "triple_type": "object_property",
                 "target_median": float(pos),
@@ -280,7 +280,7 @@ class TestObjectPropertyScoring:
             {
                 "subject": "s",
                 "predicate": "p",
-                "object": "o1",
+                "value": "o1",
                 "confidence": 1.0,
                 "triple_type": "object_property",
                 "target_median": 100.0,
@@ -288,7 +288,7 @@ class TestObjectPropertyScoring:
             {
                 "subject": "s",
                 "predicate": "p",
-                "object": "o2",
+                "value": "o2",
                 "confidence": 1.0,
                 "triple_type": "object_property",
                 "target_median": 9000.0,
@@ -305,7 +305,7 @@ class TestObjectPropertyScoring:
             {
                 "subject": "s",
                 "predicate": "p",
-                "object": f"o{i}",
+                "value": f"o{i}",
                 "confidence": 1.0,
                 "triple_type": "object_property",
                 "target_median": float(pos),

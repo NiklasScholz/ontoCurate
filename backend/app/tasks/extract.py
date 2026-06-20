@@ -4,7 +4,7 @@ from pathlib import Path
 from uuid import UUID
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import TaskSessionLocal as AsyncSessionLocal
 from app.pipeline.confidence_annotation import annotate_confidence
 from app.pipeline.extraction import extract_document
 from app.repositories.document import DocumentRepository
@@ -27,7 +27,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
     - Reads document source content from database
     - Calls app.pipeline.extraction.extract_document
     - Chains annotate_and_align_document_task for per-document post-processing
-    - Updates task status to "extracting" -> "done" or "failed"
+    - Updates task status to "extracting"
     """
     logger.info("[%s] Extracting: document=%s", run_id, document_id)
 
@@ -80,7 +80,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
             async with AsyncSessionLocal() as session:
                 await RunRepository(session).update_document_status(
-                    run_uuid, document_uuid, "done"
+                    run_uuid, document_uuid, "queued for alignment"
                 )
 
             logger.info("[%s] Extraction complete: document=%s", run_id, document_id)
