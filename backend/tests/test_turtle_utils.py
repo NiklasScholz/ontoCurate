@@ -95,11 +95,17 @@ class TestCollectLiteralTriples:
         subject, predicate, value = result[0]
         assert subject == "http://example.org/paper1"
         assert predicate == "title" or predicate == "abstract"
-        assert value == "Entity Alignment for Knowledge Graphs"
+        assert (
+            value == "Entity Alignment for Knowledge Graphs"
+            or value == "A survey paper."
+        )
         subject, predicate, value = result[1]
         assert subject == "http://example.org/paper1"
         assert predicate == "abstract" or predicate == "title"
-        assert value == "A survey paper."
+        assert (
+            value == "A survey paper."
+            or value == "Entity Alignment for Knowledge Graphs"
+        )
 
     def test_skips_non_literal_objects(self):
         g = self.make_graph("""

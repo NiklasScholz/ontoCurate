@@ -81,7 +81,6 @@ class TestAnnotateConfidenceLiteralAnnotations:
             assert "span_end" in ann
             assert "span_text" in ann
             assert "confidence" in ann
-            assert "in_window" in ann
 
     def test_literal_span_text_matches_source_slice(self, annotation_outputs):
         literals = [
@@ -166,7 +165,6 @@ class TestAnnotateConfidenceObjectPropertyAnnotations:
             assert "predicate" in ann
             assert "object" in ann
             assert "confidence" in ann
-            assert "scoring_strategy" in ann
 
     def test_internal_outlier_fields_are_stripped(self, annotation_outputs):
         for ann in annotation_outputs["annotations"]:

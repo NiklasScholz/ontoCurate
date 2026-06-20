@@ -357,7 +357,8 @@ slots:
   publication_year:
     slot_uri: dcterms:issued
     range: Year
-    description: Year the proceedings or journal issue was published, e.g. 2024.
+    required: false
+    description: Year the proceedings or journal issue was published, e.g. 2024. If the year is not mentioned in the text, omit this field entirely.
 
   publisher:
     slot_uri: dcterms:publisher
