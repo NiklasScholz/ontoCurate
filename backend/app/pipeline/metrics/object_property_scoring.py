@@ -51,7 +51,7 @@ def score_spatial_cooccurrence(
     distance_penalty: float,
     min_factor: float,
 ) -> tuple[float, float | None] | None:
-    """Returns avg confidence of both entities scaled by distance between their spans.
+    """Returns avg confidence of both entities scaled by distance between their spans and target median (for reuse during outlier penalisation).
     Useful for entities that should occur close to each other (e.g. Author and Organization)
     Returns (confidence, target_median_position) or None if target has no literals.
     """
@@ -122,19 +122,22 @@ def apply_object_property_outlier_penalty(
     doc_length: int,
     outlier_penalty: float,
     min_outlier_factor: float,
+    outlier_predicates: set[str] | None = None,
 ) -> None:
     """Penalize object property annotations in the same (subject, predicate) group
     whose target entity's median span is a spatial outlier relative to the group.
     Useful when an author is hallucinated from another reference.
-    Only applies to annotations that carry the internal apply_outlier_penalty flag.
+    Only applies to predicates listed in outlier_predicates.
     """
     if doc_length == 0 or outlier_penalty == 0.0:
+        return
+    if not outlier_predicates:
         return
     groups = defaultdict(list)
     for ann in annotations:
         if (
             ann.get("triple_type") == "object_property"
-            and ann.get("apply_outlier_penalty")
+            and ann.get("predicate") in outlier_predicates
             and ann.get("target_median") is not None
         ):
             groups[(ann["subject"], ann["predicate"])].append(ann)
@@ -180,11 +183,15 @@ def annotate_object_properties(
     )
     predicate_cfgs: dict = obj_prop_config.get("predicates", {})
 
+    outlier_predicates: set[str] = set()
+
     # Iterate over all triples that belong to entities
     for subject_uri, predicate, object_uri in collect_entity_triples(graph):
         config = predicate_cfgs.get(predicate, {})  # get config for current predicate
         strategy = config.get("strategy", default_strategy)
-        apply_outlier = config.get("apply_outlier_penalty", False)
+
+        if config.get("apply_outlier_penalty", False):
+            outlier_predicates.add(predicate)
 
         confidence = None
         tgt_median = None
@@ -231,16 +238,17 @@ def annotate_object_properties(
             "confidence": confidence,
             "scoring_strategy": strategy,
             "triple_type": "object_property",
+            "target_median": tgt_median,
         }
-        if apply_outlier:
-            ann["apply_outlier_penalty"] = True
-            ann["target_median"] = tgt_median
         annotations.append(ann)
 
     apply_object_property_outlier_penalty(
-        annotations, doc_length, coop_outlier_penalty, coop_min_outlier_factor
+        annotations,
+        doc_length,
+        coop_outlier_penalty,
+        coop_min_outlier_factor,
+        outlier_predicates,
     )
 
     for ann in annotations:
-        ann.pop("apply_outlier_penalty", None)
         ann.pop("target_median", None)

@@ -113,7 +113,7 @@ def syntactic_similarity(
 
 
 def get_embedding(text: str) -> list[float]:
-    """Get embedding from KI Connect NRW."""
+    """Get embedding from OPENAI_API_BASE."""
 
     api_base = os.getenv("OPENAI_API_BASE", "https://chat.kiconnect.nrw/api/v1")
     api_key = os.getenv("OPENAI_API_KEY")

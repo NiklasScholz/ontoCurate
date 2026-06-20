@@ -1,7 +1,11 @@
+# Test for docker setup of oxigraph
 import json
 import uuid
 
 import pytest
+
+from backend.app.store.client import curation_graph, sparql_select
+from backend.app.store.writer import write_candidate_statements_from_ttl
 
 TTL_TEXT = """
 @prefix ex: <http://example.org/> .
@@ -33,10 +37,6 @@ def test_write_candidate_statements_from_ttl(tmp_path):
     """Tests if candidate staements is inserted correctly"""
     ttl_file = tmp_path / "sample.ttl"
     ttl_file.write_text(TTL_TEXT, encoding="utf-8")
-
-    from backend.app.store.client import curation_graph, sparql_select
-    from backend.app.store.writer import write_candidate_statements_from_ttl
-
     workspace_id = gen_workspace_id()
 
     try:
@@ -75,10 +75,6 @@ def test_write_candidate_statements_with_provenance(tmp_path):
     ttl_file.write_text(TTL_TEXT, encoding="utf-8")
     prov_file = tmp_path / "provenance.json"
     prov_file.write_text(json.dumps(PROVENANCE), encoding="utf-8")
-
-    from backend.app.store.client import curation_graph, sparql_select
-    from backend.app.store.writer import write_candidate_statements_from_ttl
-
     workspace_id = gen_workspace_id()
 
     try:
@@ -117,10 +113,6 @@ def test_write_candidate_statements_without_provenance_has_no_confidence(tmp_pat
     """Tests if candidate statements are inserted without provenance."""
     ttl_file = tmp_path / "sample.ttl"
     ttl_file.write_text(TTL_TEXT, encoding="utf-8")
-
-    from backend.app.store.client import curation_graph, sparql_select
-    from backend.app.store.writer import write_candidate_statements_from_ttl
-
     workspace_id = gen_workspace_id()
 
     try:
