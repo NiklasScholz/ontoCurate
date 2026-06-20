@@ -117,7 +117,6 @@ def annotate_confidence(
                 "span_end": span_end,
                 "span_text": source[span_start:span_end],
                 "confidence": round(confidence, 4),
-                "in_window": in_window,
                 "triple_type": "literal",
             }
         )

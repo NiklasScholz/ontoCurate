@@ -236,7 +236,6 @@ def annotate_object_properties(
             "predicate": predicate,
             "value": object_uri,
             "confidence": confidence,
-            "scoring_strategy": strategy,
             "triple_type": "object_property",
             "target_median": tgt_median,
         }
