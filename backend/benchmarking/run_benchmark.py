@@ -1,0 +1,169 @@
+import argparse
+import csv
+import os
+import sys
+from pathlib import Path
+
+from benchmarking.alignment_bench import run_alignment_bench
+from benchmarking.extraction_bench import run_extraction_bench
+
+# fields we use in dictionaries returned by alignment and extraction benchmark files
+EXTRACTION_FIELDNAMES = [
+    "document",
+    "subject_uri",
+    "entity_type",
+    "predicate",
+    "object_value",
+    "triple_type",
+    "span_start",
+    "span_end",
+    "span_text",
+    "confidence",
+]
+
+ALIGNMENT_FIELDNAMES = [
+    "alignment_type",
+    "entity_type",
+    "entity_a_uri",
+    "entity_a_label",
+    "entity_a_document",
+    "entity_b_uri",
+    "entity_b_label",
+    "entity_b_document",
+    "alignment_confidence_score",
+    "threshold_set_by_config",
+]
+
+
+def write_csv(path: Path, fieldnames: list[str], rows: list[dict]):
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def collect_input_files(input_dir: Path):
+    paths = sorted(
+        p for p in input_dir.rglob("*") if p.is_file() and p.suffix.lower() in [".md"]
+    )
+    if not paths:
+        print(f"No files found in {input_dir}")
+        sys.exit(1)
+    return paths
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="ontocurate-benchmark",
+        description="benchmarking ontoCurate extraction and entity alignment to evaluate pipeline quality in depth",
+    )
+    parser.add_argument(
+        "--input-dir",
+        required=True,
+        type=Path,
+        help="Directory containing documents (for now only md files)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        type=Path,
+        help="Directory for intermediate files and output CSVs",
+    )
+    parser.add_argument("--model", default="gpt-oss-120b", help="LLM model name")
+    parser.add_argument(
+        "--schema",
+        default=None,
+        type=Path,
+        help="Path to LinkML schema YAML (defaults to scholarly_schema.yaml)",
+    )
+    parser.add_argument(
+        "--alignment-config",
+        default=None,
+        type=Path,
+        help="Path to alignment config YAML (defaults to alignment_config.yaml)",
+    )
+    parser.add_argument(
+        "--provenance-config",
+        default=None,
+        type=Path,
+        help="Path to provenance config YAML (defaults to provenance_config.yaml next to schema)",
+    )
+    parser.add_argument(
+        "--skip-extraction",
+        action="store_true",
+        help="Skip extraction and reuse existing TTL files in output-dir subdirectories",
+    )
+    args = parser.parse_args()
+
+    backend_root = Path(__file__).parent.parent
+    default_schema = backend_root / "config" / "schemas" / "scholarly_schema.yaml"
+    schema_path = args.schema or default_schema
+    if not schema_path.exists():
+        print(f"Schema not found: {schema_path}", file=sys.stderr)
+        sys.exit(1)
+
+    api_base = os.environ.get("OPENAI_API_BASE", "")
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key or not api_base:
+        raise ValueError(
+            "OPENAI_API_BASE and OPENAI_API_KEY environment variables must be set"
+        )
+
+    model = args.model
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    input_paths = collect_input_files(args.input_dir)
+
+    ttl_paths = []
+
+    if args.skip_extraction:
+        for doc_path in input_paths:
+            ttl_file_path = (
+                args.output_dir / doc_path.stem / f"{doc_path.stem}_extraction.ttl"
+            )
+            if ttl_file_path.exists():
+                ttl_paths.append(ttl_file_path)
+            else:
+                print(
+                    f"TTL file not found for {doc_path}, skipping alignment for this document."
+                )
+    else:
+        print("Running extraction benchmark...")
+        extraction_rows = run_extraction_bench(
+            input_paths=input_paths,
+            output_dir=args.output_dir,
+            schema_path=schema_path,
+            model=model,
+            api_base=api_base,
+            api_key=api_key,
+            provenance_config_path=args.provenance_config,
+        )
+
+        write_csv(
+            args.output_dir / "extraction_results.csv",
+            EXTRACTION_FIELDNAMES,
+            extraction_rows,
+        )
+
+        for doc_path in input_paths:
+            ttl_file_path = (
+                args.output_dir / doc_path.stem / f"{doc_path.stem}_extraction.ttl"
+            )
+            if ttl_file_path.exists():
+                ttl_paths.append(ttl_file_path)
+
+    if ttl_paths:
+        print("Running alignment benchmark...")
+        alignment_rows = run_alignment_bench(
+            ttl_paths=ttl_paths,
+            config_path=args.alignment_config,
+        )
+
+        write_csv(
+            args.output_dir / "alignment_results.csv",
+            ALIGNMENT_FIELDNAMES,
+            alignment_rows,
+        )
+
+
+if __name__ == "__main__":
+    main()
