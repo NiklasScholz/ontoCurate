@@ -25,13 +25,21 @@ def extract_document(
     model: str,
     api_base: str,
     api_key: str,
+    max_text_length: int | None = None,
 ) -> tuple[Path, Path]:
     """
     Stage 1: Call `ontogpt extract` as a subprocess, clean the YAML output,
     and convert to Turtle RDF via linkml-runtime.
 
     Requires apply_patches() to have been called before any OntoGPT import.
-
+    Inputs:
+    - input_path: Path to input document (txt, md, etc.)
+    - schema_path: Path to LinkML schema defining the target ontology structure
+    - output_dir: Directory to write outputs to (YAML and TTL)
+    - model: OntoGPT model to use for extraction (e.g. "gpt-oss-120b")
+    - api_base: Base URL for KI Connect NRW API (e.g. "https://chat.kiconnect.nrw/api/v1")
+    - api_key: API key for KI Connect NRW
+    - max_text_length: Optional max text length to pass to ontoGPT for internal chunking
     Returns:
         (yaml_path, ttl_path)
     """
@@ -51,6 +59,7 @@ def extract_document(
         model=model,
         api_base=api_base,
         api_key=api_key,
+        max_text_length=max_text_length,
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     yaml_to_turtle(yaml_out, ttl_out, schema_path)
@@ -67,6 +76,7 @@ def extract_onto(
     api_key: str | None = None,
     output_format: str = "yaml",
     verbose: bool = False,
+    max_text_length: int | None = None,
 ) -> None:
     env = os.environ.copy()
     if api_base:
@@ -95,6 +105,8 @@ def extract_onto(
         "-o",
         str(output_path),
     ]
+    if max_text_length is not None:
+        cmd += ["--max-text-length", str(max_text_length)]
     result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if result.returncode != 0:
         import logging

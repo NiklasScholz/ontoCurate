@@ -69,7 +69,11 @@ def load_prov(
         return {}
     data = json.loads(provenance_path.read_text(encoding="utf-8"))
     return {
-        (ann["subject"], ann["predicate"], ann["value"]): ann
+        (
+            ann["subject"],
+            ann["predicate"],
+            ann.get("value") or ann.get("object", ""),
+        ): ann
         for ann in data.get("annotations", [])
     }
 

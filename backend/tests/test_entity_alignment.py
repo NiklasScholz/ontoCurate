@@ -98,7 +98,7 @@ class TestValidateWeights:
 class TestResolveTypeConfig:
     def test_read_person_config_values(self):
         cfg = resolve_type_config(CONFIG, "Person")
-        assert cfg["threshold"] == 0.75
+        assert cfg["threshold"] > 0.9
         assert cfg["expand_initials"] is True
         assert "family_name" in cfg["comparison_predicates"]
 
@@ -123,7 +123,7 @@ class TestCandidateFiltering:
     def test_above_threshold_kept(self):
         a = gen_entity("ex:A", "Person", name="Alice")
         b = gen_entity("ex:B", "Person", name="Alice")
-        assert len(candidate_filtering([(a, b, 0.9)], CONFIG)) == 1
+        assert len(candidate_filtering([(a, b, 0.99)], CONFIG)) == 1
 
     def test_below_threshold_dropped(self):
         a = gen_entity("ex:A", "Person", name="Alice")

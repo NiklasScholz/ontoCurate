@@ -29,11 +29,11 @@ settings:
 
 entity_types:
   Person:
-    threshold: 0.75
+    threshold: 0.92
     weights:
-      syntactic: 0.7
+      syntactic: 0.9
       semantic: 0.0
-      structural: 0.3
+      structural: 0.1
     comparison_predicates:
       - family_name
       - name
@@ -122,3 +122,15 @@ entity_types:
       - issn
     semantic_text_predicates:
       - series_name
+
+  # Title match alone (syntactic=0.9 + structural=0.1 = 1.0) clears the threshold.
+  # Semantic is disabled — citation lists are large and embedding calls are expensive.
+  AcademicArticle:
+    threshold: 0.85
+    weights:
+      syntactic: 0.9
+      semantic: 0.0
+      structural: 0.1
+    comparison_predicates:
+      - title
+    semantic_text_predicates: []

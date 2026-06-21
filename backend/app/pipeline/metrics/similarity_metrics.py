@@ -27,27 +27,56 @@ def initial_expanded_score(a: str, b: str) -> float:
         return base
 
     def _tokens(s: str) -> list[str]:
+        """Returns sorted lowercase tokens by length and treats non word characters as seperators."""
         return sorted(re.sub(r"[^\w]", " ", s.lower()).split(), key=len, reverse=True)
 
-    ta, tb = _tokens(a), _tokens(b)
-    if not ta or not tb:
+    tokens_a, tokens_b = _tokens(a), _tokens(b)
+    if not tokens_a or not tokens_b:
         return base
 
-    def _has_full_given(toks: list[str]) -> bool:
-        return any(len(t) > 1 for t in toks[1:])
+    def _has_full_given(tokens: list[str]) -> bool:
+        return any(len(t) > 1 for t in tokens[1:])
 
-    if not (_has_full_given(ta) or _has_full_given(tb)):
+    if not (
+        _has_full_given(tokens_a) or _has_full_given(tokens_b)
+    ):  # only initials are available and no token with more than 1 char --> not informative
         return base
 
-    shorter, longer = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
-    used = set()
-    for tok in shorter:
+    shorter, longer = (
+        (tokens_a, tokens_b) if len(tokens_a) <= len(tokens_b) else (tokens_b, tokens_a)
+    )
+    multi_shorter = [
+        t for t in shorter if len(t) > 1
+    ]  # picks all non-initial tokens from the shorter list as anchors
+    if not multi_shorter:  # no initial token available
+        return base
+    anchor = multi_shorter[
+        0
+    ]  # picks the longest non-initial token (for persons typically surname)
+    anchor_idx = next(
+        (i for i, lt in enumerate(longer) if lt == anchor), None
+    )  # requires exact match for the anchor
+    if anchor_idx is None:
+        return base
+
+    used = {anchor_idx}
+    for (
+        tok
+    ) in (
+        shorter
+    ):  # for every other token look for matching token in longer list (either exact match, or single character matching first character of target)
+        if tok == anchor:
+            continue
         match = next(
             (
                 i
                 for i, lt in enumerate(longer)
                 if i not in used
-                and (lt == tok or lt.startswith(tok) or tok.startswith(lt))
+                and (
+                    lt == tok
+                    or (len(lt) == 1 and tok.startswith(lt))
+                    or (len(tok) == 1 and lt.startswith(tok))
+                )
             ),
             None,
         )
@@ -84,7 +113,7 @@ def syntactic_similarity(
 
 
 def get_embedding(text: str) -> list[float]:
-    """Get embedding from KI Connect NRW."""
+    """Get embedding from OPENAI_API_BASE."""
 
     api_base = os.getenv("OPENAI_API_BASE", "https://chat.kiconnect.nrw/api/v1")
     api_key = os.getenv("OPENAI_API_KEY")
@@ -181,7 +210,10 @@ def combined_similarity(
 
     w_semantic = w.get("semantic", 0.0)
     if w_semantic > 0:
-        # TODO: If semantic simarility is too expensive potentially skip if previous scores are already low
+        if (
+            score + w_semantic < 0.65
+        ):  # skip expensive semantic similarity if structural and syntactic similarity are already very low (configurable threshold)
+            return score
         score += w_semantic * semantic_similarity(
             entity1, entity2, semantic_text_predicates
         )
