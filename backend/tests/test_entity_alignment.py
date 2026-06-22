@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.pipeline.entity_alignment import (
@@ -10,7 +12,10 @@ from app.pipeline.entity_alignment import (
 )
 from app.pipeline.utils.turtle_utils import load_entity_information
 
-CONFIG = load_alignment_config()
+ALIGNMENT_CONFIG_PATH = (
+    Path(__file__).parent.parent / "config" / "schemas" / "alignment_config.yaml"
+)
+CONFIG = load_alignment_config(ALIGNMENT_CONFIG_PATH)
 PERSON_CFG = resolve_type_config(CONFIG, "Person")
 
 
