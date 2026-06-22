@@ -1,10 +1,15 @@
 """Tests for app.pipeline.confidence_annotation.annotate_confidence"""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from app.pipeline.confidence_annotation import annotate_confidence
+
+PROVENANCE_CONFIG_PATH = (
+    Path(__file__).parent.parent / "config" / "schemas" / "provenance_config.yaml"
+)
 
 SOURCE_TEXT = """\
 # Example paper
@@ -52,7 +57,9 @@ def annotation_outputs(tmp_path):
     source_path.write_text(SOURCE_TEXT, encoding="utf-8")
     ttl_path.write_text(TTL_CONTENT, encoding="utf-8")
 
-    out_path = annotate_confidence(source_path, ttl_path, output_dir)
+    out_path = annotate_confidence(
+        source_path, ttl_path, output_dir, config_path=PROVENANCE_CONFIG_PATH
+    )
     with open(out_path, encoding="utf-8") as f:
         data = json.load(f)
     return data
