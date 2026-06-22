@@ -18,7 +18,6 @@ class Run(Base):
     triggered_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
-    schema_path: Mapped[str | None] = mapped_column(String, nullable=True)
     model: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

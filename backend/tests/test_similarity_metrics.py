@@ -1,6 +1,7 @@
 """Tests for similarity_metrics.py"""
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -14,8 +15,11 @@ from app.pipeline.metrics.similarity_metrics import (
     syntactic_similarity,
 )
 
+ALIGNMENT_CONFIG_PATH = (
+    Path(__file__).parent.parent / "config" / "schemas" / "alignment_config.yaml"
+)
 # load current config of scholarly use case
-CONFIG = load_alignment_config()
+CONFIG = load_alignment_config(ALIGNMENT_CONFIG_PATH)
 PERSON_CFG = resolve_type_config(CONFIG, "Person")
 CONF_CFG = resolve_type_config(CONFIG, "Conference")
 STRUCT_MIN = 0.4

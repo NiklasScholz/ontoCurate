@@ -21,13 +21,6 @@ from app.pipeline.utils.turtle_utils import (
     collect_rdf_type_triples,
 )
 
-DEFAULT_CONFIG = (
-    Path(__file__).parent.parent.parent
-    / "config"
-    / "schemas"
-    / "provenance_config.yaml"
-)
-
 
 # Load Config
 def load_config(
@@ -62,20 +55,12 @@ def annotate_confidence(
     ttl_path: Path,
     output_dir: Path,
     *,
-    schema_path: Path | None = None,
-    config_path: Path | None = None,
+    config_path: Path,
 ) -> Path:
     """Annotate every literal triple in ttl_path with a source span and
     confidence score, writing xx_provenance.json to output_dir.
-    Uses config from {schema_path.parent}/provenance_config.yaml
+    Uses config from {config_path}
     """
-    if config_path is None:
-        if schema_path is not None:
-            candidate = Path(schema_path).parent / "provenance_config.yaml"
-            config_path = candidate if candidate.exists() else DEFAULT_CONFIG
-        else:
-            config_path = DEFAULT_CONFIG
-
     (
         windows_config,
         out_of_window_penalty,
