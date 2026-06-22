@@ -9,14 +9,12 @@ from app.pipeline.confidence_annotation import annotate_confidence
 from app.pipeline.extraction import extract_document
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
+from app.repositories.workspace import WorkspaceRepository
 from app.store.writer import write_candidate_statements_from_ttl
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SCHEMA = (
-    Path(__file__).parent.parent.parent / "config" / "schemas" / "scholarly_schema.yaml"
-)
 TMP_BASE = Path("/tmp/ontocurate")
 
 
@@ -45,12 +43,11 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
         async with AsyncSessionLocal() as session:
             doc = await DocumentRepository(session).get_by_id(document_uuid)
+            workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
             run = await RunRepository(session).get_by_id(run_uuid)
 
         try:
-            schema_path = (
-                Path(run.schema_path) if run and run.schema_path else DEFAULT_SCHEMA
-            )
+            schema_path = workspace.schema_path
             model = (run.model if run and run.model else None) or settings.default_model
 
             md_file = tmp_dir / f"{Path(doc.filename).stem}.md"
@@ -67,7 +64,10 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
             )
 
             provenance_path = annotate_confidence(
-                md_file, ttl_path, tmp_dir, schema_path=schema_path
+                md_file,
+                ttl_path,
+                tmp_dir,
+                config_path=Path(workspace.provenance_config_path),
             )
             write_candidate_statements_from_ttl(
                 run_id,

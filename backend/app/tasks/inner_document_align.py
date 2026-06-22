@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.database import TaskSessionLocal as AsyncSessionLocal
 from app.pipeline.entity_alignment import run_inner_document_alignment
 from app.repositories.run import RunRepository
+from app.repositories.workspace import WorkspaceRepository
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -38,11 +39,18 @@ def align_document_task(self, extract_result: tuple) -> str:
 
         await update_status("aligning", task_name="Entity Alignment")
         try:
+            async with AsyncSessionLocal() as session:
+                workspace = await WorkspaceRepository(session).get_by_id(
+                    UUID(workspace_id)
+                )
+
+            config_path = workspace.alignment_config_path
             await asyncio.to_thread(
                 run_inner_document_alignment,
                 ttl_path,
                 workspace_id,
                 run_id,
+                config_path,
                 document_id,
             )
 

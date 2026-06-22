@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import time
 
 import httpx
 from rapidfuzz import fuzz
@@ -128,15 +129,22 @@ def get_embedding(text: str) -> list[float]:
     }
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(endpoint, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            return data["data"][0]["embedding"]
-    except Exception as e:
-        logging.error(f"Failed to get embedding for text: {e}")
-        return []
+    last_exception = None
+    for attempt in range(3):
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(endpoint, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                return data["data"][0]["embedding"]
+        except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
+            last_exception = e
+            time.sleep(2**attempt)
+        except Exception as e:
+            logging.error(f"Failed to get embedding for text: {e}")
+            return []
+    logging.error(f"Failed to get embedding after 3 attempts: {last_exception}")
+    return []
 
 
 def semantic_similarity(

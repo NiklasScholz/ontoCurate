@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -13,29 +14,11 @@ from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.run import RunDetailResponse
 from app.store.client import curation_graph, sparql_select
+from app.store.utils import *
 from app.store.writer import accept_statement, reject_statement
 from app.tasks import build_pipeline
 
 router = APIRouter(prefix="/extraction", tags=["extraction"])
-
-PACO = "https://example.org/provenance-and-curation-ontology/"
-PROV = "http://www.w3.org/ns/prov#"
-RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-RDF_TYPE = f"{RDF}type"
-PACO_CANDIDATE = f"{PACO}CandidateStatement"
-PACO_SUBJECT = f"{PACO}subject"
-PACO_PREDICATE = f"{PACO}predicate"
-PACO_OBJECT = f"{PACO}object"
-PACO_ORIGIN = f"{PACO}origin"
-PACO_STATUS = f"{PACO}curationStatus"
-PACO_CREATED_AT = f"{PACO}createdAt"
-PACO_CURRENT = f"{PACO}isCurrentVersion"
-PACO_CONFIDENCE = f"{PACO}confidence"
-PACO_TEXT_SPAN = f"{PACO}textSpan"
-PACO_TEXT_SPAN_START = f"{PACO}textSpanStart"
-PACO_TEXT_SPAN_END = f"{PACO}textSpanEnd"
-PROV_GENERATED_BY = f"{PROV}wasGeneratedBy"
-PROV_DERIVED_FROM = f"{PROV}wasDerivedFrom"
 
 
 def candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]:
@@ -76,7 +59,7 @@ def candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]:
 
 def derive_run_status(task_statuses: list[str]) -> str:
     """Compute overall run status from individual task statuses."""
-    status = {"extracting", "converting"}
+    status = {"extracting", "converting", "aligning", "waiting"}
     if not task_statuses:
         return "queued"
     if any(s in status for s in task_statuses):
@@ -90,7 +73,7 @@ def derive_run_status(task_statuses: list[str]) -> str:
 
 UploadFileType = Annotated[
     UploadFile, WithJsonSchema({"type": "string", "format": "binary"})
-]
+]  # fixes OpenAPI schema on swagger page
 
 
 @router.post("/", status_code=202)
@@ -105,8 +88,16 @@ async def create_documents(
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
+        base = Path(__file__).parent.parent.parent / "config" / "schemas"
+        schema_path = str(base / "scholarly_schema.yaml")
+        provenance_path = str(base / "provenance_config.yaml")
+        alignment_config_path = str(base / "alignment_config.yaml")
         workspace = await workspace_repo.create_with_id(
-            name="Default Workspace", workspace_id=workspace_id
+            name="Default Workspace",
+            workspace_id=workspace_id,
+            schema_path=schema_path,
+            alignment_config_path=alignment_config_path,
+            provenance_config_path=provenance_path,
         )
     model = "gpt-oss-120b"
 
