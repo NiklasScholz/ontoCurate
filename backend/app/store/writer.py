@@ -46,16 +46,14 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     accepted_graph = data_graph(workspace_id)
 
     # Retrieve the statement via the statement id
-    payload = sparql_select(
-        f"""
+    payload = sparql_select(f"""
         SELECT ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 <{stmt_id}> ?p ?o
             }}
         }}
         ORDER BY ?p ?o
-    """
-    )
+    """)
 
     bindings = payload.get("results", {}).get("bindings", [])
 
@@ -96,8 +94,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
 
     # Mark the old statement as not current
 
-    sparql_update(
-        f"""
+    sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{
                 <{stmt_id}> <{PACO_CURRENT}> true .
@@ -113,8 +110,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
                 <{stmt_id}> <{PACO_CURRENT}> true .
             }}
         }}
-    """
-    )
+    """)
 
     # Create the new accepted statement with the same subject/predicate/object but with curation status accepted, and link it to the accepting activity
 
@@ -188,42 +184,36 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
 
     # write tripples to curation graph
-    sparql_update(
-        f"""
+    sparql_update(f"""
         INSERT DATA {{
             GRAPH <{graph}> {{
                 {triples_text}
             }}
         }}
-    """
-    )
+    """)
 
     # write tripples to data graph
-    sparql_update(
-        f"""
+    sparql_update(f"""
         INSERT DATA {{
             GRAPH <{accepted_graph}> {{
                 <{old_subject}> <{old_predicate}> <{old_object}> .
             }}
         }}
-    """
-    )
+    """)
 
 
 def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> None:
     graph = curation_graph(workspace_id)
 
     # Retrieve the statement via the statement id
-    payload = sparql_select(
-        f"""
+    payload = sparql_select(f"""
         SELECT ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 <{stmt_id}> ?p ?o
             }}
         }}
         ORDER BY ?p ?o
-    """
-    )
+    """)
 
     bindings = payload.get("results", {}).get("bindings", [])
 
@@ -264,8 +254,7 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
 
     # Mark the old statement as not current
 
-    sparql_update(
-        f"""
+    sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{
                 <{stmt_id}> <{PACO_CURRENT}> true .
@@ -281,8 +270,7 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
                 <{stmt_id}> <{PACO_CURRENT}> true .
             }}
         }}
-    """
-    )
+    """)
 
     # Create the new rejected statement with the same subject/predicate/object but with curation status rejected, and link it to the rejecting activity
 
@@ -356,12 +344,10 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
 
     # write tripples to curation graph
-    sparql_update(
-        f"""
+    sparql_update(f"""
         INSERT DATA {{
             GRAPH <{graph}> {{
                 {triples_text}
             }}
         }}
-    """
-    )
+    """)

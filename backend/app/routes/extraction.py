@@ -138,8 +138,7 @@ async def seed_statement_for_testing(
         f"{workspace_id}/candidate-statements/test-paper-author"
     )
 
-    sparql_update(
-        f"""
+    sparql_update(f"""
     INSERT DATA {{
         GRAPH <{graph}> {{
             <{statement_id}> a <https://example.org/provenance-and-curation-ontology/CandidateStatement> .
@@ -152,8 +151,7 @@ async def seed_statement_for_testing(
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/confidence> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
         }}
     }}
-    """
-    )
+    """)
 
     return {
         "workspace_id": workspace_id,
