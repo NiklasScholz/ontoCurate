@@ -12,7 +12,7 @@ Each schema comes along with a single YAML config file that drives the entity al
 **settings** defines the default values, while **entity_types** allows to override those settings with different thresholds, weights or fields. 
 It is important that:
 - Weights across the three metrics (syntactic, semantic, structural) must sum to 1.0 (validated at loading time)
-- **`unique_keys`** must globally identify entities with certainty (skips the alignment pipeline and aligns on its own)
+- **`unique_keys`** declare fields that act as hard conflict blockers: if both entities have non-empty, non-overlapping values for a unique key, the pair is dropped without scoring. Overlapping values allow the pair through to normal scoring. Can be declared globally (under `settings`) or per entity type (under `entity_types.<Type>`).
 - Setting a metric weight to `0.0` skips that metric entirely 
 
 ```yaml
@@ -79,7 +79,7 @@ entity_types:
 
 ## Stage 1: Candidate Pair Generation (Blocking)
 To reduce the number of candidates, we make use of grouping by types. This means that only entities of the same RDF type are compared (even if they belong to the same type hierachy). If ontoGPT does not believe them to be of the same type, the chance is low that they woudld actually be. If only one entity exists for a type, it is not used during entity alignment.
-Additionally, if entities in a bucket have a `unique_key` field (e.g. doi), matches are immediately produced and conflicts dropped without scoring
+Additionally, if entities in a bucket have conflicting values for a `unique_key` field (e.g. two different DOIs), the pair is dropped without scoring. Pairs with overlapping unique key values are passed to the entity alignment stage. Global unique keys (e.g. `doi`, `issn`) apply to all types; per-type unique keys (e.g. `issued` for Proceedings, `location` for Organization) are merged with the global set for that type's bucket.
 Deduplication of the buckets by URI ensures to not evaluate the same pair multiple times.
 
 ---

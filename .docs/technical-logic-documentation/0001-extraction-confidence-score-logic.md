@@ -32,6 +32,13 @@ datatype_properties:
     - Organization
     - AcademicArticle
 
+  # Predicates for which fuzzy/abbreviation fallback is disabled
+  exact_only_predicates:
+    - issn
+    - eissn
+    - doi
+    - identifier
+
   windows:
     title_paper:
       - strategy: head
@@ -48,6 +55,7 @@ datatype_properties:
         heading: "References"
 ```
 
+- **exact_only_predicates**: predicates for which only exact, case-insensitive, and normalized matches are accepted (Tiers 1–3). Fuzzy and abbreviation matching (Tiers 4–5) are skipped. If no verbatim match is found the triple is left unannotated (`confidence = None`) rather than receiving a misleading fuzzy score. Intended for identifier fields (ISSN, DOI, etc.) where a digit-sequence fuzzy match against unrelated text produces false confidence.
 - **windows**: per-predicate window declarations. A predicate can declare a single window or a list — when multiple are declared the highest-confidence match across all windows wins. Supported strategies: `head` (first N chars), `tail` (last N chars), `section` (search for markdown heading), `full` (entire document, default).
 - **outlier_pentalty_entities**: only entities whose `rdf:type` local name appears in this list are subject to the outlier penalty.
           
