@@ -37,7 +37,7 @@ def align_document_task(self, extract_result: tuple) -> str:
                     UUID(run_id), UUID(document_id), status, task_name=task_name
                 )
 
-        await update_status("aligning", task_name="Entity Alignment")
+        await update_status("aligning", task_name="Inner Document Alignment")
         try:
             async with AsyncSessionLocal() as session:
                 workspace = await WorkspaceRepository(session).get_by_id(
@@ -58,7 +58,22 @@ def align_document_task(self, extract_result: tuple) -> str:
             working_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ttl_path, working_dir / f"{document_id}.ttl")
 
-            await update_status("waiting", task_name="Waiting for other documents")
+            async with AsyncSessionLocal() as session:
+                tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
+
+            if len(tasks) <= 1:
+                await update_status("done")
+            else:
+                other_tasks = [t for t in tasks if str(t.document_id) != document_id]
+                all_others_finished = all(
+                    t.status in {"waiting", "done", "failed"} for t in other_tasks
+                )
+                if all_others_finished:
+                    await update_status("queued", task_name="Cross-Document Alignment")
+                else:
+                    await update_status(
+                        "waiting", task_name="Waiting for other documents"
+                    )
             logger.info("[%s] Alignment complete: document=%s", run_id, document_id)
         except Exception:
             await update_status("failed")

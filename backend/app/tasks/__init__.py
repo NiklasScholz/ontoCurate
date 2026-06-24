@@ -11,12 +11,15 @@ from .inner_document_align import align_document_task
 
 def get_document_chain(document_id: str, file_type: str, run_id: str):
     """Per-document chain: (convert) -> extract -> inner-document alignment"""
-    extract = extract_document_task.s(document_id, run_id)
     align = align_document_task.s()
 
     if file_type == "pdf":
-        return chain(convert_pdf_task.si(document_id, run_id), extract, align)
-    return chain(extract, align)
+        return chain(
+            convert_pdf_task.si(document_id, run_id),
+            extract_document_task.si(document_id, run_id),
+            align,
+        )
+    return chain(extract_document_task.s(document_id, run_id), align)
 
 
 def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id: str):

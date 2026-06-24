@@ -32,7 +32,7 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
                         UUID(run_id), t.document_id, status, task_name=task_name
                     )
 
-        await update_all("started", task_name="Cross-Document Alignment")
+        await update_all("aligning", task_name="Cross-Document Alignment")
         try:
             async with AsyncSessionLocal() as session:
                 workspace = await WorkspaceRepository(session).get_by_id(
