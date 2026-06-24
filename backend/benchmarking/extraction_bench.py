@@ -43,7 +43,6 @@ def run_extraction_bench(
                 source_path=doc_path,
                 ttl_path=ttl_path,
                 output_dir=output_dir / doc_path.stem,
-                schema_path=schema_path,
                 config_path=provenance_config_path,
             )
         except Exception as e:

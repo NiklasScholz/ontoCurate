@@ -49,7 +49,7 @@ def pairs_to_rows(
 
 def run_alignment_bench(
     ttl_paths: list[Path],
-    config_path: Path | None = None,
+    config_path: Path,
 ):
     config = load_alignment_config(config_path)
     all_rows = []

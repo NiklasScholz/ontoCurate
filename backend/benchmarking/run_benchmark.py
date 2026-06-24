@@ -1,8 +1,17 @@
 import argparse
 import csv
+import logging
 import os
 import sys
 from pathlib import Path
+
+from ontogpt_patches.apply_patches import apply_patches
+
+apply_patches(verbose=True)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 from benchmarking.alignment_bench import run_alignment_bench
 from benchmarking.extraction_bench import run_extraction_bench
@@ -96,10 +105,26 @@ def main():
     args = parser.parse_args()
 
     backend_root = Path(__file__).parent.parent
-    default_schema = backend_root / "config" / "schemas" / "scholarly_schema.yaml"
+    config_dir = backend_root / "config" / "schemas"
+
+    default_schema = config_dir / "scholarly_schema.yaml"
     schema_path = args.schema or default_schema
     if not schema_path.exists():
         print(f"Schema not found: {schema_path}", file=sys.stderr)
+        sys.exit(1)
+
+    alignment_config_path = (
+        args.alignment_config or config_dir / "alignment_config.yaml"
+    )
+    if not alignment_config_path.exists():
+        print(f"Alignment config not found: {alignment_config_path}", file=sys.stderr)
+        sys.exit(1)
+
+    provenance_config_path = (
+        args.provenance_config or config_dir / "provenance_config.yaml"
+    )
+    if not provenance_config_path.exists():
+        print(f"Provenance config not found: {provenance_config_path}", file=sys.stderr)
         sys.exit(1)
 
     api_base = os.environ.get("OPENAI_API_BASE", "")
@@ -135,7 +160,7 @@ def main():
             model=model,
             api_base=api_base,
             api_key=api_key,
-            provenance_config_path=args.provenance_config,
+            provenance_config_path=provenance_config_path,
         )
 
         write_csv(
@@ -155,7 +180,7 @@ def main():
         print("Running alignment benchmark...")
         alignment_rows = run_alignment_bench(
             ttl_paths=ttl_paths,
-            config_path=args.alignment_config,
+            config_path=alignment_config_path,
         )
 
         write_csv(
