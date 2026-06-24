@@ -71,6 +71,14 @@ def resolve_type_config(config: dict, entity_type: str) -> dict:
             "expand_initials",
             settings.get("default_expand_initials", False),
         ),
+        "sparsity_penalty": overrides.get(
+            "sparsity_penalty",
+            settings.get("default_sparsity_penalty", 1.0),
+        ),
+        "sparsity_max_fields": overrides.get(
+            "sparsity_max_fields",
+            settings.get("default_sparsity_max_fields", 1),
+        ),
     }
 
 
@@ -151,6 +159,8 @@ def similarity_computation(
             expand_initials=type_cfg["expand_initials"],
             threshold=type_cfg["threshold"],
             semantic_text_predicates=type_cfg["semantic_text_predicates"],
+            sparsity_penalty=type_cfg["sparsity_penalty"],
+            sparsity_max_fields=type_cfg["sparsity_max_fields"],
         )
         results.append((a, b, score))
     return results

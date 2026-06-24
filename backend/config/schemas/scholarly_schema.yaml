@@ -77,6 +77,8 @@ classes:
           The conference event at which this cited paper was presented.
           Only populate if the reference string explicitly names a conference event
           (e.g. "25th International Conference on …"). Leave blank if only proceedings are mentioned.
+          Extract the edition number from ordinal text into the edition field
+          (e.g. "Twelfth" → 12, "45th" → 45) and the year into event_year.
       presented_at_workshop:
         description: >-
           The workshop event at which this cited paper was presented.
@@ -124,6 +126,7 @@ classes:
     slots:
       - id
       - conf_name
+      - edition
       - location
       - event_year
       - start_date
@@ -136,6 +139,7 @@ classes:
     slots:
       - id
       - workshop_name
+      - edition
       - location
       - event_year
       - start_date
@@ -266,7 +270,13 @@ slots:
     slot_uri: bibo:presentedAt
     range: Conference
     inlined: true
-    description: The conference at which this paper was presented. Conference papers only. Include all information about the Conference
+    description: >-
+      The conference at which this paper was presented. Conference papers only.
+      Include all information about the Conference.
+      IMPORTANT: always extract the edition number from ordinal text in the conference name
+      into the edition field (e.g. "Twelfth" → 12, "45th" → 45, "Thirty-ninth" → 39).
+      Always extract the year into event_year (or start_date if full date is known).
+      These fields are essential for distinguishing different yearly editions of the same conference.
 
   presented_at_workshop:
     slot_uri: bibo:presentedAt
@@ -381,7 +391,12 @@ slots:
     slot_uri: dcterms:issued
     range: Year
     required: false
-    description: Year the proceedings or journal issue was published, e.g. 2024. If the year is not mentioned in the text, omit this field entirely.
+    description: >-
+      Year the proceedings or journal issue was published, e.g. 2024.
+      Also extract the year when it is embedded in the proceedings title
+      (e.g. "Proceedings of the 2022 Conference on …" → 2022,
+      "EMNLP 2025 Proceedings" → 2025).
+      If the year cannot be determined from the text, omit this field entirely.
 
   publisher:
     slot_uri: dcterms:publisher
@@ -422,6 +437,16 @@ slots:
     slot_uri: schema:name
     range: string
     description: Full name of the workshop.
+
+  edition:
+    slot_uri: bibo:edition
+    range: integer
+    description: >-
+      Edition or occurrence number of the conference or workshop as an integer,
+      e.g. 13 for "The 13th International Semantic Web Conference" or
+      39 for "The Thirty-ninth Annual Conference on NeurIPS".
+      Extract only the number, not the ordinal suffix.
+      Leave blank if no edition number is mentioned.
 
   event_year:
     slot_uri: schema:startDate

@@ -35,44 +35,49 @@ entity_types:
       semantic: 0.0
       structural: 0.1
     comparison_predicates:
-      - family_name
+      - familyName
       - name
       - email
     semantic_text_predicates:
       - name
-      - given_name
-      - family_name
+      - givenName
+      - familyName
       - email
     expand_initials: true
+    sparsity_penalty: 0.85
+    sparsity_max_fields: 1
 
   Organization:
-    threshold: 0.82
+    threshold: 0.90
     weights:
-      syntactic: 0.5
-      semantic: 0.4
+      syntactic: 0.75
+      semantic: 0.15
       structural: 0.1
     comparison_predicates:
-      - org_name
+      - name
       - location
     semantic_text_predicates:
-      - org_name
+      - name
       - location
     unique_keys:
       - location
 
   Conference:
-    threshold: 0.81
+    threshold: 0.90
     weights:
       syntactic: 0.2
       semantic: 0.75
       structural: 0.05
     comparison_predicates:
-      - conf_name
+      - name
       - location
     semantic_text_predicates:
-      - conf_name
+      - name
       - location
     expand_initials: true
+    unique_keys:
+      - startDate
+      - edition
 
   Workshop:
     threshold: 0.85
@@ -81,11 +86,14 @@ entity_types:
       semantic: 0.45
       structural: 0.1
     comparison_predicates:
-      - workshop_name
+      - name
       - location
     semantic_text_predicates:
-      - workshop_name
+      - name
       - location
+    unique_keys:
+      - startDate
+      - edition
 
   Proceedings:
     threshold: 0.88

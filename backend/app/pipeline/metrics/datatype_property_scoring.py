@@ -65,22 +65,32 @@ def get_windows(
 # Search Span Logic
 
 
-def build_norm_map(text: str) -> tuple[str, list[int]]:
-    """Collapse whitespace runs to a single space.
+def build_norm_map(text: str, strip_markdown: bool = False) -> tuple[str, list[int]]:
+    """Collapse whitespace runs to a single space, optionally stripping markdown inline
+    markers (* _ ` and em/en dashes replaced with hyphen).
     Returns (norm_text, pos_map) where pos_map[i] is the original index of norm_text[i].
     """
+    MD_CHARS = frozenset("*_`")
+    EM_DASHES = frozenset("—–")
     norm_chars: list[str] = []
     pos_map: list[int] = []
     i = 0
     while i < len(text):
-        if text[i].isspace():
+        ch = text[i]
+        if ch.isspace():
             if norm_chars and norm_chars[-1] != " ":
                 norm_chars.append(" ")
                 pos_map.append(i)
             while i < len(text) and text[i].isspace():
                 i += 1
+        elif strip_markdown and ch in MD_CHARS:
+            i += 1  # drop the character, don't include char in output
+        elif strip_markdown and ch in EM_DASHES:
+            norm_chars.append("-")
+            pos_map.append(i)
+            i += 1
         else:
-            norm_chars.append(text[i])
+            norm_chars.append(ch)
             pos_map.append(i)
             i += 1
     return "".join(norm_chars), pos_map
@@ -155,6 +165,20 @@ def find_span_in(
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
         return offset + m.start(), offset + m.end(), 0.9
+
+    # Markdown-stripped normalized match
+    stripped_text, stripped_pos_map = build_norm_map(text, strip_markdown=True)
+    stripped_value = build_norm_map(value, strip_markdown=True)[0]
+    idx = stripped_text.lower().find(stripped_value.lower())
+    if idx >= 0:
+        orig_start = stripped_pos_map[idx]
+        orig_end = (
+            stripped_pos_map[
+                min(idx + len(stripped_value) - 1, len(stripped_pos_map) - 1)
+            ]
+            + 1
+        )
+        return offset + orig_start, offset + orig_end, 0.88
 
     if exact_only:
         return None

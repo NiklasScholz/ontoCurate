@@ -40,7 +40,13 @@ def initial_expanded_score(a: str, b: str) -> float:
 
     if not (
         _has_full_given(tokens_a) or _has_full_given(tokens_b)
-    ):  # only initials are available and no token with more than 1 char --> not informative
+    ):  # only initials are available and no token with more than 1 char
+        # If both sides have single-char given-name tokens that differ, it's an explicit
+        # conflict and return a near-zero score
+        initials_a = {t for t in tokens_a if len(t) == 1}
+        initials_b = {t for t in tokens_b if len(t) == 1}
+        if initials_a and initials_b and initials_a.isdisjoint(initials_b):
+            return 0.05
         return base
 
     shorter, longer = (
@@ -51,9 +57,9 @@ def initial_expanded_score(a: str, b: str) -> float:
     ]  # picks all non-initial tokens from the shorter list as anchors
     if not multi_shorter:  # no initial token available
         return base
-    anchor = multi_shorter[
-        0
-    ]  # picks the longest non-initial token (for persons typically surname)
+    # Pick the first multi-char token that also appears in the longer list.
+    longer_set = set(longer)
+    anchor = next((t for t in multi_shorter if t in longer_set), multi_shorter[0])
     anchor_idx = next(
         (i for i, lt in enumerate(longer) if lt == anchor), None
     )  # requires exact match for the anchor
@@ -82,6 +88,11 @@ def initial_expanded_score(a: str, b: str) -> float:
             None,
         )
         if match is None:
+            # explicit initial conflict yields low score
+            if len(tok) == 1 and any(
+                len(longer[i]) == 1 and i not in used for i in range(len(longer))
+            ):
+                return 0.05
             return base
         used.add(match)
     return 1.0
@@ -92,12 +103,16 @@ def syntactic_similarity(
     entity2: dict,
     comparison_predicates: list[str],
     expand_initials: bool = False,
+    sparsity_penalty: float = 1.0,
+    sparsity_max_fields: int = 1,
 ) -> float:
     """Compute similarity based on string surface forms of entity property values.
 
     For each field of comparison_predicates returns the average syntactic similarity score
     If expand_initials is True, single-character tokens are treated as initials and match any token with the same prefix, boosting scores for abbreviated names.
     Otherwise, fuzz ratio score on normalised names is used.
+    sparsity_penalty is applied when the number of matched fields is <= sparsity_max_fields
+    (and at least one more predicate was configured)
     """
     score_fn = initial_expanded_score if expand_initials else fuzz_score
 
@@ -110,7 +125,17 @@ def syntactic_similarity(
         best = max(score_fn(a, b) for a in vals_a for b in vals_b)
         field_scores.append(best)
 
-    return sum(field_scores) / len(field_scores) if field_scores else 0.0
+    if not field_scores:
+        return 0.0
+
+    avg = sum(field_scores) / len(field_scores)
+    if (
+        sparsity_penalty < 1.0
+        and len(field_scores) <= sparsity_max_fields
+        and len(comparison_predicates) > sparsity_max_fields
+    ):
+        avg *= sparsity_penalty
+    return avg
 
 
 def get_embedding(text: str) -> list[float]:
@@ -199,6 +224,8 @@ def combined_similarity(
     expand_initials: bool = False,
     threshold: float = 0.8,
     semantic_text_predicates: list[str] | None = None,
+    sparsity_penalty: float = 1.0,
+    sparsity_max_fields: int = 1,
 ) -> float:
     """Aggregates syntactic, semantic and structural similarity according to config"""
     w = weights or {"syntactic": 0.5, "semantic": 0.35, "structural": 0.15}
@@ -213,7 +240,12 @@ def combined_similarity(
     w_syntactic = w.get("syntactic", 0.0)
     if w_syntactic > 0:
         score += w_syntactic * syntactic_similarity(
-            entity1, entity2, keys, expand_initials
+            entity1,
+            entity2,
+            keys,
+            expand_initials,
+            sparsity_penalty,
+            sparsity_max_fields,
         )
 
     w_semantic = w.get("semantic", 0.0)

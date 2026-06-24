@@ -52,14 +52,16 @@ entity_types:
       semantic: 0.0      
       structural: 0.3
     comparison_predicates:
-      - family_name
+      - familyName
       - name
       - email
     semantic_text_predicates:
       - name
-      - given_name
-      - family_name
+      - givenName
+      - familyName
     expand_initials: true  # "J. Doe" matches "John Doe"
+    sparsity_penalty: 0.7   # multiply score when matched field count <= sparsity_max_fields
+    sparsity_max_fields: 1  # penalty applies when only 1 field matched (e.g. surname only)
 
   Conference:
     threshold: 0.88
@@ -68,11 +70,13 @@ entity_types:
       semantic: 0.45
       structural: 0.1
     comparison_predicates:
-      - conf_name
+      - name
       - location
     semantic_text_predicates:
-      - conf_name
+      - name
       - location
+    unique_keys:
+      - startDate  # different-year editions (e.g. NeurIPS 2022 vs 2024) are never merged
 ```
 
 ---
@@ -89,6 +93,8 @@ For each candidate pair, the system computes a **combined similarity score** (0.
 
 ### Syntactic Similarity
 Syntactic similarity looks at the **string forms** of configured `comparison_predicates`fields. For each field it takes the best-scoring pair across all value combinations (if multiple values exist for the predicate). Predicates missing are dropped. For scoring, there exist two modes: **Expand_initials: false** is the default string comparison version utilizing token-sorten fuzzy ratio matching on normalised tokens. **Expand_initials: true** treats single character tokens as initials (that can match any longer token sharing its prefix). This is useful for names when comparing Persons like "J. Doe" and "John Doe".
+
+**Sparsity penalty** (`sparsity_penalty`, default `1.0`; `sparsity_max_fields`, default `1`): when the number of matched fields is $\leq$ `sparsity_max_fields` (and more predicates were configured), the field average is multiplied by `sparsity_penalty`. This prevents entity alignment of entities with low-resources.
 
 ### Semantic Similarity
 For semantic similarity we utilize text embeddings from KI Connnect NRW (model: `qwen3-embedding-8b`, configurable via the environment variable `EMBEDDING_MODEL`). To produce embeddigns we concatenate the values of `semantic_text_predicates` that are present in both entities. Then, cosine similarity between the two embedding vectors is produced. 
