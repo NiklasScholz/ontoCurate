@@ -63,23 +63,19 @@ async def check_oxigraph():
     subject = "https://ontocurate.org/debug/subject"
     predicate = "https://ontocurate.org/debug/predicate"
 
-    sparql_update(
-        f"""
+    sparql_update(f"""
         INSERT DATA {{
             GRAPH <{graph}> {{
                 <{subject}> <{predicate}> "hello world" .
             }}
         }}
-    """
-    )
+    """)
 
-    result = sparql_select(
-        f"""
+    result = sparql_select(f"""
         SELECT ?o WHERE {{
             GRAPH <{graph}> {{ <{subject}> <{predicate}> ?o }}
         }}
-    """
-    )
+    """)
 
     sparql_update(f"DROP SILENT GRAPH <{graph}>")
 
