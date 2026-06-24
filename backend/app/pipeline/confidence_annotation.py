@@ -25,7 +25,7 @@ from app.pipeline.utils.turtle_utils import (
 # Load Config
 def load_config(
     config_path: Path,
-) -> tuple[dict, float, float, float, float, float, list[str], dict]:
+) -> tuple[dict, float, float, float, float, float, list[str], dict, set[str]]:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     s = raw.get("settings", {})
     dp = raw.get("datatype_properties", {})
@@ -37,6 +37,7 @@ def load_config(
     min_outlier_factor = float(dp.get("min_outlier_factor", 0.2))
     outlier_pentalty_entities = list(dp.get("outlier_pentalty_entities", []))
     obj_prop_config = raw.get("object_properties", {})
+    exact_only_predicates = set(dp.get("exact_only_predicates", []))
     return (
         windows,
         penalty,
@@ -46,6 +47,7 @@ def load_config(
         min_outlier_factor,
         outlier_pentalty_entities,
         obj_prop_config,
+        exact_only_predicates,
     )
 
 
@@ -70,6 +72,7 @@ def annotate_confidence(
         min_outlier_factor,
         outlier_pentalty_entities,
         obj_prop_config,
+        exact_only_predicates,
     ) = load_config(config_path)
 
     source = source_path.read_text(encoding="utf-8")
@@ -89,6 +92,7 @@ def annotate_confidence(
             out_of_window_penalty,
             win_distance_penalty=win_distance_penalty,
             min_penalty_factor=min_penalty_factor,
+            exact_only=predicate_label in exact_only_predicates,
         )
         if result is None:
             continue

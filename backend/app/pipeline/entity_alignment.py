@@ -86,7 +86,7 @@ def generate_candidate_pairs(
     -everything else is passed to scoring
     """
 
-    hard_id_fields = set(config.get("settings", {}).get("unique_keys", []))
+    global_unique_keys = set(config.get("settings", {}).get("unique_keys", []))
 
     buckets: dict[str, list[dict]] = defaultdict(list)
     for entity in entities:
@@ -99,6 +99,11 @@ def generate_candidate_pairs(
     for type_name, bucket in buckets.items():
         if len(bucket) < 2:
             continue
+
+        type_unique_keys = set(
+            config.get("entity_types", {}).get(type_name, {}).get("unique_keys", [])
+        )
+        hard_id_fields = global_unique_keys | type_unique_keys
 
         for i, a in enumerate(bucket):
             for b in bucket[i + 1 :]:
