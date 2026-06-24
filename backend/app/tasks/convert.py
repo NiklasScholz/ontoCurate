@@ -61,7 +61,10 @@ def pdf_to_markdown(raw_bytes: bytes, filename: str | None = None) -> str:
         tmp_path = tmp_pdf.name
 
     try:
-        pages = pymupdf4llm.to_markdown(tmp_path, page_chunks=True)
+        # automatically splits pages into chunks and removes headers and footers
+        pages = pymupdf4llm.to_markdown(
+            tmp_path, page_chunks=True, header=False, footer=False
+        )
         full_md = ""
         for i, page in enumerate(pages):
             page_text = page.get("text", "") if isinstance(page, dict) else ""
