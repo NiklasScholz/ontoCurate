@@ -115,13 +115,19 @@ def try_abbreviation_match(text: str, value: str) -> tuple[int, int] | None:
     return m.start(), pos
 
 
-def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] | None:
+def find_span_in(
+    text: str, value: str, offset: int, exact_only: bool = False
+) -> tuple[int, int, float] | None:
     """Finds the best matching span of {value} in {text}, returning (start, end, confidence).
     Confidence is based on the type of match:
     - 1.0 exact match
     - 0.95 case-insensitive match
     - 0.9 Normalized Match (any whitespace noise in source or value, inter- or intra-word)
     - 0.0-0.94 partial match based on fuzzy string similarity (may yield higher scores than other matches)
+
+    When exact_only=True, fuzzy and abbreviation fallbacks are skipped — useful for
+    identifier predicates (issn, doi, …) where a fuzzy match against unrelated digit
+    sequences would produce a misleading confidence score.
     """
     if not value.strip():
         return None
@@ -149,6 +155,9 @@ def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] |
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
         return offset + m.start(), offset + m.end(), 0.9
+
+    if exact_only:
+        return None
 
     # Abbreviation match
     abbrev = try_abbreviation_match(text, value)
@@ -193,6 +202,7 @@ def find_span(
     out_of_window_penalty: float,
     win_distance_penalty: float = 0.0,
     min_penalty_factor: float = 0.3,
+    exact_only: bool = False,
 ) -> tuple[int, int, float, bool] | None:
     """Search for {value} in {source}, going through all declared windows first.
     The following rules are being used (highest confidence wins):
@@ -200,19 +210,21 @@ def find_span(
         - If no declared window matched, the full document is searched with the
         out-of-window penalty (+ optional distance penalty from the nearest window).
         - If no declared windows exist the full document is searched with no penalty.
+
+    When exact_only=True, fuzzy and abbreviation fallbacks are disabled in find_span_in.
     """
     windows = get_windows(source, predicate, windows_config)
 
     # Best match across all declared windows (in_window=True)
     best_in_window: tuple[int, int, float] | None = None
     for window_text, window_offset in windows:
-        result = find_span_in(window_text, value, window_offset)
+        result = find_span_in(window_text, value, window_offset, exact_only=exact_only)
         if result is not None:
             if best_in_window is None or result[2] > best_in_window[2]:
                 best_in_window = result
 
     # Full-document result (penalised when declared windows exist)
-    full_result = find_span_in(source, value, 0)
+    full_result = find_span_in(source, value, 0, exact_only=exact_only)
     best_full: tuple[int, int, float, bool] | None = None
     if full_result is not None:
         start, end, conf = full_result
