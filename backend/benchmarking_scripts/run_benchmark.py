@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import json
 import logging
 import os
 import sys
@@ -16,7 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from rdflib import Graph
+
+from app.pipeline.confidence_annotation import annotate_confidence
 from app.pipeline.convert import pdf_to_markdown
+from app.pipeline.utils.turtle_utils import build_type_index, local_name
 from benchmarking_scripts.alignment_bench import run_alignment_bench
 from benchmarking_scripts.extraction_bench import run_extraction_bench
 
@@ -132,6 +137,17 @@ def main():
         action="store_true",
         help="Skip extraction and reuse existing TTL files in output-dir subdirectories",
     )
+    parser.add_argument(
+        "--annotate-only",
+        action="store_true",
+        help="Re-run confidence annotation on existing TTL files and write extraction_results.csv; skip LLM extraction and alignment",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=2,
+        help="Number of documents to extract in parallel (default: 2, recommended max: 2)",
+    )
     args = parser.parse_args()
 
     backend_root = Path(__file__).parent.parent
@@ -170,6 +186,69 @@ def main():
 
     ttl_paths = []
 
+    if args.annotate_only:
+        print("Running confidence annotation only (reusing existing TTL files)...")
+        annotation_rows = []
+        for doc_path in input_paths:
+            stem = doc_path.stem
+            doc_dir = args.output_dir / stem
+            ttl_path = doc_dir / f"{stem}_extraction.ttl"
+            md_path = doc_dir / f"{stem}.md"
+            if not ttl_path.exists():
+                print(f"TTL not found for {doc_path.name}, skipping.")
+                continue
+            # Prefer the converted markdown in the output dir; fall back to the input file
+            source_path = md_path if md_path.exists() else doc_path
+            try:
+                print(f"Annotating {doc_path.name}...")
+                provenance_path = annotate_confidence(
+                    source_path=source_path,
+                    ttl_path=ttl_path,
+                    output_dir=doc_dir,
+                    config_path=provenance_config_path,
+                )
+            except Exception as e:
+                print(f"Confidence annotation failed for {doc_path.name}: {e}")
+                continue
+
+            with open(provenance_path, encoding="utf-8") as f:
+                provenance = json.load(f)
+            g = Graph()
+            g.parse(str(ttl_path))
+            type_index = build_type_index(g)
+            for ann in provenance.get("annotations", []):
+                triple_type = ann.get("triple_type")
+                if triple_type == "object_property":
+                    object_value = local_name(ann.get("object"))
+                elif triple_type == "entity_type":
+                    object_value = local_name(ann.get("value"))
+                else:
+                    object_value = ann.get("value")
+                annotation_rows.append(
+                    {
+                        "document": doc_path.name,
+                        "subject_uri": local_name(ann.get("subject")),
+                        "entity_type": ", ".join(
+                            type_index.get(ann.get("subject", ""), [])
+                        ),
+                        "predicate": ann.get("predicate"),
+                        "object_value": object_value,
+                        "triple_type": triple_type,
+                        "span_start": ann.get("span_start"),
+                        "span_end": ann.get("span_end"),
+                        "span_text": ann.get("span_text"),
+                        "confidence": ann.get("confidence"),
+                    }
+                )
+
+        write_csv(
+            args.output_dir / "extraction_results.csv",
+            EXTRACTION_FIELDNAMES,
+            annotation_rows,
+        )
+        print("Done.")
+        return
+
     if args.skip_extraction:
         for doc_path in input_paths:
             # resolve stem regardless of whether original was PDF or MD
@@ -193,6 +272,7 @@ def main():
             api_base=api_base,
             api_key=api_key,
             provenance_config_path=provenance_config_path,
+            max_workers=args.max_workers,
         )
 
         write_csv(
