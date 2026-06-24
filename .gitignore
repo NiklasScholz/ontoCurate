@@ -1,5 +1,3 @@
-backend/benchmarking/data/input/
-backend/benchmarking/data/output/
 /.venv/
 /.idea/
 secrets.env
@@ -7,8 +5,8 @@ secrets.env
 .venv/
 .env
 __pycache__/
-*.lcov
-*.coverage
 settings.json
 .DS_Store
 backend/alembic/versions/
+backend/benchmarking_scripts/data/input/*
+backend/benchmarking_scripts/data/output/*

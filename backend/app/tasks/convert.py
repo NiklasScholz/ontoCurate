@@ -54,7 +54,7 @@ def convert_pdf_task(self, document_id: str, run_id: str) -> str:
             # set status back to queued so the next task (extract) sets extracting
             async with AsyncSessionLocal() as session:
                 await RunRepository(session).update_document_status(
-                    run_uuid, document_uuid, "queued"
+                    run_uuid, document_uuid, "queued", task_name="Extracting"
                 )
 
             return document_id

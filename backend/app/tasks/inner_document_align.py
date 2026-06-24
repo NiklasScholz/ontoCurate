@@ -71,9 +71,7 @@ def align_document_task(self, extract_result: tuple) -> str:
                 if all_others_finished:
                     await update_status("queued", task_name="Cross-Document Alignment")
                 else:
-                    await update_status(
-                        "waiting", task_name="Waiting for other documents"
-                    )
+                    await update_status("waiting", task_name="Cross-Document Alignment")
             logger.info("[%s] Alignment complete: document=%s", run_id, document_id)
         except Exception:
             await update_status("failed")

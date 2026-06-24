@@ -1,3 +1,6 @@
+# Runnable after navigating to backend and setting secrets.env
+# used to benchmark whole pipeline without having to use application or celery overhead
+
 import argparse
 import csv
 import logging
@@ -13,8 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from benchmarking.alignment_bench import run_alignment_bench
-from benchmarking.extraction_bench import run_extraction_bench
+from app.pipeline.convert import pdf_to_markdown
+from benchmarking_scripts.alignment_bench import run_alignment_bench
+from benchmarking_scripts.extraction_bench import run_extraction_bench
 
 # fields we use in dictionaries returned by alignment and extraction benchmark files
 EXTRACTION_FIELDNAMES = [
@@ -53,12 +57,38 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict]):
 
 def collect_input_files(input_dir: Path):
     paths = sorted(
-        p for p in input_dir.rglob("*") if p.is_file() and p.suffix.lower() in [".md"]
+        p
+        for p in input_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in {".md", ".pdf"}
     )
     if not paths:
-        print(f"No files found in {input_dir}")
+        print(f"No .md or .pdf files found in {input_dir}")
         sys.exit(1)
     return paths
+
+
+def convert_pdfs(input_paths: list[Path], output_dir: Path) -> list[Path]:
+    """Convert any PDF inputs to Markdown, return list with PDFs replaced by their .md equivalents."""
+    result = []
+    for path in input_paths:
+        if path.suffix.lower() != ".pdf":
+            result.append(path)
+            continue
+
+        doc_dir = output_dir / path.stem
+        doc_dir.mkdir(parents=True, exist_ok=True)
+        md_path = doc_dir / f"{path.stem}.md"
+
+        if md_path.exists():
+            logger.info("Reusing existing markdown for %s", path.name)
+        else:
+            logger.info("Converting PDF to Markdown: %s", path.name)
+            raw_bytes = path.read_bytes()
+            markdown = pdf_to_markdown(raw_bytes, filename=path.name)
+            md_path.write_text(markdown, encoding="utf-8")
+
+        result.append(md_path)
+    return result
 
 
 def main():
@@ -142,6 +172,7 @@ def main():
 
     if args.skip_extraction:
         for doc_path in input_paths:
+            # resolve stem regardless of whether original was PDF or MD
             ttl_file_path = (
                 args.output_dir / doc_path.stem / f"{doc_path.stem}_extraction.ttl"
             )
@@ -152,6 +183,7 @@ def main():
                     f"TTL file not found for {doc_path}, skipping alignment for this document."
                 )
     else:
+        input_paths = convert_pdfs(input_paths, args.output_dir)
         print("Running extraction benchmark...")
         extraction_rows = run_extraction_bench(
             input_paths=input_paths,
