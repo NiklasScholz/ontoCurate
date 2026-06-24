@@ -13,12 +13,6 @@ from app.worker import celery_app
 logger = logging.getLogger(__name__)
 
 
-# cleaning settings (adjust these as needed)
-REMOVE_IMAGE_PLACEHOLDERS = True
-REMOVE_PICTURE_TEXT = True
-KEEP_CAPTIONS = True
-
-
 def clean_markdown(
     md_text: str,
     remove_placeholders: bool = True,
@@ -72,13 +66,7 @@ def pdf_to_markdown(raw_bytes: bytes, filename: str | None = None) -> str:
         for i, page in enumerate(pages):
             page_text = page.get("text", "") if isinstance(page, dict) else ""
             full_md += f"\n\n**==> PAGE NUMBER {i + 1}: <==**\n\n"
-            cleaned_text = clean_markdown(
-                page_text,
-                remove_placeholders=REMOVE_IMAGE_PLACEHOLDERS,
-                remove_picture_text=REMOVE_PICTURE_TEXT,
-                remove_figure_captions=not KEEP_CAPTIONS,
-                remove_table_captions=not KEEP_CAPTIONS,
-            )
+            cleaned_text = clean_markdown(page_text)
             full_md += cleaned_text
         return full_md.strip()
     finally:
