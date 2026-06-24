@@ -25,7 +25,6 @@ def clean_markdown(
     remove_picture_text: bool = True,
     remove_figure_captions: bool = False,
     remove_table_captions: bool = False,
-    remove_headers_footers: bool = False,
     normalize_whitespace: bool = True,
 ) -> str:
     if remove_placeholders:
@@ -44,9 +43,6 @@ def clean_markdown(
 
     if remove_table_captions:
         md_text = re.sub(r"Table\s+\d+[:.].*", "", md_text)
-
-    if remove_headers_footers:
-        md_text = re.sub(r"Page\s+\d+", "", md_text)
 
     if normalize_whitespace:
         md_text = re.sub(r"\n{3,}", "\n\n", md_text)
