@@ -7,7 +7,7 @@ from pydantic import WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.exceptions import BadRequestException
+from app.core.exceptions import BadRequestException, NotFoundException
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
