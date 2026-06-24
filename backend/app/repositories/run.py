@@ -48,10 +48,13 @@ class RunRepository:
         document_id: UUID,
         status: str,
         celery_task_id: str | None = None,
+        task_name: str | None = None,
     ) -> None:
         values: dict = {"status": status}
         if celery_task_id is not None:
             values["celery_task_id"] = celery_task_id
+        if task_name is not None:
+            values["task_name"] = task_name
         await self.session.execute(
             update(RunTask)
             .where(

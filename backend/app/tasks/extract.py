@@ -40,7 +40,11 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
         async with AsyncSessionLocal() as session:
             await RunRepository(session).update_document_status(
-                run_uuid, document_uuid, "extracting", celery_task_id=self.request.id
+                run_uuid,
+                document_uuid,
+                "extracting",
+                celery_task_id=self.request.id,
+                task_name="Extracting",
             )
 
         async with AsyncSessionLocal() as session:

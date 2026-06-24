@@ -7,7 +7,7 @@ from pydantic import WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import BadRequestException
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
@@ -123,13 +123,15 @@ async def create_documents(
                 workspace_id=workspace_id, filename=filename, raw_bytes=content
             )
             await run_repo.add_task(run.id, doc.id, task_name="Markdown Conversion")
-        else:
+        elif filename.lower().endswith(".md") or filename.lower().endswith(".txt"):
             # UploadFile.read() returns bytes -> decode to text for source_content
             text = content.decode("utf-8", errors="replace")
             doc = await doc_repo.create_markdown(
                 workspace_id=workspace_id, filename=filename, source_content=text
             )
             await run_repo.add_task(run.id, doc.id, task_name="Extracting")
+        else:
+            raise BadRequestException(f"Unsupported file type: {filename}")
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
     build_pipeline(documents, model, str(run.id), str(workspace_id)).delay()
     return {"run_id": run.id, "status": "queued"}
