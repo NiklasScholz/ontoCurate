@@ -127,8 +127,6 @@ entity_types:
     semantic_text_predicates:
       - name
 
-  # Title match alone (syntactic=0.9 + structural=0.1 = 1.0) clears the threshold.
-  # Semantic is disabled — citation lists are large and embedding calls are expensive.
   AcademicArticle:
     threshold: 0.85
     weights:
@@ -137,4 +135,3 @@ entity_types:
       structural: 0.1
     comparison_predicates:
       - title
-    semantic_text_predicates: []
