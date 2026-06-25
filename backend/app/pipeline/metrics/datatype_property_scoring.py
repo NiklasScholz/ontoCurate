@@ -388,10 +388,11 @@ def relocate_ambiguous_spans(
             if len(occurrences) < 2:
                 continue
             # Compute median from the other fields (exclude this annotation)
-            others = [a for a in group if a is not ann and "span_start" in a]
+            others = [a for a in group if a is not ann and "span_end" in a]
             if not others:
                 continue
-            median = entity_median_span(others)
+            positions = [a["span_end"] for a in others]
+            median = median_position(positions)
             if median is None:
                 continue
             best = min(occurrences, key=lambda pos: abs(pos - median))
