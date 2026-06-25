@@ -103,8 +103,10 @@ object_properties:
 
   predicates:
     author:
-      strategy: spatial_cooccurrence
+      strategy: average_entity_confidence
       apply_outlier_penalty: true
+      primary_entity_predicates: [abstract, keywords]
+      fallback_sections: ["References", "Bibliography"]
 
     affiliation:
       strategy: spatial_cooccurrence

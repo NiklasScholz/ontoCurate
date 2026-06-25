@@ -69,6 +69,66 @@ def score_spatial_cooccurrence(
     return round(base * factor, 4), tgt_median
 
 
+def find_entity_in_section(
+    literal_annotations: list[dict],
+    source: str,
+    section_heading: str,
+) -> float | None:
+    """Search for any of the entitys literal values inside a named section.
+    Returns the absolute span_start position in the source document, or None.
+    """
+    result = extract_section(source, section_heading)
+    if result is None:
+        return None
+    section_text, section_offset = result
+    section_lower = section_text.lower()
+    for ann in literal_annotations:
+        value = str(ann.get("value", "")).strip()
+        if not value:
+            continue
+        idx = section_lower.find(value.lower())
+        if idx != -1:
+            return float(section_offset + idx)
+    return None
+
+
+def score_entity_hierachy_aware_confidence(
+    subject_uri: str,
+    object_uri: str,
+    literal_by_subject: dict,
+    source: str,
+    primary_entity_predicates: list[str],
+    fallback_sections: list[str],
+) -> tuple[float | None, float | None]:
+    """Average-entity confidence that is aware of whether the subject is the primary entity.
+    For non-primary entities the object entitys literal values inside the configured fallback sections (to prevent outlier penalties when taking value from different window)
+    Returns (confidence, tgt_median).
+    """
+    subj_lits = literal_by_subject.get(subject_uri, [])
+    is_primary = any(a.get("predicate") in primary_entity_predicates for a in subj_lits)
+
+    if is_primary:
+        return (
+            score_average_entity_confidence(
+                subject_uri, object_uri, literal_by_subject
+            ),
+            None,
+        )
+
+    obj_lits = literal_by_subject.get(object_uri, [])
+    tgt_median = None
+    for heading in fallback_sections:
+        pos = find_entity_in_section(obj_lits, source, heading)
+        if pos is not None:
+            tgt_median = pos
+            break
+
+    confidence = score_average_entity_confidence(
+        subject_uri, object_uri, literal_by_subject
+    )
+    return confidence, tgt_median
+
+
 def score_section_containment(
     subject_uri: str,
     object_uri: str,
@@ -201,9 +261,21 @@ def annotate_object_properties(
                 object_uri, literal_by_subject
             )
         elif strategy == "average_entity_confidence":
-            confidence = score_average_entity_confidence(
-                subject_uri, object_uri, literal_by_subject
-            )
+            primary_entity_preds = config.get("primary_entity_predicates", [])
+            fallback_secs = config.get("fallback_sections", [])
+            if primary_entity_preds:
+                confidence, tgt_median = score_entity_hierachy_aware_confidence(
+                    subject_uri,
+                    object_uri,
+                    literal_by_subject,
+                    source,
+                    primary_entity_preds,
+                    fallback_secs,
+                )
+            else:
+                confidence = score_average_entity_confidence(
+                    subject_uri, object_uri, literal_by_subject
+                )
         elif strategy == "spatial_cooccurrence":
             result = score_spatial_cooccurrence(
                 subject_uri,
@@ -230,6 +302,9 @@ def annotate_object_properties(
 
         if confidence is None:
             continue
+
+        if config.get("apply_outlier_penalty", False) and tgt_median is None:
+            tgt_median = entity_median_span(literal_by_subject.get(object_uri) or [])
 
         ann = {
             "subject": subject_uri,

@@ -101,9 +101,13 @@ object_properties:
 
   predicates:
     author:
-      strategy: spatial_cooccurrence
+      strategy: average_entity_confidence
       apply_outlier_penalty: true
+      primary_entity_predicates: [abstract, keywords]
+      fallback_sections: ["References", "Bibliography"]
     affiliation:
+      strategy: spatial_cooccurrence
+    editor:
       strategy: spatial_cooccurrence
     cites:
       strategy: section_containment
@@ -115,7 +119,10 @@ object_properties:
 - **default_strategy**: fallback strategy for predicates not listed under `predicates`.
 - **cooccurrence_distance_penalty / cooccurrence_min_factor**: control how much weight the penalty of distance between source and target entity has `spatial_cooccurrence` predicates (limits penalty down to min_factor).
 - **cooccurrence_outlier_penalty / cooccurrence_min_outlier_factor**: control the outlier penalty applied after scoring (see below).
-- **apply_outlier_penalty**: enables pos-scoring outlier penalty (i.e. outliers across all target entities) for these predicates
+- **apply_outlier_penalty**: enables post-scoring outlier penalty (i.e. outliers across all target entities) for these predicates.
+- **primary_entity_predicates**: predicates that, when present on the subject entity, indicate it is the primary document entity (e.g. the paper being described has an `abstract`). In primary use case this is used to make citation-aware confidence scoring. 
+
+- **fallback_sections**: section headings to primarily search when the subject is not a primary entity.
 
 ### Strategies
 
@@ -124,6 +131,8 @@ Confidence is the average of all literal confidences of the target (object) enti
 
 #### average_entity_confidence
 Confidence is the average of all literal confidences across both the subject and object entity. Useful when both sides contribute equally to the plausibility of the triple.
+
+When `primary_entity_predicates` is configured for a predicate, this strategy uses **concrete-section-aware scoring**: it first checks whether the subject entity is the primary document entity by testing if any of `primary_entity_predicates` (e.g. `abstract`, `keywords`) are present among its literals. If yes, it falls back to plain `average_entity_confidence`. If no (the subject is a secondary entity, e.g. a referenced paper), it searches for the object entity's literal values inside the `fallback_sections` (e.g. the References section) of the source document to obtain a contextually correct span. This prevents outlier penalties for entities that are present in multiple sections of a document.
 
 #### spatial_cooccurrence
 Confidence is the average entity confidence scaled down by the normalized distance between the subject and object entity's median literal span positions. Entities that appear close together in the document receive higher confidence. Controlled by `cooccurrence_distance_penalty` and `cooccurrence_min_factor`.
