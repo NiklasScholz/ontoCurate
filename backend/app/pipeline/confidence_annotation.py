@@ -13,6 +13,7 @@ from rdflib import Graph
 from app.pipeline.metrics.datatype_property_scoring import (
     apply_entity_outlier_penalty,
     find_span,
+    relocate_ambiguous_spans,
 )
 from app.pipeline.metrics.object_property_scoring import annotate_object_properties
 from app.pipeline.utils.turtle_utils import (
@@ -109,6 +110,15 @@ def annotate_confidence(
                 "triple_type": "literal",
             }
         )
+
+    # Relocate short values (e.g. years) to the occurrence nearest to the entity median
+    relocate_ambiguous_spans(
+        annotations,
+        source,
+        len(source),
+        outlier_pentalty_entities,
+        type_index,
+    )
 
     # Penalize Outlier Triples for configured entities
     apply_entity_outlier_penalty(

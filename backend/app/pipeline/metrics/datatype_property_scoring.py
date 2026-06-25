@@ -337,6 +337,70 @@ def best_window(sentence: str, value: str, offset: int = 0) -> tuple[int, int]:
     return offset + best_i, offset + best_i + val_len
 
 
+# Span Relocation
+
+
+def find_all_exact_spans(source: str, value: str) -> list[int]:
+    """Return start positions of every exact (case-insensitive) occurrence of value in source."""
+    lower_source = source.lower()
+    lower_value = value.lower()
+    positions = []
+    start = 0
+    while True:
+        idx = lower_source.find(lower_value, start)
+        if idx < 0:
+            break
+        positions.append(idx)
+        start = idx + 1
+    return positions
+
+
+def relocate_ambiguous_spans(
+    annotations: list[dict],
+    source: str,
+    doc_length: int,
+    entity_types: list[str] | None = None,
+    type_index: dict[str, set[str]] | None = None,
+    max_value_len: int = 20,
+) -> None:
+    """We relocate all occurances for short values by checking all their occurances in the documents and taking the cloest to the median position of the other literals"""
+    if doc_length == 0:
+        return
+
+    def is_target_entity(subject_uri: str) -> bool:
+        if not entity_types or type_index is None:
+            return False
+        return bool(type_index.get(subject_uri, set()) & set(entity_types))
+
+    groups = defaultdict(list)
+    for ann in annotations:
+        if ann.get("triple_type") == "literal" and is_target_entity(ann["subject"]):
+            groups[ann["subject"]].append(ann)
+
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        for ann in group:
+            value = ann.get("value", "")
+            if len(value) > max_value_len or "span_start" not in ann:
+                continue
+            occurrences = find_all_exact_spans(source, value)
+            if len(occurrences) < 2:
+                continue
+            # Compute median from the other fields (exclude this annotation)
+            others = [a for a in group if a is not ann and "span_start" in a]
+            if not others:
+                continue
+            median = entity_median_span(others)
+            if median is None:
+                continue
+            best = min(occurrences, key=lambda pos: abs(pos - median))
+            if best != ann["span_start"]:
+                ann["span_start"] = best
+                ann["span_end"] = best + len(value)
+                ann["span_text"] = source[best : best + len(value)]
+
+
 # Outlier Penalties
 def median_position(positions: list[int]) -> float:
     sorted_pos = sorted(positions)

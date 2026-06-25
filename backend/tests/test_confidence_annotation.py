@@ -112,6 +112,51 @@ class TestAnnotateConfidenceLiteralAnnotations:
         assert len(title_anns) >= 1
         assert title_anns[0]["confidence"] >= 0.9
 
+    def test_ambiguous_year_span_relocated_to_reference_section(self, tmp_path):
+        source = (
+            "# Main Paper published in 2022\n\n"
+            "Some content about the paper.\n\n"
+            "x" * 1000 + "\n"
+            "## References\n\n"
+            "1. Author, A.: Cited Paper on Knowledge Graphs. Journal (2022).\n"
+        )
+        ttl = """\
+            @prefix ex: <http://example.org/> .
+            @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+            @prefix bibo: <http://purl.org/ontology/bibo/> .
+
+            ex:cited1 rdf:type bibo:AcademicArticle ;
+                    ex:title "Cited Paper on Knowledge Graphs" ;
+                    ex:datePublished "2022" .
+            """
+        source_path = tmp_path / "paper.md"
+        ttl_path = tmp_path / "paper_extraction.ttl"
+        source_path.write_text(source, encoding="utf-8")
+        ttl_path.write_text(ttl, encoding="utf-8")
+
+        out_path = annotate_confidence(
+            source_path, ttl_path, tmp_path / "out", config_path=PROVENANCE_CONFIG_PATH
+        )
+        anns = json.loads(out_path.read_text())["annotations"]
+
+        title_ann = next(
+            a
+            for a in anns
+            if a.get("predicate") == "title" and a.get("triple_type") == "literal"
+        )
+        year_ann = next(
+            a
+            for a in anns
+            if a.get("predicate") == "datePublished"
+            and a.get("triple_type") == "literal"
+        )
+
+        assert year_ann["span_start"] > title_ann["span_start"], (
+            f"Year span ({year_ann['span_start']}) should be in the reference section "
+            f"after the title ({title_ann['span_start']}), not at the first header occurrence"
+        )
+        assert year_ann["span_text"] == "2022"
+
 
 class TestAnnotateConfidenceEntityTypeAnnotations:
     def test_produces_entity_type_annotations(self, annotation_outputs):
