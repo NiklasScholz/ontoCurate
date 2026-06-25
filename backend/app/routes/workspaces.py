@@ -1,5 +1,7 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -27,13 +29,13 @@ async def create_workspace(
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
 async def get_workspace(
-    workspace_id: str,
+    workspace_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
     return await WorkspaceRepository(session).get_by_id(workspace_id)
 
 
-@router.get("/{workspace_id}/export/provenance.ttl")
+@router.get("/{workspace_id}/export/provenance.ttl", response_class=FileResponse)
 async def export_provenance_graph(workspace_id: str):
     ttl = export_graph_ttl(curation_graph(workspace_id))
     return Response(
@@ -45,7 +47,7 @@ async def export_provenance_graph(workspace_id: str):
 
 @router.delete("/{workspace_id}", status_code=204)
 async def delete_workspace(
-    workspace_id: str,
+    workspace_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
     await WorkspaceRepository(session).delete(workspace_id)

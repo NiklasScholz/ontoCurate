@@ -40,7 +40,7 @@ export default function WorkspacesPage() {
                     <div className="grid grid-cols-4 gap-6">
                         {workspaces.map((ws) => (
                             <Link
-                                to={`/workspace/${ws.id}`}
+                                to={`/workspace?ws=${ws.id}`}
                                 key={ws.name}
                                 className="bg-nord4 relative flex h-32 items-center justify-center rounded-lg"
                             >

@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Root from "../components/Root";
 import { client } from "../client";
 import { useEffect, useState } from "react";
@@ -14,31 +14,40 @@ import {
 import type { Document } from "../types";
 import Spinner from "../components/Spinner";
 import Panel from "../components/Panel";
+import NotFound from "./NotFound";
 
 export default function WorkspacePage() {
-    const { id } = useParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     const [ws, setWs] = useState<{ id: string; name: string } | undefined>(
         undefined,
     );
-
-    useEffect(() => {
-        client
-            .GET("/workspaces/{workspace_id}", {
-                params: { path: { workspace_id: id } },
-            })
-            .then((res) => setWs(res.data));
-    }, [id]);
-
     const [docs, setDocs] = useState<Document[]>(undefined);
 
+    const wsId = searchParams.get("ws");
+
     useEffect(() => {
+        if (wsId === null) return;
+        client
+            .GET("/workspaces/{workspace_id}", {
+                params: { path: { workspace_id: wsId } },
+            })
+            .then((res) => setWs(res.data));
+    }, [wsId]);
+
+    useEffect(() => {
+        if (wsId === null) return;
         client
             .GET("/documents/", {
-                params: { query: { workspace_id: id } },
+                params: { query: { workspace_id: wsId } },
             })
             .then((res) => setDocs(res.data));
-    }, [id]);
+    }, [wsId]);
+
+    if (wsId === null) {
+        return <NotFound />;
+    }
 
     return (
         <Root>
@@ -70,13 +79,15 @@ export default function WorkspacePage() {
                         {docs.map((d) => (
                             <div key={d.id} className="contents">
                                 <div>{d.title}</div>
-                                <div>TODO</div>
-                                <div>TODO</div>
+                                <div>{d.extracted_triples}</div>
+                                <div>{d.pending_triples}</div>
                                 <div className="flex gap-2">
                                     <button
                                         className="bg-nord8 h-7 rounded px-2"
                                         onClick={() => {
-                                            // setOpenDocument(d.name);
+                                            navigate(
+                                                `/curation-overview?ws=${wsId}&doc=${d.id}`,
+                                            );
                                         }}
                                     >
                                         <EditIcon size={16} />
@@ -89,7 +100,18 @@ export default function WorkspacePage() {
                                     </button>
                                     <button
                                         className="bg-nord11 h-7 rounded px-2"
-                                        onClick={() => {}}
+                                        onClick={() => {
+                                            client.DELETE(
+                                                "/documents/{document_id}",
+                                                {
+                                                    params: {
+                                                        path: {
+                                                            document_id: d.id,
+                                                        },
+                                                    },
+                                                },
+                                            );
+                                        }}
                                     >
                                         <TrashIcon size={16} />
                                     </button>
@@ -101,7 +123,7 @@ export default function WorkspacePage() {
 
                 <div className="mt-4 flex justify-center gap-4">
                     <Link
-                        to={`/upload/${id}`}
+                        to={`/upload?ws=${wsId}`}
                         className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
                     >
                         <FilePlusIcon

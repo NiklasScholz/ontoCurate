@@ -48,7 +48,7 @@ export default function UploadPage() {
             <Panel className="flex w-160 flex-col gap-2">
                 <div className="relative mb-4">
                     <Link
-                        to={`/workspace/${id}`}
+                        to={`/workspace?ws=${id}`}
                         className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
                     >
                         <ArrowLeftIcon size={16} />

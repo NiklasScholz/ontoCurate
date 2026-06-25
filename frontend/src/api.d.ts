@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh */
+        post: operations["refresh_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/debug/ping": {
         parameters: {
             query?: never;
@@ -134,6 +185,51 @@ export interface paths {
         post?: never;
         /** Delete Document */
         delete: operations["delete_document_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Document Statements
+         * @description Returns all statements associated entirely with the given document.
+         *
+         *     The order of statements is as follows (coarsest to finest grouping):
+         *     - Data type properties are listed before object properties.
+         *     - Finally, sort triples lexicographically.
+         *
+         *     owl:sameAs triples that connect entities from different documents are not listed.
+         *
+         *     Pagination could be added in the future if performance is bad.
+         */
+        get: operations["get_document_statements_documents__document_id__statements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/export/provenance.ttl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Document Ttl */
+        get: operations["export_document_ttl_documents__document_id__export_provenance_ttl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -312,41 +408,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/login": {
+    "/graph/{workspace_id}/deduplication": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Deduplication
+         * @description Gets all of the owl:sameAs statements that span across documents.
+         */
+        get: operations["get_deduplication_graph__workspace_id__deduplication_get"];
         put?: never;
-        /** Login */
-        post: operations["login_auth_login_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/logout": {
+    "/graph/{workspace_id}/neighborhood/{entity_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Neighborhood
+         * @description Gets the local neighborhood of a statement.
+         */
+        get: operations["get_neighborhood_graph__workspace_id__neighborhood__entity_id__get"];
         put?: never;
-        /** Logout */
-        post: operations["logout_auth_logout_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/refresh": {
+    "/statements/{workspace_id}/{statement_id}/accept": {
         parameters: {
             query?: never;
             header?: never;
@@ -355,12 +457,76 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh */
-        post: operations["refresh_auth_refresh_post"];
+        /**
+         * Accept Statement
+         * @description Accepts a statement. Returns the new CandidateStatement.
+         */
+        post: operations["accept_statement_statements__workspace_id___statement_id__accept_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/statements/{workspace_id}/{statement_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Statement
+         * @description Rejects a statement. Returns the new CandidateStatement.
+         */
+        post: operations["reject_statement_statements__workspace_id___statement_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements/{workspace_id}/{statement_id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Statement
+         * @description Rolls back a statement to its original version, and set it to neither accepted nor rejected.
+         *     Returns the new CandidateStatement.
+         */
+        post: operations["reset_statement_statements__workspace_id___statement_id__reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements/{workspace_id}/{statement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Statement
+         * @description Modifies the fields of a triple. Returns the new CandidateStatement.
+         */
+        patch: operations["edit_statement_statements__workspace_id___statement_id__patch"];
         trace?: never;
     };
     "/workspaces/": {
@@ -459,6 +625,26 @@ export interface components {
             /** Files */
             files: string[];
         };
+        /** DocumentDetailResponse */
+        DocumentDetailResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** File Type */
+            file_type: string;
+            /** Title */
+            title: string | null;
+            /** Extracted Triples */
+            extracted_triples: number;
+            /** Pending Triples */
+            pending_triples: number;
+            /** Markdown */
+            markdown: string;
+        };
         /** DocumentResponse */
         DocumentResponse: {
             /**
@@ -472,11 +658,36 @@ export interface components {
             file_type: string;
             /** Title */
             title: string | null;
+            /** Extracted Triples */
+            extracted_triples: number;
+            /** Pending Triples */
+            pending_triples: number;
+        };
+        /** EntityNeighborhoodResponse */
+        EntityNeighborhoodResponse: {
+            /** Incoming */
+            incoming: components["schemas"]["IncomingEdge"][];
+            /** Outgoing */
+            outgoing: components["schemas"]["OutgoingEdge"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IncomingEdge */
+        IncomingEdge: {
+            /** Subject */
+            subject: string;
+            /** Predicate */
+            predicate: string;
+        };
+        /** OutgoingEdge */
+        OutgoingEdge: {
+            /** Subject */
+            subject: string;
+            /** Predicate */
+            predicate: string;
         };
         /** RunDetailResponse */
         RunDetailResponse: {
@@ -516,6 +727,38 @@ export interface components {
             /** Celery Task Id */
             celery_task_id?: string | null;
         };
+        /** StatementPatchBody */
+        StatementPatchBody: {
+            /** Subject */
+            subject: string;
+            /** Predicate */
+            predicate: string;
+            /** Object */
+            object: string;
+        };
+        /** StatementResponse */
+        StatementResponse: {
+            /** Id */
+            id: string;
+            /** Subject */
+            subject: string;
+            /** Predicate */
+            predicate: string;
+            /** Object */
+            object: string;
+            /** Origin */
+            origin: string;
+            /** Curation Status */
+            curation_status: string;
+            /** Created At */
+            created_at: string;
+            /** Confidence */
+            confidence: number;
+            /** Text Span Start */
+            text_span_start: number;
+            /** Text Span End */
+            text_span_end: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -553,6 +796,66 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    refresh_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     trigger_ping_debug_ping_post: {
         parameters: {
             query?: {
@@ -734,7 +1037,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DocumentResponse"];
+                    "application/json": components["schemas"]["DocumentDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -765,6 +1068,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_statements_documents__document_id__statements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_document_ttl_documents__document_id__export_provenance_ttl_get: {
+        parameters: {
+            query?: {
+                response_class?: unknown;
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
             };
             /** @description Validation Error */
             422: {
@@ -1037,7 +1404,7 @@ export interface operations {
             };
         };
     };
-    login_auth_login_post: {
+    get_deduplication_graph__workspace_id__deduplication_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1052,12 +1419,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["StatementResponse"][];
                 };
             };
         };
     };
-    logout_auth_logout_post: {
+    get_neighborhood_graph__workspace_id__neighborhood__entity_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1072,16 +1439,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EntityNeighborhoodResponse"];
                 };
             };
         };
     };
-    refresh_auth_refresh_post: {
+    accept_statement_statements__workspace_id___statement_id__accept_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1092,7 +1462,113 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_statement_statements__workspace_id___statement_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_statement_statements__workspace_id___statement_id__reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_statement_statements__workspace_id___statement_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1226,9 +1702,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": unknown;
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

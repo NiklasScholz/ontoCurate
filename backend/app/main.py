@@ -9,6 +9,8 @@ from app.routes.auth import router as auth_router
 from app.routes.debug import router as debug_router
 from app.routes.documents import router as documents_router
 from app.routes.extraction import router as extractions_router
+from app.routes.graph import router as graph_router
+from app.routes.statements import router as statements_router
 from app.routes.workspaces import router as workspaces_router
 
 setup_logging(debug=False)
@@ -42,10 +44,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(debug_router)
 app.include_router(documents_router)
 app.include_router(extractions_router)
-app.include_router(auth_router)
+app.include_router(graph_router)
+app.include_router(statements_router)
 app.include_router(workspaces_router)
 
 

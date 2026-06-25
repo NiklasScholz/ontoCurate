@@ -17,14 +17,14 @@ type Highlight = { start: number; end: number } | undefined;
 const setHighlight = StateEffect.define<Highlight>();
 
 const highlightField = StateField.define<DecorationSet>({
-    create: function (_state: EditorState): DecorationSet {
+    create: function (): DecorationSet {
         return Decoration.none;
     },
     update: function (
         value: DecorationSet,
         transaction: Transaction,
     ): DecorationSet {
-        for (let e of transaction.effects) {
+        for (const e of transaction.effects) {
             if (e.is(setHighlight)) {
                 value = Decoration.none.update({
                     add:
@@ -77,7 +77,7 @@ export default function MarkdownView({
         return () => {
             viewRef.current?.destroy();
         };
-    }, []);
+    }, [text]);
 
     useEffect(() => {
         if (!viewRef.current) return;

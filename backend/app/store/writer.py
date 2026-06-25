@@ -101,9 +101,9 @@ def build_candidate_statement_triples(
     workspace_key = workspace_id or "unknown-workspace"
 
     source_document = create_source_document_entity(workspace_key, document_key)
-    extraction_activity = NamedNode(
-        f"https://example.org/runs/{run_key}/documents/{document_key}/activities/extraction"
-    )
+    extraction_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
+            document_key
+        }/activities/extraction")
 
     triples = [
         Triple(N_PACO_ONTOGPT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -136,7 +136,9 @@ def build_candidate_statement_triples(
             :24
         ]  # Ensure URI uniqueness so all audits are logged independently
         candidate = NamedNode(
-            f"https://example.org/workspaces/{workspace_key}/candidate-statements/{fingerprint}"
+            f"https://example.org/workspaces/{workspace_key}/candidate-statements/{
+                fingerprint
+            }"
         )
         candidate_triples = [
             Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
@@ -209,7 +211,9 @@ def write_candidate_statements_from_ttl(
         from pyoxigraph import RdfFormat, parse
     except Exception as exc:
         raise RuntimeError(
-            f"pyoxigraph parsing is unavailable; cannot import candidate statements: {exc}"
+            f"pyoxigraph parsing is unavailable; cannot import candidate statements: {
+                exc
+            }"
         )
 
     try:
@@ -385,7 +389,9 @@ def write_alignment_results(
             f"{workspace_id}|{run_key}|{doc_key}|{duplicate}|{canonical}".encode()
         ).hexdigest()[:24]
         candidate = NamedNode(
-            f"https://example.org/workspaces/{workspace_id}/candidate-statements/{fingerprint}"
+            f"https://example.org/workspaces/{workspace_id}/candidate-statements/{
+                fingerprint
+            }"
         )
         triples.extend(
             [
