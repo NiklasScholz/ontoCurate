@@ -71,19 +71,19 @@ class TestSyntacticSimilarity:
     KEYS = PERSON_CFG["comparison_predicates"]  # comaprison predicates for persons
 
     def test_low(self):
-        e1 = entity("ex:A", family_name="Scholz", name="Niklas")
-        e2 = entity("ex:B", family_name="Mustermann", name="Max")
+        e1 = entity("ex:A", familyName="Scholz", name="Niklas")
+        e2 = entity("ex:B", familyName="Mustermann", name="Max")
         assert syntactic_similarity(e1, e2, self.KEYS) < 0.4
 
     def test_mid(self):
-        e1 = entity("ex:A", family_name="Smith", name="John")
-        e2 = entity("ex:B", family_name="Smith", name="Alice")
+        e1 = entity("ex:A", familyName="Smith", name="John")
+        e2 = entity("ex:B", familyName="Smith", name="Alice")
         score = syntactic_similarity(e1, e2, self.KEYS)
         assert 0.4 <= score < 0.75
 
     def test_high(self):
-        e1 = entity("ex:A", family_name="Smith", name="Alice", email="alice@mail.com")
-        e2 = entity("ex:B", family_name="Smith", name="Alice", email="alice@mail.com")
+        e1 = entity("ex:A", familyName="Smith", name="Alice", email="alice@mail.com")
+        e2 = entity("ex:B", familyName="Smith", name="Alice", email="alice@mail.com")
         assert syntactic_similarity(e1, e2, self.KEYS) == 1.0
 
     def test_missing_key_skipped(self):
@@ -95,19 +95,19 @@ class TestSyntacticSimilarity:
 class TestStructuralSimilarity:
     def test_disjoint_predicates(self):
         # expects minimum struct similarity when no predicate is shared
-        e1 = entity("ex:A", conf_name="AIED")
+        e1 = entity("ex:A", name="AIED")
         e2 = entity("ex:B", location="Berlin")
         assert structural_similarity(e1, e2) == STRUCT_MIN
 
     def test_mid(self):
-        e1 = entity("ex:A", conf_name="AIED", location="Tokyo")
-        e2 = entity("ex:B", conf_name="ECTEL", issn="1234")
+        e1 = entity("ex:A", name="AIED", location="Tokyo")
+        e2 = entity("ex:B", name="ECTEL", issn="1234")
         score = structural_similarity(e1, e2)
         assert STRUCT_MIN <= score < 0.9
 
     def test_high(self):
-        e1 = entity("ex:A", conf_name="AIED", location="Tokyo")
-        e2 = entity("ex:B", conf_name="ECTEL", location="Berlin")
+        e1 = entity("ex:A", name="AIED", location="Tokyo")
+        e2 = entity("ex:B", name="ECTEL", location="Berlin")
         assert (
             structural_similarity(e1, e2) == 1.0
         )  # will need to be dragged down by other scores
@@ -116,8 +116,8 @@ class TestStructuralSimilarity:
         assert structural_similarity(entity("ex:A"), entity("ex:B")) == STRUCT_MIN
 
     def test_sparse_data(self):
-        e1 = entity("ex:A", conf_name="AIED")
-        e2 = entity("ex:B", conf_name="ECTEL", location="Berlin", issn="1234")
+        e1 = entity("ex:A", name="AIED")
+        e2 = entity("ex:B", name="ECTEL", location="Berlin", issn="1234")
         assert structural_similarity(e1, e2) == 1.0
 
 
@@ -132,7 +132,7 @@ class TestSemanticSimilarity:
 
     def test_no_shared_predicates_returns_zero(self):
         # if no predicates are shared then embedding does not make sense to use (return 0.0)
-        e1 = entity("ex:A", conf_name="AIED")
+        e1 = entity("ex:A", name="AIED")
         e2 = entity("ex:B", location="Tokyo")
         assert semantic_similarity(e1, e2, self.FIELDS) == 0.0
 
@@ -141,8 +141,8 @@ class TestSemanticSimilarity:
         orig = os.environ.get("OPENAI_API_BASE")
         os.environ["OPENAI_API_BASE"] = "http://localhost:19999"
         try:
-            e1 = entity("ex:A", conf_name="AIED")
-            e2 = entity("ex:B", conf_name="ECTEL")
+            e1 = entity("ex:A", name="AIED")
+            e2 = entity("ex:B", name="ECTEL")
             assert semantic_similarity(e1, e2, self.FIELDS) == 0.0
         finally:
             if orig is None:
@@ -158,8 +158,8 @@ class TestSemanticSimilarityQuality:
 
     @needs_api_key
     def test_low_unrelated_conferences(self):
-        e1 = entity("ex:A", conf_name="AIED")
-        e2 = entity("ex:B", conf_name="ECTEL")
+        e1 = entity("ex:A", name="AIED")
+        e2 = entity("ex:B", name="ECTEL")
         score = semantic_similarity(e1, e2, self.FIELDS)
         assert (
             score < 0.75
@@ -167,8 +167,8 @@ class TestSemanticSimilarityQuality:
 
     @needs_api_key
     def test_mid_related_venues(self):
-        e1 = entity("ex:A", conf_name="International Conference on AI")
-        e2 = entity("ex:B", conf_name="International Workshop on AI")
+        e1 = entity("ex:A", name="International Conference on AI")
+        e2 = entity("ex:B", name="International Workshop on AI")
         score = semantic_similarity(e1, e2, self.FIELDS)
         assert (
             0.5 <= score < 0.95
@@ -176,8 +176,8 @@ class TestSemanticSimilarityQuality:
 
     @needs_api_key
     def test_high_abbreviation_vs_full_name(self):
-        e1 = entity("ex:A", conf_name="AIED")
-        e2 = entity("ex:B", conf_name="Artificial Intelligence in Education")
+        e1 = entity("ex:A", name="AIED")
+        e2 = entity("ex:B", name="Artificial Intelligence in Education")
         score = semantic_similarity(e1, e2, self.FIELDS)
         assert (
             score > 0.8
@@ -191,8 +191,8 @@ class TestCombinedSimilarity:
     EXPAND = PERSON_CFG["expand_initials"]
 
     def test_low(self):
-        e1 = entity("ex:A", family_name="Mustermann", name="Max")
-        e2 = entity("ex:B", family_name="Doe", name="John")
+        e1 = entity("ex:A", familyName="Mustermann", name="Max")
+        e2 = entity("ex:B", familyName="Doe", name="John")
         score = combined_similarity(
             e1,
             e2,
@@ -203,8 +203,8 @@ class TestCombinedSimilarity:
         assert score < 0.5
 
     def test_mid(self):
-        e1 = entity("ex:A", family_name="Smith", name="John")
-        e2 = entity("ex:B", family_name="Smith", name="Alice")
+        e1 = entity("ex:A", familyName="Smith", name="John")
+        e2 = entity("ex:B", familyName="Smith", name="Alice")
         score = combined_similarity(
             e1,
             e2,
@@ -215,8 +215,8 @@ class TestCombinedSimilarity:
         assert 0.4 <= score < 0.75
 
     def test_high(self):
-        e1 = entity("ex:A", family_name="Smith", name="Alice Smith")
-        e2 = entity("ex:B", family_name="Smithe", name="Alice")
+        e1 = entity("ex:A", familyName="Smith", name="Alice Smith")
+        e2 = entity("ex:B", familyName="Smithe", name="Alice")
         score = combined_similarity(
             e1,
             e2,
@@ -227,11 +227,26 @@ class TestCombinedSimilarity:
         assert score >= PERSON_CFG["threshold"]
 
     @needs_api_key
-    def test_with_semantic_high(self):
-        e1 = entity("ex:A", conf_name="AIED", location="Tokyo")
-        e2 = entity(
-            "ex:B", conf_name="Artificial Intelligence in Education", location="Tokyo"
+    def test_with_semantic_low(self):
+        e1 = entity("ex:A", name="NeurIPS")
+        e2 = entity("ex:B", name="ICLR")
+        score = combined_similarity(
+            e1,
+            e2,
+            weights=CONF_CFG["weights"],
+            comparison_predicates=CONF_CFG["comparison_predicates"],
+            semantic_text_predicates=CONF_CFG["semantic_text_predicates"],
         )
+        assert (
+            score < CONF_CFG["threshold"]
+        ), f"Expected low similarity with semantic similarity, got {score}"
+
+    @needs_api_key
+    def test_with_semantic_high(self):
+        e1 = entity(
+            "ex:A", name="Artificial Intelligence In Education", location="Tokyo"
+        )
+        e2 = entity("ex:B", name="AIED", location="Tokyo")
         score = combined_similarity(
             e1,
             e2,

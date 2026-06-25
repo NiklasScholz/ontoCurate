@@ -63,10 +63,10 @@ entity_types:
       - location
 
   Conference:
-    threshold: 0.90
+    threshold: 0.82
     weights:
-      syntactic: 0.2
-      semantic: 0.75
+      syntactic: 0.15
+      semantic: 0.8
       structural: 0.05
     comparison_predicates:
       - name
