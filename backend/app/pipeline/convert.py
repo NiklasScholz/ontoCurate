@@ -87,9 +87,8 @@ def pdf_to_markdown(raw_bytes: bytes, filename: str | None = None) -> str:
             tmp_path, page_chunks=True, header=False, footer=False
         )
         full_md = ""
-        for i, page in enumerate(pages):
+        for page in pages:
             page_text = page.get("text", "") if isinstance(page, dict) else ""
-            full_md += f"\n\n**==> PAGE NUMBER {i + 1}: <==**\n\n"
             cleaned_text = clean_markdown(page_text)
             full_md += cleaned_text
         return full_md.strip()
