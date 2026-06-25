@@ -226,10 +226,21 @@ def combined_similarity(
     semantic_text_predicates: list[str] | None = None,
     sparsity_penalty: float = 1.0,
     sparsity_max_fields: int = 1,
+    hard_match_predicates: dict[str, float] | None = None,
 ) -> float:
     """Aggregates syntactic, semantic and structural similarity according to config"""
     w = weights or {"syntactic": 0.5, "semantic": 0.35, "structural": 0.15}
     keys = comparison_predicates or ["name"]
+
+    if hard_match_predicates:
+        score_fn = initial_expanded_score if expand_initials else fuzz_score
+        for key, min_score in hard_match_predicates.items():
+            vals_a = [v for v in entity1["literals"].get(key, []) if v.strip()]
+            vals_b = [v for v in entity2["literals"].get(key, []) if v.strip()]
+            if vals_a and vals_b:
+                best = max(score_fn(a, b) for a in vals_a for b in vals_b)
+                if best < min_score:
+                    return 0.0
 
     score = 0.0
 

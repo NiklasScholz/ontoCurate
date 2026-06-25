@@ -185,7 +185,6 @@ class TestSemanticSimilarityQuality:
 
 
 class TestCombinedSimilarity:
-    # Person has semantic=0.0, so no API calls are needed
     W = PERSON_CFG["weights"]
     KEYS = PERSON_CFG["comparison_predicates"]
     EXPAND = PERSON_CFG["expand_initials"]
@@ -257,3 +256,16 @@ class TestCombinedSimilarity:
         assert (
             score >= CONF_CFG["threshold"]
         ), f"Expected high similarity with semantic similarity, got {score}"
+
+    def test_zhang_zhuang_blocked(self):
+        e1 = entity("ex:A", familyName="Zhang", name="Y. Zhang")
+        e2 = entity("ex:B", familyName="Zhuang", name="Y. Zhuang")
+        score = combined_similarity(
+            e1,
+            e2,
+            weights=PERSON_CFG["weights"],
+            comparison_predicates=PERSON_CFG["comparison_predicates"],
+            expand_initials=PERSON_CFG["expand_initials"],
+            hard_match_predicates=PERSON_CFG["hard_match_predicates"],
+        )
+        assert score == 0.0

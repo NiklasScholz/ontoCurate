@@ -46,11 +46,11 @@ settings:
 entity_types:
   # Override any subset of settings per entity type; unused keys fall back to defaults above
   Person:
-    threshold: 0.75
+    threshold: 0.92
     weights:
-      syntactic: 0.7
+      syntactic: 0.9
       semantic: 0.0      
-      structural: 0.3
+      structural: 0.1
     comparison_predicates:
       - familyName
       - name
@@ -59,9 +59,12 @@ entity_types:
       - name
       - givenName
       - familyName
+      - email
     expand_initials: true  # "J. Doe" matches "John Doe"
-    sparsity_penalty: 0.7   # multiply score when matched field count <= sparsity_max_fields
+    sparsity_penalty: 0.85  # multiply score when matched field count <= sparsity_max_fields
     sparsity_max_fields: 1  # penalty applies when only 1 field matched (e.g. surname only)
+    hard_match_predicates:
+      familyName: 0.97      # block pair if best familyName score is below this threshold
 
   Conference:
     threshold: 0.88
@@ -96,7 +99,9 @@ Syntactic similarity looks at the **string forms** of configured `comparison_pre
 
 **Sparsity penalty** (`sparsity_penalty`, default `1.0`; `sparsity_max_fields`, default `1`): when the number of matched fields is $\leq$ `sparsity_max_fields` (and more predicates were configured), the field average is multiplied by `sparsity_penalty`. This prevents entity alignment of entities with low-resources.
 
-### Semantic Similarity
+**Hard-match predicates** (`hard_match_predicates`): an optional map of predicates and a minimum score that ensures aligned entites have at minimum similarity on that predicate. Useful for close false-positives (e.g. Y. Zhang and Y. Zhuang).
+
+### Semantic Similarit
 For semantic similarity we utilize text embeddings from KI Connnect NRW (model: `qwen3-embedding-8b`, configurable via the environment variable `EMBEDDING_MODEL`). To produce embeddigns we concatenate the values of `semantic_text_predicates` that are present in both entities. Then, cosine similarity between the two embedding vectors is produced. 
 
 ### Structural Similarity

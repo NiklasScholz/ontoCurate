@@ -46,6 +46,8 @@ entity_types:
     expand_initials: true
     sparsity_penalty: 0.85
     sparsity_max_fields: 1
+    hard_match_predicates:
+      familyName: 0.97
 
   Organization:
     threshold: 0.90

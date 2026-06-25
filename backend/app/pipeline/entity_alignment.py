@@ -79,6 +79,10 @@ def resolve_type_config(config: dict, entity_type: str) -> dict:
             "sparsity_max_fields",
             settings.get("default_sparsity_max_fields", 1),
         ),
+        "hard_match_predicates": overrides.get(
+            "hard_match_predicates",
+            settings.get("default_hard_match_predicates", None),
+        ),
     }
 
 
@@ -161,6 +165,7 @@ def similarity_computation(
             semantic_text_predicates=type_cfg["semantic_text_predicates"],
             sparsity_penalty=type_cfg["sparsity_penalty"],
             sparsity_max_fields=type_cfg["sparsity_max_fields"],
+            hard_match_predicates=type_cfg["hard_match_predicates"],
         )
         results.append((a, b, score))
     return results
