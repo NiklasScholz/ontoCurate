@@ -13,10 +13,15 @@ export default function WorkspacesPage() {
     >(undefined);
 
     const [name, setName] = useState<string>("");
-    const [schemaPath, setSchemaPath] = useState<string>("");
-    const [alignmentConfigPath, setAlignmentConfigPath] = useState<string>("");
-    const [provenanceConfigPath, setProvenanceConfigPath] =
-        useState<string>("");
+    const [schemaPath, setSchemaPath] = useState<string>(
+        "/app/config/schemas/scholarly_schema.yaml",
+    );
+    const [alignmentConfigPath, setAlignmentConfigPath] = useState<string>(
+        "/app/config/schemas/alignment_config.yaml",
+    );
+    const [provenanceConfigPath, setProvenanceConfigPath] = useState<string>(
+        "/app/config/schemas/provenance_config.yaml",
+    );
     const [showConfigPopup, setShowConfigPopup] = useState<boolean>(false);
 
     function reload() {
@@ -117,7 +122,7 @@ export default function WorkspacesPage() {
                         <input
                             type="text"
                             name="schemaPath"
-                            value="/app/config/schemas/scholarly_schema.yaml"
+                            value={schemaPath}
                             onChange={(event) =>
                                 setSchemaPath(event.target.value)
                             }
@@ -129,7 +134,7 @@ export default function WorkspacesPage() {
                         <input
                             type="text"
                             name="alignmentConfigPath"
-                            value="/app/config/schemas/alignment_config.yaml"
+                            value={alignmentConfigPath}
                             onChange={(event) =>
                                 setAlignmentConfigPath(event.target.value)
                             }
@@ -141,7 +146,7 @@ export default function WorkspacesPage() {
                         <input
                             type="text"
                             name="provenanceConfigPath"
-                            value="/app/config/schemas/provenance_config.yaml"
+                            value={provenanceConfigPath}
                             onChange={(event) =>
                                 setProvenanceConfigPath(event.target.value)
                             }
