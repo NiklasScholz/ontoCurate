@@ -57,6 +57,8 @@ class RunRepository:
             values["task_name"] = task_name
         if celery_task_id is not None:
             values["celery_task_id"] = celery_task_id
+        if task_name is not None:
+            values["task_name"] = task_name
         await self.session.execute(
             update(RunTask)
             .where(

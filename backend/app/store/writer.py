@@ -40,7 +40,6 @@ from app.store.utils import (
     N_PROV_ENTITY,
     N_PROV_GENERATED,
     N_PROV_GENERATED_BY,
-    N_PROV_INFORMED_BY,
     N_PROV_SOFTWARE_AGENT,
     N_PROV_USED,
     N_RDF_TYPE,
@@ -353,22 +352,28 @@ def write_alignment_results(
     alignments: list[tuple[str, str, float]],
     workspace_id: str,
     run_id: str | None = None,
-    document_id: str | None = None,
+    document_ids: list[str] | None = None,
 ) -> None:
     """Writes owl:sameAs CandidateStatements for proposed entity alignments."""
     if not alignments:
         return
 
     run_key = run_id or "unknown-run"
-    doc_key = document_id or "unknown-document"
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    doc_ids = document_ids or []
 
-    alignment_activity = NamedNode(
-        f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
-    )
-    extraction_activity = NamedNode(
-        f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/extraction"
-    )
+    if len(doc_ids) == 1:
+        doc_key = doc_ids[0]
+        alignment_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
+        )
+    else:
+        sorted_ids = sorted(doc_ids)
+        doc_key = "|".join(sorted_ids) if doc_ids else "unknown"
+        pair_string = "/".join(sorted_ids) if doc_ids else "unknown"
+        alignment_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/documents/{pair_string}/activities/cross-document-alignment"
+        )
 
     triples = [
         Triple(N_PACO_ENTITY_ALIGNMENT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -376,7 +381,6 @@ def write_alignment_results(
         Triple(alignment_activity, N_RDF_TYPE, N_PACO_ALIGNMENT_ACTIVITY),
         Triple(alignment_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
         Triple(alignment_activity, N_PROV_ASSOCIATED_WITH, N_PACO_ENTITY_ALIGNMENT),
-        Triple(alignment_activity, N_PROV_INFORMED_BY, extraction_activity),
         Triple(
             alignment_activity,
             N_PACO_CREATED_AT,
@@ -417,6 +421,14 @@ def write_alignment_results(
                 Triple(alignment_activity, N_PROV_GENERATED, candidate),
             ]
         )
+        for d in doc_ids:
+            triples.append(
+                Triple(
+                    candidate,
+                    N_PROV_DERIVED_FROM,
+                    create_source_document_entity(workspace_id, d),
+                )
+            )
 
     graph = curation_graph(workspace_id)
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")

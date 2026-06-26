@@ -19,6 +19,15 @@ datatype_properties:
     - Organization
     - AcademicArticle
 
+  # Predicates for which fuzzy fallback is disabled — only exact/case-insensitive/normalized
+  # matches are accepted. If the value is not found verbatim it is left unannotated (conf=None)
+  # rather than getting a misleading fuzzy score against unrelated digit sequences.
+  exact_only_predicates:
+    - issn
+    - eissn
+    - doi
+    - identifier
+
   windows:
 
     title_paper:
@@ -63,7 +72,7 @@ datatype_properties:
 
     email:
       strategy: head
-      chars: 1500
+      chars: 3000
 
     org_name:
       - strategy: head
@@ -94,8 +103,10 @@ object_properties:
 
   predicates:
     author:
-      strategy: spatial_cooccurrence
+      strategy: average_entity_confidence
       apply_outlier_penalty: true
+      primary_entity_predicates: [abstract, keywords]
+      fallback_sections: ["References", "Bibliography"]
 
     affiliation:
       strategy: spatial_cooccurrence

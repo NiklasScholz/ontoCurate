@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.database import TaskSessionLocal as AsyncSessionLocal
 from app.pipeline.entity_alignment import run_cross_document_alignment
 from app.repositories.run import RunRepository
+from app.repositories.workspace import WorkspaceRepository
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,23 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
                         UUID(run_id), t.document_id, status, task_name=task_name
                     )
 
-        await update_all("started", task_name="Cross-Document Alignment")
+        await update_all("aligning", task_name="Cross-Document Alignment")
         try:
+            async with AsyncSessionLocal() as session:
+                workspace = await WorkspaceRepository(session).get_by_id(
+                    UUID(workspace_id)
+                )
+
+            config_path = workspace.alignment_config_path
             await asyncio.to_thread(
-                run_cross_document_alignment, TMP_BASE / run_id, workspace_id, run_id
+                run_cross_document_alignment,
+                TMP_BASE / run_id,
+                workspace_id,
+                run_id,
+                config_path,
             )
             await update_all("done", task_name="Cross-Document Alignment")
+
             logger.info("[%s] Cross-document alignment complete", run_id)
         except Exception:
             await update_all("failed")

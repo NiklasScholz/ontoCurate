@@ -65,22 +65,32 @@ def get_windows(
 # Search Span Logic
 
 
-def build_norm_map(text: str) -> tuple[str, list[int]]:
-    """Collapse whitespace runs to a single space.
+def build_norm_map(text: str, strip_markdown: bool = False) -> tuple[str, list[int]]:
+    """Collapse whitespace runs to a single space, optionally stripping markdown inline
+    markers (* _ ` and em/en dashes replaced with hyphen).
     Returns (norm_text, pos_map) where pos_map[i] is the original index of norm_text[i].
     """
+    MD_CHARS = frozenset("*_`")
+    EM_DASHES = frozenset("—–")
     norm_chars: list[str] = []
     pos_map: list[int] = []
     i = 0
     while i < len(text):
-        if text[i].isspace():
+        ch = text[i]
+        if ch.isspace():
             if norm_chars and norm_chars[-1] != " ":
                 norm_chars.append(" ")
                 pos_map.append(i)
             while i < len(text) and text[i].isspace():
                 i += 1
+        elif strip_markdown and ch in MD_CHARS:
+            i += 1  # drop the character, don't include char in output
+        elif strip_markdown and ch in EM_DASHES:
+            norm_chars.append("-")
+            pos_map.append(i)
+            i += 1
         else:
-            norm_chars.append(text[i])
+            norm_chars.append(ch)
             pos_map.append(i)
             i += 1
     return "".join(norm_chars), pos_map
@@ -115,13 +125,19 @@ def try_abbreviation_match(text: str, value: str) -> tuple[int, int] | None:
     return m.start(), pos
 
 
-def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] | None:
+def find_span_in(
+    text: str, value: str, offset: int, exact_only: bool = False
+) -> tuple[int, int, float] | None:
     """Finds the best matching span of {value} in {text}, returning (start, end, confidence).
     Confidence is based on the type of match:
     - 1.0 exact match
     - 0.95 case-insensitive match
     - 0.9 Normalized Match (any whitespace noise in source or value, inter- or intra-word)
     - 0.0-0.94 partial match based on fuzzy string similarity (may yield higher scores than other matches)
+
+    When exact_only=True, fuzzy and abbreviation fallbacks are skipped — useful for
+    identifier predicates (issn, doi, …) where a fuzzy match against unrelated digit
+    sequences would produce a misleading confidence score.
     """
     if not value.strip():
         return None
@@ -149,6 +165,23 @@ def find_span_in(text: str, value: str, offset: int) -> tuple[int, int, float] |
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
         return offset + m.start(), offset + m.end(), 0.9
+
+    # Markdown-stripped normalized match
+    stripped_text, stripped_pos_map = build_norm_map(text, strip_markdown=True)
+    stripped_value = build_norm_map(value, strip_markdown=True)[0]
+    idx = stripped_text.lower().find(stripped_value.lower())
+    if idx >= 0:
+        orig_start = stripped_pos_map[idx]
+        orig_end = (
+            stripped_pos_map[
+                min(idx + len(stripped_value) - 1, len(stripped_pos_map) - 1)
+            ]
+            + 1
+        )
+        return offset + orig_start, offset + orig_end, 0.88
+
+    if exact_only:
+        return None
 
     # Abbreviation match
     abbrev = try_abbreviation_match(text, value)
@@ -193,6 +226,7 @@ def find_span(
     out_of_window_penalty: float,
     win_distance_penalty: float = 0.0,
     min_penalty_factor: float = 0.3,
+    exact_only: bool = False,
 ) -> tuple[int, int, float, bool] | None:
     """Search for {value} in {source}, going through all declared windows first.
     The following rules are being used (highest confidence wins):
@@ -200,19 +234,21 @@ def find_span(
         - If no declared window matched, the full document is searched with the
         out-of-window penalty (+ optional distance penalty from the nearest window).
         - If no declared windows exist the full document is searched with no penalty.
+
+    When exact_only=True, fuzzy and abbreviation fallbacks are disabled in find_span_in.
     """
     windows = get_windows(source, predicate, windows_config)
 
     # Best match across all declared windows (in_window=True)
     best_in_window: tuple[int, int, float] | None = None
     for window_text, window_offset in windows:
-        result = find_span_in(window_text, value, window_offset)
+        result = find_span_in(window_text, value, window_offset, exact_only=exact_only)
         if result is not None:
             if best_in_window is None or result[2] > best_in_window[2]:
                 best_in_window = result
 
     # Full-document result (penalised when declared windows exist)
-    full_result = find_span_in(source, value, 0)
+    full_result = find_span_in(source, value, 0, exact_only=exact_only)
     best_full: tuple[int, int, float, bool] | None = None
     if full_result is not None:
         start, end, conf = full_result
@@ -299,6 +335,71 @@ def best_window(sentence: str, value: str, offset: int = 0) -> tuple[int, int]:
             best_i = i
 
     return offset + best_i, offset + best_i + val_len
+
+
+# Span Relocation
+
+
+def find_all_exact_spans(source: str, value: str) -> list[int]:
+    """Return start positions of every exact (case-insensitive) occurrence of value in source."""
+    lower_source = source.lower()
+    lower_value = value.lower()
+    positions = []
+    start = 0
+    while True:
+        idx = lower_source.find(lower_value, start)
+        if idx < 0:
+            break
+        positions.append(idx)
+        start = idx + 1
+    return positions
+
+
+def relocate_ambiguous_spans(
+    annotations: list[dict],
+    source: str,
+    doc_length: int,
+    entity_types: list[str] | None = None,
+    type_index: dict[str, set[str]] | None = None,
+    max_value_len: int = 20,
+) -> None:
+    """We relocate all occurances for short values by checking all their occurances in the documents and taking the cloest to the median position of the other literals"""
+    if doc_length == 0:
+        return
+
+    def is_target_entity(subject_uri: str) -> bool:
+        if not entity_types or type_index is None:
+            return False
+        return bool(type_index.get(subject_uri, set()) & set(entity_types))
+
+    groups = defaultdict(list)
+    for ann in annotations:
+        if ann.get("triple_type") == "literal" and is_target_entity(ann["subject"]):
+            groups[ann["subject"]].append(ann)
+
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        for ann in group:
+            value = ann.get("value", "")
+            if len(value) > max_value_len or "span_start" not in ann:
+                continue
+            occurrences = find_all_exact_spans(source, value)
+            if len(occurrences) < 2:
+                continue
+            # Compute median from the other fields (exclude this annotation)
+            others = [a for a in group if a is not ann and "span_end" in a]
+            if not others:
+                continue
+            positions = [a["span_end"] for a in others]
+            median = median_position(positions)
+            if median is None:
+                continue
+            best = min(occurrences, key=lambda pos: abs(pos - median))
+            if best != ann["span_start"]:
+                ann["span_start"] = best
+                ann["span_end"] = best + len(value)
+                ann["span_text"] = source[best : best + len(value)]
 
 
 # Outlier Penalties

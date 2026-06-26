@@ -1,26 +1,25 @@
 repos:
--   repo: https://github.com/PyCQA/autoflake
+  - repo: https://github.com/PyCQA/autoflake
     rev: v2.2.1
     hooks:
-    -   id: autoflake
+      - id: autoflake
         args: [--remove-all-unused-imports, --in-place]
 
--   repo: https://github.com/pycqa/isort
+  - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
-    -   id: isort
+      - id: isort
         name: isort (python)
         args: [--settings-path=backend]
 
--   repo: https://github.com/psf/black
+  - repo: https://github.com/psf/black
     rev: 26.5.1
     hooks:
     -   id: black
-        language_version: python3.13
 
--   repo: local
+  - repo: local
     hooks:
-    -   id: eslint
+      - id: eslint
         name: eslint
         language: system
         entry: bash -c 'cd frontend && npm run lint'

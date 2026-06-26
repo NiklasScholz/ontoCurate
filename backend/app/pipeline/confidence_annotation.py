@@ -13,6 +13,7 @@ from rdflib import Graph
 from app.pipeline.metrics.datatype_property_scoring import (
     apply_entity_outlier_penalty,
     find_span,
+    relocate_ambiguous_spans,
 )
 from app.pipeline.metrics.object_property_scoring import annotate_object_properties
 from app.pipeline.utils.turtle_utils import (
@@ -21,18 +22,11 @@ from app.pipeline.utils.turtle_utils import (
     collect_rdf_type_triples,
 )
 
-DEFAULT_CONFIG = (
-    Path(__file__).parent.parent.parent
-    / "config"
-    / "schemas"
-    / "provenance_config.yaml"
-)
-
 
 # Load Config
 def load_config(
     config_path: Path,
-) -> tuple[dict, float, float, float, float, float, list[str], dict]:
+) -> tuple[dict, float, float, float, float, float, list[str], dict, set[str]]:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     s = raw.get("settings", {})
     dp = raw.get("datatype_properties", {})
@@ -44,6 +38,7 @@ def load_config(
     min_outlier_factor = float(dp.get("min_outlier_factor", 0.2))
     outlier_pentalty_entities = list(dp.get("outlier_pentalty_entities", []))
     obj_prop_config = raw.get("object_properties", {})
+    exact_only_predicates = set(dp.get("exact_only_predicates", []))
     return (
         windows,
         penalty,
@@ -53,6 +48,7 @@ def load_config(
         min_outlier_factor,
         outlier_pentalty_entities,
         obj_prop_config,
+        exact_only_predicates,
     )
 
 
@@ -62,20 +58,12 @@ def annotate_confidence(
     ttl_path: Path,
     output_dir: Path,
     *,
-    schema_path: Path | None = None,
-    config_path: Path | None = None,
+    config_path: Path,
 ) -> Path:
     """Annotate every literal triple in ttl_path with a source span and
     confidence score, writing xx_provenance.json to output_dir.
-    Uses config from {schema_path.parent}/provenance_config.yaml
+    Uses config from {config_path}
     """
-    if config_path is None:
-        if schema_path is not None:
-            candidate = Path(schema_path).parent / "provenance_config.yaml"
-            config_path = candidate if candidate.exists() else DEFAULT_CONFIG
-        else:
-            config_path = DEFAULT_CONFIG
-
     (
         windows_config,
         out_of_window_penalty,
@@ -85,6 +73,7 @@ def annotate_confidence(
         min_outlier_factor,
         outlier_pentalty_entities,
         obj_prop_config,
+        exact_only_predicates,
     ) = load_config(config_path)
 
     source = source_path.read_text(encoding="utf-8")
@@ -104,6 +93,7 @@ def annotate_confidence(
             out_of_window_penalty,
             win_distance_penalty=win_distance_penalty,
             min_penalty_factor=min_penalty_factor,
+            exact_only=predicate_label in exact_only_predicates,
         )
         if result is None:
             continue
@@ -120,6 +110,15 @@ def annotate_confidence(
                 "triple_type": "literal",
             }
         )
+
+    # Relocate short values (e.g. years) to the occurrence nearest to the entity median
+    relocate_ambiguous_spans(
+        annotations,
+        source,
+        len(source),
+        outlier_pentalty_entities,
+        type_index,
+    )
 
     # Penalize Outlier Triples for configured entities
     apply_entity_outlier_penalty(

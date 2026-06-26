@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.pipeline.entity_alignment import (
@@ -10,7 +12,10 @@ from app.pipeline.entity_alignment import (
 )
 from app.pipeline.utils.turtle_utils import load_entity_information
 
-CONFIG = load_alignment_config()
+ALIGNMENT_CONFIG_PATH = (
+    Path(__file__).parent.parent / "config" / "schemas" / "alignment_config.yaml"
+)
+CONFIG = load_alignment_config(ALIGNMENT_CONFIG_PATH)
 PERSON_CFG = resolve_type_config(CONFIG, "Person")
 
 
@@ -100,19 +105,19 @@ class TestResolveTypeConfig:
         cfg = resolve_type_config(CONFIG, "Person")
         assert cfg["threshold"] > 0.9
         assert cfg["expand_initials"] is True
-        assert "family_name" in cfg["comparison_predicates"]
+        assert "familyName" in cfg["comparison_predicates"]
 
 
 class TestSimilarityComputation:
     def test_high_similarity_pair(self):
-        a = gen_entity("ex:A", "Person", family_name="Smith", name="Alice")
-        b = gen_entity("ex:B", "Person", family_name="Smith", name="Alice ")
+        a = gen_entity("ex:A", "Person", familyName="Smith", name="Alice")
+        b = gen_entity("ex:B", "Person", familyName="Smith", name="Alice ")
         results = similarity_computation([(a, b)], CONFIG)
         assert results[0][2] >= PERSON_CFG["threshold"]
 
     def test_low_similarity_pair(self):
-        a = gen_entity("ex:A", "Person", family_name="Mustermann", name="Max")
-        b = gen_entity("ex:B", "Person", family_name="John", name="Doe")
+        a = gen_entity("ex:A", "Person", familyName="Mustermann", name="Max")
+        b = gen_entity("ex:B", "Person", familyName="John", name="Doe")
         results = similarity_computation([(a, b)], CONFIG)
         assert results[0][2] < PERSON_CFG["threshold"]
         assert results[0][0]["uri"] == "ex:A"

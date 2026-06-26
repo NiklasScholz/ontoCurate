@@ -66,6 +66,23 @@ classes:
       - doi
       - url
       - publication_date
+    slot_usage:
+      published_in_proceedings:
+        description: >-
+          The proceedings volume this cited paper was published in.
+          Extract from patterns like "in: Proceedings of …, Year" or "in: [Conference Name] Proceedings".
+          Populate with the proceedings title and year; omit volume/publisher if not stated.
+      presented_at:
+        description: >-
+          The conference event at which this cited paper was presented.
+          Only populate if the reference string explicitly names a conference event
+          (e.g. "25th International Conference on …"). Leave blank if only proceedings are mentioned.
+          Extract the edition number from ordinal text into the edition field
+          (e.g. "Twelfth" → 12, "45th" → 45) and the year into event_year.
+      presented_at_workshop:
+        description: >-
+          The workshop event at which this cited paper was presented.
+          Only populate if the reference string explicitly names a workshop. Leave blank otherwise.
 
   Person:
     class_uri: schema:Person
@@ -93,7 +110,7 @@ classes:
     description: >-
       A compiled volume of papers produced from a conference or workshop.
       Always include the volume number when available (e.g. CEUR-WS proceedings always carry a
-      volume number such as "Vol-1234" — extract it from the paper header or URL).
+      volume number such as "Vol-1234" - extract it from the paper header or URL).
     slots:
       - id
       - title
@@ -109,6 +126,7 @@ classes:
     slots:
       - id
       - conf_name
+      - edition
       - location
       - event_year
       - start_date
@@ -121,6 +139,7 @@ classes:
     slots:
       - id
       - workshop_name
+      - edition
       - location
       - event_year
       - start_date
@@ -177,14 +196,14 @@ slots:
     slot_uri: dcterms:title
     range: string
     description: >-
-      The title of this specific proceedings volume or journal — NOT the series name.
+      The title of this specific proceedings volume or journal - NOT the series name.
       Use the title exactly as it appears in the document if one is explicitly given.
       Only if no explicit title is present, construct one from available context using
       the pattern "Proceedings of the [Full Event Name] [Year] ([Acronym])", applicable
       to both workshop and conference proceedings, e.g.
       "Proceedings of the Workshop on Software and Knowledge Engineering 2025 (SNE 2025)" or
       "Proceedings of the 24th International Semantic Web Conference 2025 (ISWC 2025)".
-      Never put the series name (e.g. "CEUR Workshop Proceedings") here — that belongs in in_series.
+      Never put the series name (e.g. "CEUR Workshop Proceedings") here - that belongs in in_series.
 
   title_paper:
     slot_uri: dcterms:title
@@ -194,7 +213,9 @@ slots:
   abstract:
     slot_uri: bibo:abstract
     range: string
-    description: A summary of the paper's content.
+    description: >-
+      Copy the abstract text verbatim from the paper's Abstract section.
+      Do not summarize, paraphrase, or rephrase — reproduce the full abstract exactly as it appears in the source.
 
   keywords:
     slot_uri: schema:keywords
@@ -214,7 +235,7 @@ slots:
       List ALL authors on a SINGLE LINE, each author separated by " ; " (space-semicolon-space).
       CRITICAL: the semicolon " ; " is the ONLY author separator - never use it for any other purpose inside an author entry.
       Within one author entry use ONLY commas to separate fields - never a semicolon.
-      CRITICAL: each author appears EXACTLY ONCE — do NOT repeat an author for multiple affiliations. If an author has more than one affiliation, list all their affiliations in the same list entry.
+      CRITICAL: each author appears EXACTLY ONCE - do NOT repeat an author for multiple affiliations. If an author has more than one affiliation, list all their affiliations in the same list entry.
       Format per author: Full Name, email, ORCID URI, Organization1 Name, Location, Organization2 Name, Location, ....
       Email and ORCID should be omitted if unknown; use the bare ORCID URI (https://orcid.org/…), not just the number.
       Example: Jane Doe, jane@example.com, https://orcid.org/0000-0001-2345-6789, MIT, Cambridge MA USA ; John Smith, , , Stanford University, Stanford CA USA
@@ -227,7 +248,7 @@ slots:
     description: >-
       Corporate, consortium, or standards-body authors credited directly as authors
       (e.g. "W3C", "IBM Research", "The ATLAS Collaboration").
-      Only use when the credited entity is explicitly an organization - never for individual affiliations.
+      Only use when the entity is explicitly an organization - never for individual affiliations.
       Provide only the organization name and location if known.
 
   published_in_proceedings:
@@ -249,7 +270,13 @@ slots:
     slot_uri: bibo:presentedAt
     range: Conference
     inlined: true
-    description: The conference at which this paper was presented. Conference papers only. Include all information about the Conference
+    description: >-
+      The conference at which this paper was presented. Conference papers only.
+      Include all information about the Conference.
+      IMPORTANT: always extract the edition number from ordinal text in the conference name
+      into the edition field (e.g. "Twelfth" → 12, "45th" → 45, "Thirty-ninth" → 39).
+      Always extract the year into event_year (or start_date if full date is known).
+      These fields are essential for distinguishing different yearly editions of the same conference.
 
   presented_at_workshop:
     slot_uri: bibo:presentedAt
@@ -257,9 +284,15 @@ slots:
     inlined: true
     description: >-
       The workshop at which this paper was presented. Workshop papers only.
-      Include: full workshop name, location (city, country), start and end dates (ISO 8601).
-      For the parent conference (part_of_conference): only include it if the source text
-      explicitly uses the word "Conference" to name a parent event — leave it blank otherwise.
+      Output as a single line in exactly this format:
+      WorkshopName, Location, StartDate, EndDate, part_of_conference: ConferenceName
+      Where StartDate and EndDate are ISO 8601 (YYYY-MM-DD).
+      Always end with ", part_of_conference: " - leave ConferenceName blank unless the source
+      text explicitly names a parent conference with the word "Conference".
+      CRITICAL: the workshop name must not contain any colons - if the workshop name contains
+      a colon (e.g. "ESWC'26: TAAPAAI Workshop"), omit the prefix before the colon and use
+      only the descriptive part (e.g. "TAAPAAI Workshop").
+      Example: "Workshop on Knowledge Graphs 2024, Vienna, Austria, 2024-05-26, 2024-05-30, part_of_conference: ISWC 2024"
 
   doi:
     slot_uri: bibo:doi
@@ -269,14 +302,14 @@ slots:
   url:
     slot_uri: schema:url
     range: uri
-    description: URL providing direct access to the full text of the paper. Leave blank if not available — never output placeholder text.
+    description: URL providing direct access to the full text of the paper. Leave blank if not available - never output placeholder text.
 
   publication_date:
     slot_uri: schema:datePublished
     range: Year
     description: >-
       Publication year of this paper as a 4-digit integer (e.g. 2024).
-      Extract the year from the source — do not pad or infer month/day.
+      Extract the year from the source - do not pad or infer month/day.
 
   cites:
     slot_uri: cito:cites
@@ -303,7 +336,7 @@ slots:
     slot_uri: foaf:givenName
     range: string
     description: >-
-      The first (given) name of the person. Optional — populated for main paper
+      The first (given) name of the person. Optional - populated for main paper
       authors when confident. Do not fill if the full name is not given (e.g. J. [family name])
 
   family_name:
@@ -329,7 +362,7 @@ slots:
     description: >-
       Persistent identifier for the person (e.g. ORCID URI)
       or organization (e.g. ROR URI).
-      Leave blank if not available — never output placeholder text.
+      Leave blank if not available - never output placeholder text.
 
   # Organization 
 
@@ -358,7 +391,12 @@ slots:
     slot_uri: dcterms:issued
     range: Year
     required: false
-    description: Year the proceedings or journal issue was published, e.g. 2024. If the year is not mentioned in the text, omit this field entirely.
+    description: >-
+      Year the proceedings or journal issue was published, e.g. 2024.
+      Also extract the year when it is embedded in the proceedings title
+      (e.g. "Proceedings of the 2022 Conference on …" → 2022,
+      "EMNLP 2025 Proceedings" → 2025).
+      If the year cannot be determined from the text, omit this field entirely.
 
   publisher:
     slot_uri: dcterms:publisher
@@ -400,12 +438,23 @@ slots:
     range: string
     description: Full name of the workshop.
 
+  edition:
+    slot_uri: bibo:edition
+    range: integer
+    description: >-
+      Edition or occurrence number of the conference or workshop as an integer,
+      e.g. 13 for "The 13th International Semantic Web Conference" or
+      39 for "The Thirty-ninth Annual Conference on NeurIPS".
+      Extract only the number, not the ordinal suffix.
+      Leave blank if no edition number is mentioned.
+
   event_year:
     slot_uri: schema:startDate
     range: Year
     description: >-
       Year the conference or workshop took place, e.g. 2024.
-      Always populate this when the year is known.
+      ONLY populate this when the exact start date (day and month) is NOT known.
+      If you populate start_date, leave this field blank to avoid duplicate values.
 
   start_date:
     slot_uri: schema:startDate
@@ -413,6 +462,7 @@ slots:
     description: >-
       Opening date of the conference or workshop in ISO 8601 format (YYYY-MM-DD).
       Only populate if BOTH the start and end date are explicitly stated in the source.
+      If you populate this field, leave event_year blank - do not output both.
       Leave blank if only a year or partial date is available.
 
   end_date:
@@ -430,7 +480,7 @@ slots:
     description: >-
       The parent conference this workshop is co-located with (e.g. ISWC 2024).
       ONLY populate this field if the source text explicitly contains the word "Conference"
-      naming a parent event. If no such explicit mention exists, leave this field blank —
+      naming a parent event. If no such explicit mention exists, leave this field blank -
       do NOT infer or guess a parent conference.
 
   #  Journal Issue 

@@ -6,6 +6,7 @@ from app.pipeline.metrics.datatype_property_scoring import (
     apply_entity_outlier_penalty,
     find_span,
     find_span_in,
+    relocate_ambiguous_spans,
     try_abbreviation_match,
 )
 
@@ -475,3 +476,64 @@ class TestEntityOutlierPenalty:
         assert a_outlier["confidence"] < 1.0
         for a in banns:
             assert a["confidence"] == pytest.approx(1.0, abs=1e-1)
+
+
+class TestRelocateAmbiguousSpans:
+    def ann(self, subject: str, predicate: str, value: str, span_start: int) -> dict:
+        return {
+            "subject": subject,
+            "predicate": predicate,
+            "value": value,
+            "span_start": span_start,
+            "span_end": span_start + len(value),
+            "span_text": value,
+            "confidence": 1.0,
+            "triple_type": "literal",
+        }
+
+    def test_year_relocated_to_nearest_entity_occurrence(self):
+        # "2025" appears at position 0 (paper header) and again near position 76
+        # (next to the cited paper's title at position 55).
+        # The function should move the span from 0 to 76.
+        title = "Title of cited paper"
+        source = "2025 " + " " * 50 + title + " 2025"
+        title_pos = 55
+        year_pos_near_title = title_pos + len(title) + 1  # 76
+
+        subject = "ex:CitedPaper"
+        annotations = [
+            self.ann(subject, "datePublished", "2025", 0),
+            self.ann(subject, "title", title, title_pos),
+        ]
+        relocate_ambiguous_spans(
+            annotations,
+            source,
+            len(source),
+            entity_types=["AcademicArticle"],
+            type_index={subject: {"AcademicArticle"}},
+        )
+
+        date_ann = next(a for a in annotations if a["predicate"] == "datePublished")
+        assert date_ann["span_start"] == year_pos_near_title
+        assert date_ann["span_text"] == "2025"
+
+    def test_no_relocation_when_single_occurrence(self):
+        title = "Title of cited paper"
+        source = "Some unrelated header. " + " " * 50 + title + " 2025"
+        year_pos = len(source) - 4
+
+        subject = "ex:CitedPaper"
+        annotations = [
+            self.ann(subject, "datePublished", "2025", year_pos),
+            self.ann(subject, "title", title, len(source) - 4 - len(title) - 1),
+        ]
+        relocate_ambiguous_spans(
+            annotations,
+            source,
+            len(source),
+            entity_types=["AcademicArticle"],
+            type_index={subject: {"AcademicArticle"}},
+        )
+
+        date_ann = next(a for a in annotations if a["predicate"] == "datePublished")
+        assert date_ann["span_start"] == year_pos

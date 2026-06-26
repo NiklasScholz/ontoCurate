@@ -12,11 +12,6 @@ from app.store.writer import write_alignment_results
 
 logger = logging.getLogger(__name__)
 
-# default config path
-DEFAULT_CONFIG = (
-    Path(__file__).parent.parent.parent / "config" / "schemas" / "alignment_config.yaml"
-)
-
 
 def validate_weights(weights: dict, label: str) -> None:
     """Raise Exception if values do not sum to approximately 1.0"""
@@ -28,12 +23,12 @@ def validate_weights(weights: dict, label: str) -> None:
 
 
 def load_alignment_config(
-    config_path: Path | None = None,
+    config_path: Path,
 ) -> dict:
     """Load and validate the alignment yaml config.
     Returns settings dict
     """
-    with open(config_path or DEFAULT_CONFIG) as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
 
     settings = config.get("settings", {})
@@ -76,6 +71,18 @@ def resolve_type_config(config: dict, entity_type: str) -> dict:
             "expand_initials",
             settings.get("default_expand_initials", False),
         ),
+        "sparsity_penalty": overrides.get(
+            "sparsity_penalty",
+            settings.get("default_sparsity_penalty", 1.0),
+        ),
+        "sparsity_max_fields": overrides.get(
+            "sparsity_max_fields",
+            settings.get("default_sparsity_max_fields", 1),
+        ),
+        "hard_match_predicates": overrides.get(
+            "hard_match_predicates",
+            settings.get("default_hard_match_predicates", None),
+        ),
     }
 
 
@@ -91,7 +98,7 @@ def generate_candidate_pairs(
     -everything else is passed to scoring
     """
 
-    hard_id_fields = set(config.get("settings", {}).get("unique_keys", []))
+    global_unique_keys = set(config.get("settings", {}).get("unique_keys", []))
 
     buckets: dict[str, list[dict]] = defaultdict(list)
     for entity in entities:
@@ -104,6 +111,11 @@ def generate_candidate_pairs(
     for type_name, bucket in buckets.items():
         if len(bucket) < 2:
             continue
+
+        type_unique_keys = set(
+            config.get("entity_types", {}).get(type_name, {}).get("unique_keys", [])
+        )
+        hard_id_fields = global_unique_keys | type_unique_keys
 
         for i, a in enumerate(bucket):
             for b in bucket[i + 1 :]:
@@ -151,6 +163,9 @@ def similarity_computation(
             expand_initials=type_cfg["expand_initials"],
             threshold=type_cfg["threshold"],
             semantic_text_predicates=type_cfg["semantic_text_predicates"],
+            sparsity_penalty=type_cfg["sparsity_penalty"],
+            sparsity_max_fields=type_cfg["sparsity_max_fields"],
+            hard_match_predicates=type_cfg["hard_match_predicates"],
         )
         results.append((a, b, score))
     return results
@@ -171,11 +186,14 @@ def candidate_filtering(
 def score_and_filter(
     candidates: list[tuple[dict, dict]],
     config: dict,
-) -> list[tuple[str, str, float]]:
-    """Score candidates and return only pairs above threshold as (uri_a, uri_b, score)."""
+) -> list[tuple[str, str, float, str | None, str | None]]:
+    """Score candidates and return only pairs above threshold as (uri_a, uri_b, score, src_doc_a, src_doc_b)."""
     scored = similarity_computation(candidates, config)
     filtered = candidate_filtering(scored, config)
-    return [(a["uri"], b["uri"], score) for a, b, score in filtered]
+    return [
+        (a["uri"], b["uri"], score, a.get("source_document"), b.get("source_document"))
+        for a, b, score in filtered
+    ]
 
 
 def write_same_as_triples(
@@ -199,8 +217,8 @@ def run_inner_document_alignment(
     ttl_path: Path,
     workspace_id: str,
     run_id: str,
+    config_path: Path,
     document_id: str | None = None,
-    config_path: Path | None = None,
 ) -> Path:
     """Inner document alignment. Writes its results back into its ttl, as well as to oxigraph"""
 
@@ -223,8 +241,11 @@ def run_inner_document_alignment(
         return ttl_path
 
     logger.info("[%s] Writing %d owl:sameAs triple(s)", run_id, len(alignments))
-    write_same_as_triples(ttl_path, alignments, ttl_path)
-    write_alignment_results(alignments, workspace_id, run_id, document_id)
+    triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
+    write_same_as_triples(ttl_path, triples, ttl_path)
+    write_alignment_results(
+        triples, workspace_id, run_id, [document_id] if document_id else None
+    )
 
     return ttl_path
 
@@ -233,7 +254,7 @@ def run_cross_document_alignment(
     working_dir: Path,
     workspace_id: str,
     run_id: str,
-    config_path: Path | None = None,
+    config_path: Path,
 ) -> None:
     """
     Cross document entity alignment loading all per-document aligned ttls and performing entity alignment between them again
@@ -267,12 +288,19 @@ def run_cross_document_alignment(
 
     # Merge all per-document TTLs into a single graph and append sameAs triples
     # used by further tasks
+    triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
     merged_graph = Graph()
     for ttl_path in ttl_files:
         merged_graph.parse(ttl_path, format="turtle")
-    for uri_a, uri_b, score in alignments:
+    for uri_a, uri_b, score in triples:
         merged_graph.add((URIRef(uri_a), OWL.sameAs, URIRef(uri_b)))
     merged_path = working_dir / "merged.ttl"
     merged_graph.serialize(destination=merged_path, format="turtle")
 
-    write_alignment_results(alignments, workspace_id, run_id)
+    grouped = defaultdict(list)
+    for uri_a, uri_b, score, src_a, src_b in alignments:
+        key = tuple(sorted([src_a or "unknown", src_b or "unknown"]))
+        grouped[key].append((uri_a, uri_b, score))
+
+    for (doc_a, doc_b), pairs in grouped.items():
+        write_alignment_results(pairs, workspace_id, run_id, [doc_a, doc_b])

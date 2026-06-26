@@ -25,7 +25,8 @@ dependencies = [
     "rapidfuzz",
     "rdflib",
     "pyyaml",
-    "scikit-learn"
+    "scikit-learn",
+    "pymupdf4llm"
 ]
 
 [project.optional-dependencies]
