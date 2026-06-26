@@ -176,7 +176,8 @@ def fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> 
         json.dumps({**obj, "_doc": doc_name}, sort_keys=True, default=str).encode()
     ).hexdigest()[
         :6
-    ]  # ensures no conflicts during conversion. Same entities will be linked later during alignment phases.
+        # ensures no conflicts during conversion. Same entities will be linked later during alignment phases.
+    ]
     return f"smo:{local}_{digest}"
 
 

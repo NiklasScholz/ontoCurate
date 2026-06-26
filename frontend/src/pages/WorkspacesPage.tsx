@@ -1,17 +1,23 @@
 import { Link } from "react-router-dom";
 import Root from "../components/Root";
-import { ArrowLeftIcon, TrashIcon } from "lucide-react";
+import { ArrowLeftIcon, SettingsIcon, TrashIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { client } from "../client";
 import Spinner from "../components/Spinner";
 import Panel from "../components/Panel";
+import Popup from "../components/Popup";
 
 export default function WorkspacesPage() {
     const [workspaces, setWorkspaces] = useState<
         { id: string; name: string }[] | undefined
     >(undefined);
 
-    const [name, setName] = useState<string | undefined>(undefined);
+    const [name, setName] = useState<string>("");
+    const [schemaPath, setSchemaPath] = useState<string>("");
+    const [alignmentConfigPath, setAlignmentConfigPath] = useState<string>("");
+    const [provenanceConfigPath, setProvenanceConfigPath] =
+        useState<string>("");
+    const [showConfigPopup, setShowConfigPopup] = useState<boolean>(false);
 
     function reload() {
         client.GET("/workspaces/").then(({ data }) => setWorkspaces(data));
@@ -74,14 +80,22 @@ export default function WorkspacesPage() {
                         type="text"
                         placeholder="Name"
                         onChange={(event) => setName(event.target.value)}
-                        name="password"
                         className="border-nord4 h-7 rounded border-2 px-2"
                     />
+                    <button onClick={() => setShowConfigPopup(true)}>
+                        <SettingsIcon />
+                    </button>
                     <button
                         className="bg-nord8 h-7 rounded px-2"
                         onClick={async () => {
                             await client.POST("/workspaces/", {
-                                body: { name },
+                                body: {
+                                    name,
+                                    schema_path: schemaPath,
+                                    alignment_config_path: alignmentConfigPath,
+                                    provenance_config_path:
+                                        provenanceConfigPath,
+                                },
                             });
                             reload();
                         }}
@@ -90,6 +104,52 @@ export default function WorkspacesPage() {
                     </button>
                 </div>
             </Panel>
+
+            <Popup show={showConfigPopup}>
+                <Panel className="flex flex-col gap-2">
+                    <div className="flex justify-end">
+                        <button onClick={() => setShowConfigPopup(false)}>
+                            <XIcon />
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <label htmlFor="schemaPath">Schema path</label>
+                        <input
+                            type="text"
+                            name="schemaPath"
+                            value="/app/config/schemas/scholarly_schema.yaml"
+                            onChange={(event) =>
+                                setSchemaPath(event.target.value)
+                            }
+                            className="border-nord4 h-7 rounded border-2 px-2"
+                        />
+                        <label htmlFor="alignmentConfigPath">
+                            Alignment config path
+                        </label>
+                        <input
+                            type="text"
+                            name="alignmentConfigPath"
+                            value="/app/config/schemas/alignment_config.yaml"
+                            onChange={(event) =>
+                                setAlignmentConfigPath(event.target.value)
+                            }
+                            className="border-nord4 h-7 rounded border-2 px-2"
+                        />
+                        <label htmlFor="provenanceConfigPath">
+                            Provenance config path
+                        </label>
+                        <input
+                            type="text"
+                            name="provenanceConfigPath"
+                            value="/app/config/schemas/provenance_config.yaml"
+                            onChange={(event) =>
+                                setProvenanceConfigPath(event.target.value)
+                            }
+                            className="border-nord4 h-7 rounded border-2 px-2"
+                        />
+                    </div>
+                </Panel>
+            </Popup>
         </Root>
     );
 }

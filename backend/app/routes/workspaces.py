@@ -24,7 +24,12 @@ async def create_workspace(
     data: WorkspaceCreate,
     session: AsyncSession = Depends(get_session),
 ):
-    return await WorkspaceRepository(session).create(data.name)
+    return await WorkspaceRepository(session).create(
+        data.name,
+        data.schema_path,
+        data.alignment_config_path,
+        data.provenance_config_path,
+    )
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)

@@ -1,14 +1,21 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Root from "../components/Root";
 import Panel from "../components/Panel";
 import { ArrowLeftIcon, FileIcon, TrashIcon } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { client } from "../client";
+import NotFound from "./NotFound";
 
 export default function UploadPage() {
-    const { id } = useParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const wsId = searchParams.get("ws");
 
     const [files, setFiles] = useState<{ id: string; data: File }[]>([]);
+
+    if (wsId === null) {
+        return <NotFound />;
+    }
 
     function onDragEnter(e: DragEvent<HTMLDivElement>) {
         e.preventDefault();
@@ -48,7 +55,7 @@ export default function UploadPage() {
             <Panel className="flex w-160 flex-col gap-2">
                 <div className="relative mb-4">
                     <Link
-                        to={`/workspace?ws=${id}`}
+                        to={`/workspace?ws=${wsId}`}
                         className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
                     >
                         <ArrowLeftIcon size={16} />
@@ -98,9 +105,9 @@ export default function UploadPage() {
                     <button
                         disabled={files.length === 0}
                         className={`h-7 rounded px-2 ${files.length === 0 ? "bg-nord4 text-nord3/50" : "bg-nord8"}`}
-                        onClick={() => {
-                            client.POST("/extraction/", {
-                                params: { query: { workspace_id: id } },
+                        onClick={async () => {
+                            await client.POST("/extraction/", {
+                                params: { query: { workspace_id: wsId } },
                                 body: {
                                     files: files.map(
                                         (file) => file.data,
@@ -116,6 +123,7 @@ export default function UploadPage() {
                                     return formData;
                                 },
                             });
+                            navigate(`/workspace?ws=${wsId}`);
                         }}
                     >
                         Submit
