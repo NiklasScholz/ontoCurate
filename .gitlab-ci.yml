@@ -18,9 +18,16 @@ backend-test:
   image: python:3.12-slim
   before_script:
     - cd backend
-    - pip install --quiet -e ".[dev]"
+    - pip install --quiet -e ".[dev]" coverage
   script:
-    - pytest tests/ -v
+    - coverage run -m --branch pytest tests/ -v
+    - coverage report
+    - coverage html
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    paths:
+      - backend/htmlcov/
+    expire_in: 1 week
 
 
 frontend-lint:
