@@ -27,7 +27,7 @@ backend-test:
   artifacts:
     paths:
       - backend/htmlcov/
-    expire_in: 1 week
+    expire_in: 1 day
 
 
 frontend-lint:
