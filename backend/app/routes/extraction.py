@@ -1,14 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.repositories.run import RunRepository
 from app.repositories.user import UserRepository
 from app.repositories.workspace import WorkspaceRepository
+from app.schemas.run import StatementEdit
 from app.store.client import curation_graph, sparql_update
-from app.store.writer import accept_statement, reject_statement
+from app.store.writer import accept_statement, edit_statement, reject_statement
 
 router = APIRouter(prefix="/extraction", tags=["extraction"])
 
@@ -102,8 +103,44 @@ async def reject_statement_endpoint(
 
 
 @router.patch("/{run_id}/statements/{statement_id:path}", status_code=200)
-async def edit_statement():
-    pass
+async def edit_statement_endpoint(
+    run_id: UUID,
+    statement_id: str,
+    edit: StatementEdit,
+    session: AsyncSession = Depends(get_session),
+):
+    run_repo = RunRepository(session)
+
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        return {"run_id": run_id, "error": "Run not found"}
+
+    triggered_by = None  # will be replaced by user
+
+    # If no triggering user supplied, create a system user
+    if triggered_by is None:
+        user_repo = UserRepository(session)
+        user = await user_repo.get_by_email("system@localhost")
+        if user is None:
+            user = await user_repo.create(email="system@localhost", password_encrypt="")
+        triggered_by = user.id
+
+    try:
+        edit_statement(
+            stmt_id=statement_id,
+            triggered_by=triggered_by,
+            workspace_id=str(run.workspace_id),
+            edit=edit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return {
+        "run_id": run_id,
+        "workspace_id": run.workspace_id,
+        "statement_id": statement_id,
+        "status": "edited",
+    }
 
 
 @router.get("/{run_id}/entities")
