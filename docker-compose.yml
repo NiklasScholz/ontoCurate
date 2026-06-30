@@ -37,7 +37,7 @@ services:
       - postgres
       - redis
       - oxigraph
-    command: celery -A app.worker.celery_app worker --loglevel=info
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
 
   frontend:
     build: ./frontend
@@ -54,20 +54,14 @@ services:
       POSTGRES_USER: onto
       POSTGRES_PASSWORD: onto
       POSTGRES_DB: onto
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
 
   oxigraph:
     image: ghcr.io/oxigraph/oxigraph:latest
-    ports:
-      - "7878:7878"
     volumes:
       - oxigraph_data:/data
       - ./infra/oxigraph/config.toml:/config.toml:ro

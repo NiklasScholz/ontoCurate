@@ -22,6 +22,11 @@ dependencies = [
     "python-multipart",
     "pydantic-settings",
     "ontogpt",
+    "rapidfuzz",
+    "rdflib",
+    "pyyaml",
+    "scikit-learn",
+    "pymupdf4llm"
 ]
 
 [project.optional-dependencies]
@@ -32,7 +37,9 @@ dev = [
     "pytest-asyncio",
     "httpx",
     "pydantic_settings",
-    "python-multipart"
+    "python-multipart",
+    "python-dotenv",
+    "pyoxigraph",
 ]
 
 [tool.isort]

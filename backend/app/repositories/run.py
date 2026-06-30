@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.run import Run, RunTask
@@ -35,29 +35,49 @@ class RunRepository:
         result = await self.session.execute(select(Run).where(Run.id == run_id))
         return result.scalar_one_or_none()
 
-    async def update_status(self, run_id: UUID, status: str) -> None:
-        run = await self.get_by_id(run_id)
-        if run:
-            run.status = status
-            await self.session.commit()
-
-    async def add_task(self, run_id: UUID, document_id: UUID, task_name) -> RunTask:
+    async def add_task(
+        self, run_id: UUID, document_id: UUID, task_name: str
+    ) -> RunTask:
         run_doc = RunTask(run_id=run_id, document_id=document_id, task_name=task_name)
         self.session.add(run_doc)
         await self.session.commit()
         await self.session.refresh(run_doc)
         return run_doc
 
-    async def update_task_status(
-        self, run_id: UUID, celery_task_id: UUID, status: str
+    async def update_document_status(
+        self,
+        run_id: UUID,
+        document_id: UUID,
+        status: str,
+        task_name: str | None = None,
+        celery_task_id: str | None = None,
     ) -> None:
-        result = await self.session.execute(
-            select(RunTask).where(
+        values: dict = {"status": status}
+        if task_name is not None:
+            values["task_name"] = task_name
+        if celery_task_id is not None:
+            values["celery_task_id"] = celery_task_id
+        if task_name is not None:
+            values["task_name"] = task_name
+        await self.session.execute(
+            update(RunTask)
+            .where(
                 RunTask.run_id == run_id,
-                RunTask.celery_task_id == celery_task_id,
+                RunTask.document_id == document_id,
             )
+            .values(**values)
         )
-        run_task = result.scalar_one_or_none()
-        if run_task:
-            run_task.status = status
-            await self.session.commit()
+        await self.session.commit()
+
+    async def update_task_status(
+        self, run_id: UUID, document_id: UUID, status: str, task_name: str | None = None
+    ) -> None:
+        await self.update_document_status(
+            run_id, document_id, status, task_name=task_name
+        )
+
+    async def get_tasks_by_run(self, run_id: UUID) -> list[RunTask]:
+        result = await self.session.execute(
+            select(RunTask).where(RunTask.run_id == run_id)
+        )
+        return list(result.scalars().all())

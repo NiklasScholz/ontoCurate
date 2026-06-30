@@ -5,3 +5,8 @@ secrets.env
 .venv/
 .env
 __pycache__/
+settings.json
+.DS_Store
+backend/alembic/versions/
+backend/benchmarking_scripts/data/input/*
+backend/benchmarking_scripts/data/output/*

@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.signals import worker_process_init
 
 from app.core.config import settings
 
@@ -14,3 +15,11 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["app"])
+
+
+@worker_process_init.connect
+def apply_ontogpt_patches(**kwargs):
+    """Apply ontoGPT patches before any worker processes are starting."""
+    from ontogpt_patches.apply_patches import apply_patches
+
+    apply_patches()

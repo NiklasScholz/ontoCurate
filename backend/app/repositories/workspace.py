@@ -31,8 +31,39 @@ class WorkspaceRepository:
         )
         return result.scalar_one_or_none()
 
-    async def create(self, name: str) -> Workspace:
-        workspace = Workspace(name=name)
+    async def create(
+        self,
+        name: str,
+        schema_path: str,
+        alignment_config_path: str,
+        provenance_config_path: str,
+    ) -> Workspace:
+        workspace = Workspace(
+            name=name,
+            schema_path=schema_path,
+            alignment_config_path=alignment_config_path,
+            provenance_config_path=provenance_config_path,
+        )
+        self.session.add(workspace)
+        await self.session.commit()
+        await self.session.refresh(workspace)
+        return workspace
+
+    async def create_with_id(
+        self,
+        name: str,
+        workspace_id: UUID,
+        schema_path: str,
+        alignment_config_path: str,
+        provenance_config_path: str,
+    ) -> Workspace:
+        workspace = Workspace(
+            id=workspace_id,
+            name=name,
+            schema_path=schema_path,
+            alignment_config_path=alignment_config_path,
+            provenance_config_path=provenance_config_path,
+        )
         self.session.add(workspace)
         await self.session.commit()
         await self.session.refresh(workspace)

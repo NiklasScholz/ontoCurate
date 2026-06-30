@@ -53,6 +53,11 @@ paco:RejectingActivity a owl:Class ;
     rdfs:label "Rejecting Activity" ;
     rdfs:comment "An activity in which a curator rejects a candidate statement." .
 
+paco:AlignmentActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Alignment Activity" ;
+    rdfs:comment "An activity in which an entity alignment system identifies owl:sameAs relationships between entities, either within a single document or across multiple documents." .
+
 paco:CreationActivity a owl:Class ;
     rdfs:subClassOf prov:Activity ;
     rdfs:label "Creation Activity" ;
@@ -81,8 +86,12 @@ paco:rejected a paco:CurationStatus ;
 # AGENT INDIVIDUALS
 #################################################################
 
-paco:ontogpt a prov:Agent ;
-    rdfs:label "Onto GPT" .
+paco:ontogpt a prov:SoftwareAgent ;
+    rdfs:label "OntoGPT" .
+
+paco:entity-alignment a prov:SoftwareAgent ;
+    rdfs:label "Entity Alignment" ;
+    rdfs:comment "Software agent responsible for computing entity alignment and producing owl:sameAs candidate statements." .
 
 #################################################################
 # OBJECT PROPERTIES

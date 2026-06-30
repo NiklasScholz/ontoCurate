@@ -12,6 +12,7 @@ def sparql_select(query: str) -> dict:
             "Content-Type": "application/sparql-query",
             "Accept": "application/sparql-results+json",
         },
+        timeout=30.0,
     )
     response.raise_for_status()
     return response.json()
@@ -23,6 +24,7 @@ def sparql_update(query: str) -> None:
         f"{settings.oxigraph_url}/update",
         content=query.encode(),
         headers={"Content-Type": "application/sparql-update"},
+        timeout=120.0,
     )
     response.raise_for_status()
 
@@ -35,6 +37,21 @@ def curation_graph(workspace_id: str) -> str:
 def data_graph(workspace_id: str) -> str:
     """Named graph IRI for accepted triples only."""
     return f"https://ontocurate.org/workspaces/{workspace_id}/graphs/data"
+
+
+def export_graph_ttl(graph_iri: str) -> str:
+    """Return all triples in a named graph as a Turtle string."""
+    response = httpx.post(
+        f"{settings.oxigraph_url}/query",
+        content=f"CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{graph_iri}> {{ ?s ?p ?o }} }}".encode(),
+        headers={
+            "Content-Type": "application/sparql-query",
+            "Accept": "text/turtle",
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    return response.text
 
 
 def drop_workspace_graphs(workspace_id: str) -> None:

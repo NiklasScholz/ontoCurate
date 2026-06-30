@@ -20,6 +20,7 @@ COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY config/ ./config/
+COPY ontogpt_patches/ ./ontogpt_patches/
 
 # Default command — override in docker-compose for the worker
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
