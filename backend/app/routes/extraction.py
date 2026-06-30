@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,10 +13,10 @@ from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.repositories.user import UserRepository
 from app.repositories.workspace import WorkspaceRepository
-from app.schemas.run import StatementEdit, RunDetailResponse
-from app.store.client import curation_graph, sparql_update, sparql_select
-from app.store.writer import accept_statement, edit_statement, reject_statement
+from app.schemas.run import RunDetailResponse, StatementEdit
+from app.store.client import curation_graph, sparql_select, sparql_update
 from app.store.utils import *
+from app.store.writer import accept_statement, edit_statement, reject_statement
 from app.tasks import build_pipeline
 
 router = APIRouter(prefix="/extraction", tags=["extraction"])

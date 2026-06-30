@@ -1,10 +1,10 @@
+import json
 import uuid
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import Union
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
@@ -13,10 +13,12 @@ from app.schemas.run import StatementEdit
 from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
 from app.store.utils import *
 
+
 def validate_iri(value: str, field_name: str) -> None:
     parsed = urlparse(value)
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"{field_name} must be a valid IRI")
+
 
 def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
     return None
