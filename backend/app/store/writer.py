@@ -268,8 +268,89 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     }
 
 
-def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
-    pass
+def write_alignment_results(
+    alignments: list[tuple[str, str, float]],
+    workspace_id: str,
+    run_id: str | None = None,
+    document_ids: list[str] | None = None,
+) -> None:
+    """Writes owl:sameAs CandidateStatements for proposed entity alignments."""
+    if not alignments:
+        return
+
+    run_key = run_id or "unknown-run"
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    doc_ids = document_ids or []
+
+    if len(doc_ids) == 1:
+        doc_key = doc_ids[0]
+        alignment_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
+        )
+    else:
+        sorted_ids = sorted(doc_ids)
+        doc_key = "|".join(sorted_ids) if doc_ids else "unknown"
+        pair_string = "/".join(sorted_ids) if doc_ids else "unknown"
+        alignment_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/documents/{pair_string}/activities/cross-document-alignment"
+        )
+
+    triples = [
+        Triple(N_PACO_ENTITY_ALIGNMENT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
+        Triple(N_PACO_ENTITY_ALIGNMENT, N_SCHEMA_NAME, Literal("entity-alignment")),
+        Triple(alignment_activity, N_RDF_TYPE, N_PACO_ALIGNMENT_ACTIVITY),
+        Triple(alignment_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
+        Triple(alignment_activity, N_PROV_ASSOCIATED_WITH, N_PACO_ENTITY_ALIGNMENT),
+        Triple(
+            alignment_activity,
+            N_PACO_CREATED_AT,
+            Literal(now, datatype=N_XSD_DATETIME),
+        ),
+    ]
+
+    for canonical, duplicate, score in alignments:
+        fingerprint = sha256(
+            f"{workspace_id}|{run_key}|{doc_key}|{duplicate}|{canonical}".encode()
+        ).hexdigest()[:24]
+        candidate = NamedNode(
+            f"https://example.org/workspaces/{workspace_id}/candidate-statements/{fingerprint}"
+        )
+        triples.extend(
+            [
+                Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
+                Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
+                Triple(candidate, N_PACO_SUBJECT, NamedNode(duplicate)),
+                Triple(candidate, N_PACO_PREDICATE, N_OWL_SAME_AS),
+                Triple(candidate, N_PACO_OBJECT, NamedNode(canonical)),
+                Triple(candidate, N_PACO_ORIGIN, N_PACO_ENTITY_ALIGNMENT),
+                Triple(candidate, N_PACO_STATUS, N_PACO_PENDING),
+                Triple(
+                    candidate,
+                    N_PACO_CONFIDENCE,
+                    Literal(str(round(score, 6)), datatype=N_XSD_FLOAT),
+                ),
+                Triple(
+                    candidate,
+                    N_PACO_CREATED_AT,
+                    Literal(now, datatype=N_XSD_DATETIME),
+                ),
+                Triple(candidate, N_PACO_CURRENT, Literal(True)),
+                Triple(candidate, N_PROV_GENERATED_BY, alignment_activity),
+                Triple(alignment_activity, N_PROV_GENERATED, candidate),
+            ]
+        )
+        for d in doc_ids:
+            triples.append(
+                Triple(
+                    candidate,
+                    N_PROV_DERIVED_FROM,
+                    create_source_document_entity(workspace_id, d),
+                )
+            )
+
+    graph = curation_graph(workspace_id)
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+    sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
 
 def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> None:
@@ -296,7 +377,6 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     accepted_statement_id = (
         f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
     )
-
     # Mark the old statement as not current
 
     sparql_update(f"""
