@@ -219,6 +219,12 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
 
     props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
 
+    # Check that the statement is the current version
+
+    version_status = props.get(PACO_CURRENT)
+    if version_status is None or version_status.lower() != "true":
+        raise ValueError(f"Statement {stmt_id} is not the current version")
+
     # Get the subject and predicate for the statement
     old_subject = props.get(PACO_SUBJECT)
     old_predicate = props.get(PACO_PREDICATE)

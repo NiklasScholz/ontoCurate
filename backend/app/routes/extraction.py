@@ -190,15 +190,15 @@ async def bulk_accept_statements():
     pass
 
 
-@router.post("/{run_id}/statements/{statement_id:path}/accept", status_code=200)
+@router.post("/{workspace_id}/statements/{statement_id:path}/accept", status_code=200)
 async def accept_statement_endpoint(
-    run_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
 ):
-    run_repo = RunRepository(session)
+    workspace_repo = WorkspaceRepository(session)
 
-    run = await run_repo.get_by_id(run_id)
-    if run is None:
-        return {"run_id": run_id, "error": "Run not found"}
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
     triggered_by = None  # will be replaced by user
 
@@ -210,29 +210,31 @@ async def accept_statement_endpoint(
             user = await user_repo.create(email="system@localhost", password_encrypt="")
         triggered_by = user.id
 
-    accept_statement(
-        stmt_id=statement_id,
-        triggered_by=triggered_by,
-        workspace_id=str(run.workspace_id),
-    )
+    try:
+        accept_statement(
+            stmt_id=statement_id,
+            triggered_by=triggered_by,
+            workspace_id=str(workspace.id),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {
-        "run_id": run_id,
-        "workspace_id": run.workspace_id,
+        "workspace_id": workspace.id,
         "statement_id": statement_id,
         "status": "accepted",
     }
 
 
-@router.post("/{run_id}/statements/{statement_id:path}/reject", status_code=200)
+@router.post("/{workspace_id}/statements/{statement_id:path}/reject", status_code=200)
 async def reject_statement_endpoint(
-    run_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
 ):
-    run_repo = RunRepository(session)
+    workspace_repo = WorkspaceRepository(session)
 
-    run = await run_repo.get_by_id(run_id)
-    if run is None:
-        return {"run_id": run_id, "error": "Run not found"}
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
     triggered_by = None  # will be replaced by user
 
@@ -244,32 +246,34 @@ async def reject_statement_endpoint(
             user = await user_repo.create(email="system@localhost", password_encrypt="")
         triggered_by = user.id
 
-    reject_statement(
-        stmt_id=statement_id,
-        triggered_by=triggered_by,
-        workspace_id=str(run.workspace_id),
-    )
+    try:
+        reject_statement(
+            stmt_id=statement_id,
+            triggered_by=triggered_by,
+            workspace_id=str(workspace.id),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {
-        "run_id": run_id,
-        "workspace_id": run.workspace_id,
+        "workspace_id": workspace.id,
         "statement_id": statement_id,
         "status": "rejected",
     }
 
 
-@router.patch("/{run_id}/statements/{statement_id:path}", status_code=200)
+@router.patch("/{workspace_id}/statements/{statement_id:path}", status_code=200)
 async def edit_statement_endpoint(
-    run_id: UUID,
+    workspace_id: UUID,
     statement_id: str,
     edit: StatementEdit,
     session: AsyncSession = Depends(get_session),
 ):
-    run_repo = RunRepository(session)
+    workspace_repo = WorkspaceRepository(session)
 
-    run = await run_repo.get_by_id(run_id)
-    if run is None:
-        return {"run_id": run_id, "error": "Run not found"}
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
     triggered_by = None  # will be replaced by user
 
@@ -285,15 +289,14 @@ async def edit_statement_endpoint(
         edit_statement(
             stmt_id=statement_id,
             triggered_by=triggered_by,
-            workspace_id=str(run.workspace_id),
+            workspace_id=str(workspace.id),
             edit=edit,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {
-        "run_id": run_id,
-        "workspace_id": run.workspace_id,
+        "workspace_id": workspace.id,
         "statement_id": statement_id,
         "status": "edited",
     }
