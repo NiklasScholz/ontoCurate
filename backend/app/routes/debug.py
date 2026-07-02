@@ -4,7 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.workspace import Workspace
-from app.store.client import sparql_select, sparql_update
+from app.repositories.run import RunRepository
+from app.repositories.workspace import WorkspaceRepository
+from app.store.client import curation_graph, sparql_select, sparql_update
 from app.tasks.test import ping_task, slow_task
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -86,4 +88,57 @@ async def check_oxigraph():
     return {
         "oxigraph": "ok",
         "write_read": bindings[0]["o"]["value"],
+    }
+
+
+@router.post("/seed-statement", status_code=201)
+async def seed_statement_for_testing(
+    session: AsyncSession = Depends(get_session),
+):
+    workspace_repo = WorkspaceRepository(session)
+    run_repo = RunRepository(session)
+    workspace = await workspace_repo.create(
+        name="Test Workspace",
+        schema_path="test-schema-path",
+        alignment_config_path="test-alignment-config-path",
+        provenance_config_path="test-provenance-config-path",
+    )
+    workspace_id = workspace.id
+
+    run = await run_repo.create(
+        workspace_id=workspace_id,
+        triggered_by=None,
+        model="test-model",
+    )
+
+    graph = curation_graph(str(workspace_id))
+
+    statement_id = (
+        f"https://example.org/workspaces/"
+        f"{workspace_id}/candidate-statements/test-paper-author"
+    )
+
+    sparql_update(f"""
+    INSERT DATA {{
+        GRAPH <{graph}> {{
+            <{statement_id}> a <https://example.org/provenance-and-curation-ontology/CandidateStatement> .
+            <{statement_id}> a <http://www.w3.org/ns/prov#Entity> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/subject> <https://example.org/entities/Paper_X> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/predicate> <https://schema.org/author> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/object> <https://example.org/entities/Author_Y> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/curationStatus> <https://example.org/provenance-and-curation-ontology/pending> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/isCurrentVersion> true .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/confidence> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+        }}
+    }}
+    """)
+
+    return {
+        "workspace_id": workspace_id,
+        "run_id": run.id,
+        "statement_id": statement_id,
+        "status": "seeded",
+        "next_step": (
+            f"POST /extraction/{run.id}/statements/" f"{statement_id}/accept"
+        ),
     }
