@@ -245,7 +245,12 @@ def clean_result(
         merged: dict[str, dict] = {}
         no_id: list = []
         for item in cleaned_list:
-            if item is None or item == "" or item == {}:
+            if (
+                item is None
+                or item == ""
+                or item == {}
+                or (isinstance(item, dict) and item.keys() == {"id"})
+            ):
                 continue
             if isinstance(item, str) and item.startswith("AUTO:"):
                 continue
