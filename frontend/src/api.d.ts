@@ -155,6 +155,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/debug/seed-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seed Statement For Testing */
+        post: operations["seed_statement_for_testing_debug_seed_statement_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/": {
         parameters: {
             query?: never;
@@ -185,6 +202,40 @@ export interface paths {
         post?: never;
         /** Delete Document */
         delete: operations["delete_document_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Markdown */
+        get: operations["get_document_markdown_documents__document_id__markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Pdf */
+        get: operations["get_document_pdf_documents__document_id__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -227,6 +278,23 @@ export interface paths {
         };
         /** Export Document Ttl */
         get: operations["export_document_ttl_documents__document_id__export_provenance_ttl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/extraction/{workspace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runs */
+        get: operations["get_runs_extraction__workspace_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -303,7 +371,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/extraction/{run_id}/statements/{statement_id}/accept": {
+    "/extraction/{workspace_id}/statements/{statement_id}/accept": {
         parameters: {
             query?: never;
             header?: never;
@@ -313,14 +381,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Accept Statement Endpoint */
-        post: operations["accept_statement_endpoint_extraction__run_id__statements__statement_id__accept_post"];
+        post: operations["accept_statement_endpoint_extraction__workspace_id__statements__statement_id__accept_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/extraction/{run_id}/statements/{statement_id}/reject": {
+    "/extraction/{workspace_id}/statements/{statement_id}/reject": {
         parameters: {
             query?: never;
             header?: never;
@@ -329,15 +397,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject Statement */
-        post: operations["reject_statement_extraction__run_id__statements__statement_id__reject_post"];
+        /** Reject Statement Endpoint */
+        post: operations["reject_statement_endpoint_extraction__workspace_id__statements__statement_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/extraction/{run_id}/statements/{statement_id}": {
+    "/extraction/{workspace_id}/statements/{statement_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -350,8 +418,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit Statement */
-        patch: operations["edit_statement_extraction__run_id__statements__statement_id__patch"];
+        /** Edit Statement Endpoint */
+        patch: operations["edit_statement_endpoint_extraction__workspace_id__statements__statement_id__patch"];
         trace?: never;
     };
     "/extraction/{run_id}/alignments": {
@@ -625,26 +693,6 @@ export interface components {
             /** Files */
             files: string[];
         };
-        /** DocumentDetailResponse */
-        DocumentDetailResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Filename */
-            filename: string;
-            /** File Type */
-            file_type: string;
-            /** Title */
-            title: string | null;
-            /** Extracted Triples */
-            extracted_triples: number;
-            /** Pending Triples */
-            pending_triples: number;
-            /** Markdown */
-            markdown: string;
-        };
         /** DocumentResponse */
         DocumentResponse: {
             /**
@@ -669,6 +717,25 @@ export interface components {
             incoming: components["schemas"]["IncomingEdge"][];
             /** Outgoing */
             outgoing: components["schemas"]["OutgoingEdge"][];
+        };
+        /** GetRunsResponse */
+        GetRunsResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /** Status */
+            status: string;
+            /** Task Name */
+            task_name: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -727,6 +794,17 @@ export interface components {
             /** Celery Task Id */
             celery_task_id?: string | null;
         };
+        /** StatementEdit */
+        StatementEdit: {
+            /** Subject */
+            subject?: string | null;
+            /** Predicate */
+            predicate?: string | null;
+            /** Object Value */
+            object_value?: string | null;
+            /** Object Iri */
+            object_iri?: string | null;
+        };
         /** StatementPatchBody */
         StatementPatchBody: {
             /** Subject */
@@ -753,11 +831,11 @@ export interface components {
             /** Created At */
             created_at: string;
             /** Confidence */
-            confidence: number;
+            confidence: number | null;
             /** Text Span Start */
-            text_span_start: number;
+            text_span_start: number | null;
             /** Text Span End */
-            text_span_end: number;
+            text_span_end: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -776,6 +854,12 @@ export interface components {
         WorkspaceCreate: {
             /** Name */
             name: string;
+            /** Schema Path */
+            schema_path: string;
+            /** Alignment Config Path */
+            alignment_config_path: string;
+            /** Provenance Config Path */
+            provenance_config_path: string;
         };
         /** WorkspaceResponse */
         WorkspaceResponse: {
@@ -989,6 +1073,26 @@ export interface operations {
             };
         };
     };
+    seed_statement_for_testing_debug_seed_statement_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     list_documents_documents__get: {
         parameters: {
             query: {
@@ -1037,7 +1141,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DocumentDetailResponse"];
+                    "application/json": components["schemas"]["DocumentResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1064,6 +1168,64 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_markdown_documents__document_id__markdown_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_pdf_documents__document_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1131,6 +1293,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_runs_extraction__workspace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetRunsResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -1261,12 +1454,12 @@ export interface operations {
             };
         };
     };
-    accept_statement_endpoint_extraction__run_id__statements__statement_id__accept_post: {
+    accept_statement_endpoint_extraction__workspace_id__statements__statement_id__accept_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                run_id: string;
+                workspace_id: string;
                 statement_id: string;
             };
             cookie?: never;
@@ -1293,11 +1486,14 @@ export interface operations {
             };
         };
     };
-    reject_statement_extraction__run_id__statements__statement_id__reject_post: {
+    reject_statement_endpoint_extraction__workspace_id__statements__statement_id__reject_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1311,16 +1507,32 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    edit_statement_extraction__run_id__statements__statement_id__patch: {
+    edit_statement_endpoint_extraction__workspace_id__statements__statement_id__patch: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
+            };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementEdit"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1329,6 +1541,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -81,3 +81,11 @@ class RunRepository:
             select(RunTask).where(RunTask.run_id == run_id)
         )
         return list(result.scalars().all())
+
+    async def list(self, workspace_id: UUID) -> list[RunTask]:
+        result = await self.session.execute(
+            select(RunTask)
+            .join(Run, RunTask.run_id == Run.id)
+            .where(Run.workspace_id == workspace_id)
+        )
+        return list(result.scalars().all())

@@ -42,6 +42,7 @@ export default function CurationOverviewPage() {
                 params: { path: { document_id: docId } },
             })
             .then((statements) => {
+                console.log(statements);
                 if (statements.data !== null) {
                     setStatements(statements.data);
                 }
@@ -54,7 +55,7 @@ export default function CurationOverviewPage() {
 
     return (
         <Root>
-            <Panel>
+            <Panel className="flex h-full min-h-160 min-w-160 flex-col">
                 <div className="relative mb-4">
                     <Link
                         to={`/workspace?ws=${wsId}`}
@@ -67,7 +68,7 @@ export default function CurationOverviewPage() {
                     </h1>
                 </div>
 
-                <div className="grid h-full grid-cols-[1fr_auto_1fr] gap-4">
+                <div className="grid min-h-0 flex-1 grid-cols-[1fr_auto_1fr] gap-4">
                     {statements ? (
                         <div className="flex h-full flex-col overflow-scroll">
                             {statements

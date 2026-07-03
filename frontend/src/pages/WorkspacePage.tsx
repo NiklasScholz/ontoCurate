@@ -25,6 +25,8 @@ export default function WorkspacePage() {
     );
     const [docs, setDocs] = useState<Document[]>(undefined);
 
+    const [docStatus, setDocStatus] = useState<{ [id: string]: string }>({});
+
     const wsId = searchParams.get("ws");
 
     useEffect(() => {
@@ -43,6 +45,26 @@ export default function WorkspacePage() {
                 params: { query: { workspace_id: wsId } },
             })
             .then((res) => setDocs(res.data));
+    }, [wsId]);
+
+    useEffect(() => {
+        function updateDocStatus() {
+            client
+                .GET("/extraction/{workspace_id}", {
+                    params: { path: { workspace_id: wsId } },
+                })
+                .then((res) => {
+                    if (!res.data) return;
+                    const statusMap = {};
+                    for (const entry of res.data) {
+                        statusMap[entry.document_id] = entry.status;
+                    }
+                    setDocStatus(statusMap);
+                });
+        }
+        updateDocStatus();
+        const interval = setInterval(updateDocStatus, 1000);
+        return () => clearInterval(interval);
     }, [wsId]);
 
     if (wsId === null) {
@@ -78,9 +100,17 @@ export default function WorkspacePage() {
                         <div></div>
                         {docs.map((d) => (
                             <div key={d.id} className="contents">
-                                <div>{d.title}</div>
-                                <div>{d.extracted_triples}</div>
-                                <div>{d.pending_triples}</div>
+                                <div>{d.filename}</div>
+                                {docStatus[d.id] === "done" ? (
+                                    <>
+                                        <div>{d.extracted_triples}</div>
+                                        <div>{d.pending_triples}</div>
+                                    </>
+                                ) : (
+                                    <div className="moving-stripes col-span-2 text-center">
+                                        {docStatus[d.id]}
+                                    </div>
+                                )}
                                 <div className="flex gap-2">
                                     <button
                                         className="bg-nord8 h-7 rounded px-2"

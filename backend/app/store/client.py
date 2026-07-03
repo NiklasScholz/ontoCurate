@@ -43,9 +43,9 @@ def export_graph_ttl(graph_iri: str) -> str:
     """Return all triples in a named graph as a Turtle string."""
     response = httpx.post(
         f"{settings.oxigraph_url}/query",
-        content=f"CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{
+        content=f"""CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{
             graph_iri
-        }> {{ ?s ?p ?o }} }}".encode(),
+        }> {{ ?s ?p ?o }} }}""".encode(),
         headers={
             "Content-Type": "application/sparql-query",
             "Accept": "text/turtle",

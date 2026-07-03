@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from pydantic import WithJsonSchema
+from pydantic import BaseModel, WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -75,6 +75,20 @@ def derive_run_status(task_statuses: list[str]) -> str:
 UploadFileType = Annotated[
     UploadFile, WithJsonSchema({"type": "string", "format": "binary"})
 ]  # fixes OpenAPI schema on swagger page
+
+
+class GetRunsResponse(BaseModel):
+    id: UUID
+    run_id: UUID
+    document_id: UUID | None
+    status: str
+    task_name: str
+
+
+@router.get("/{workspace_id}", status_code=200, response_model=list[GetRunsResponse])
+async def get_runs(workspace_id: UUID, session: AsyncSession = Depends(get_session)):
+    run_repo = RunRepository(session)
+    return await run_repo.list(workspace_id)
 
 
 @router.post("/", status_code=202)
