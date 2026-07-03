@@ -219,7 +219,7 @@ def clean_result(
                 v = norm
             elif isinstance(v, str):
                 v = normalize_unicode(v)
-            if v == []:
+            if v == [] or (isinstance(v, dict) and v.keys() == {"id"}):
                 continue
             cleaned[k] = v
 
