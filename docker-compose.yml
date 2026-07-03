@@ -62,6 +62,8 @@ services:
     volumes:
       - oxigraph_data:/data
       - ./infra/oxigraph/config.toml:/config.toml:ro
+    ports:
+      - "7878:7878"
     command: serve --location /data --bind 0.0.0.0:7878
 
 volumes:

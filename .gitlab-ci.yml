@@ -20,7 +20,14 @@ backend-test:
     - cd backend
     - pip install --quiet -e ".[dev]"
   script:
-    - pytest tests/ -v
+    - coverage run -m --branch pytest tests/ -v
+    - coverage report
+    - coverage html
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    paths:
+      - backend/htmlcov/
+    expire_in: 1 day
 
 
 frontend-lint:
