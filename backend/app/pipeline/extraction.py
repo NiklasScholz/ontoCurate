@@ -220,7 +220,7 @@ def clean_result(
                 v = norm
             elif isinstance(v, str):
                 v = normalize_unicode(v)
-            if v == []:
+            if v == [] or (isinstance(v, dict) and v.keys() == {"id"}):
                 continue
             cleaned[k] = v
 
@@ -246,7 +246,12 @@ def clean_result(
         merged: dict[str, dict] = {}
         no_id: list = []
         for item in cleaned_list:
-            if item is None or item == "" or item == {}:
+            if (
+                item is None
+                or item == ""
+                or item == {}
+                or (isinstance(item, dict) and item.keys() == {"id"})
+            ):
                 continue
             if isinstance(item, str) and item.startswith("AUTO:"):
                 continue
