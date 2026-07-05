@@ -20,6 +20,6 @@ export type Statement = {
     curation_status: string;
     created_at: string;
     confidence: number;
-    text_span_start: number;
-    text_span_end: number;
+    text_span_start: number | null;
+    text_span_end: number | null;
 };

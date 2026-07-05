@@ -107,7 +107,13 @@ export default function WorkspacePage() {
                                         <div>{d.pending_triples}</div>
                                     </>
                                 ) : (
-                                    <div className="moving-stripes col-span-2 text-center">
+                                    <div
+                                        className={`col-span-2 text-center ${
+                                            docStatus[d.id] === "failed"
+                                                ? "stripes-failed"
+                                                : "stripes-running"
+                                        }`}
+                                    >
                                         {docStatus[d.id]}
                                     </div>
                                 )}
@@ -116,7 +122,7 @@ export default function WorkspacePage() {
                                         className="bg-nord8 h-7 rounded px-2"
                                         onClick={() => {
                                             navigate(
-                                                `/curation-overview?ws=${wsId}&doc=${d.id}`,
+                                                `/curation?ws=${wsId}&doc=${d.id}`,
                                             );
                                         }}
                                     >
@@ -162,13 +168,16 @@ export default function WorkspacePage() {
                         />
                         <div className="relative">Start new run</div>
                     </Link>
-                    <button className="bg-nord8 relative h-24 w-32 rounded px-2">
+                    <Link
+                        to={`/curation?ws=${wsId}`}
+                        className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                    >
                         <MergeIcon
                             className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                             size={48}
                         />
                         <div className="relative">Deduplication</div>
-                    </button>
+                    </Link>
                     <button className="bg-nord8 relative h-24 w-32 rounded px-2">
                         <SearchIcon
                             className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"

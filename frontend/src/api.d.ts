@@ -693,6 +693,26 @@ export interface components {
             /** Files */
             files: string[];
         };
+        /** DocumentDetailResponse */
+        DocumentDetailResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** File Type */
+            file_type: string;
+            /** Title */
+            title: string | null;
+            /** Extracted Triples */
+            extracted_triples: number;
+            /** Pending Triples */
+            pending_triples: number;
+            /** Markdown */
+            markdown: string;
+        };
         /** DocumentResponse */
         DocumentResponse: {
             /**
@@ -1141,7 +1161,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DocumentResponse"];
+                    "application/json": components["schemas"]["DocumentDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1629,7 +1649,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1641,6 +1663,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

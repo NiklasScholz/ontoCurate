@@ -15,6 +15,7 @@ from app.store.utils import (
     PACO_CONFIDENCE,
     PACO_CREATED_AT,
     PACO_CURRENT,
+    PACO_EXTRACTION_ACTIVITY,
     PACO_OBJECT,
     PACO_ORIGIN,
     PACO_PREDICATE,
@@ -22,7 +23,10 @@ from app.store.utils import (
     PACO_SUBJECT,
     PACO_TEXT_SPAN_END,
     PACO_TEXT_SPAN_START,
+    PROV_GENERATED_BY,
+    PROV_USED,
     RDF_TYPE,
+    create_source_document_entity,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -39,8 +43,8 @@ async def list_documents(
             filename=doc.filename,
             file_type=doc.file_type,
             title=doc.title,
-            extracted_triples=0,
-            pending_triples=0,
+            extracted_triples=await get_triple_count(doc.id, session, False),
+            pending_triples=await get_triple_count(doc.id, session, True),
         )
         for doc in await DocumentRepository(session).list_by_workspace(workspace_id)
     ]
@@ -56,10 +60,43 @@ async def get_document(document_id: UUID, session: AsyncSession = Depends(get_se
         filename=doc.filename,
         file_type=doc.file_type,
         title=doc.title,
-        extracted_triples=0,
-        pending_triples=0,
+        extracted_triples=await get_triple_count(document_id, session, False),
+        pending_triples=await get_triple_count(document_id, session, True),
         markdown=str(doc.source_content),
     )
+
+
+async def get_triple_count(
+    document_id: UUID, session: AsyncSession, pending_only: bool
+):
+    document = await DocumentRepository(session).get_by_id(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    workspace_id = document.workspace_id
+
+    graph = curation_graph(str(workspace_id))
+
+    document_entity = create_source_document_entity(
+        str(workspace_id), str(document_id)
+    ).value
+
+    payload = sparql_select(f"""
+        SELECT (COUNT(*) AS ?count) WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> <{document_entity}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+    """)
+
+    rows = [b["count"]["value"] for b in payload.get("results", {}).get("bindings", [])]
+
+    return rows[0]
 
 
 @router.get("/{document_id}/markdown", response_class=FileResponse)
@@ -114,9 +151,20 @@ async def get_document_statements(
 
     graph = curation_graph(str(workspace_id))
 
+    document_entity = create_source_document_entity(
+        str(workspace_id), str(document_id)
+    ).value
+
     payload = sparql_select(f"""
         SELECT ?s ?p ?o WHERE {{
-            GRAPH <{graph}> {{ ?s ?p ?o }}
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> <{document_entity}> .
+            }}
         }}
         ORDER BY ?s ?p ?o
     """)
@@ -125,7 +173,10 @@ async def get_document_statements(
         (b["s"]["value"], b["p"]["value"], b["o"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
+    return order_statements(rows)
 
+
+def order_statements(rows: list[tuple[str, str, str]]):
     grouped: dict[str, dict[str, list[str]]] = {}
     for subject, predicate, obj in rows:
         grouped.setdefault(subject, {}).setdefault(predicate, []).append(obj)

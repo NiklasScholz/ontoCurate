@@ -3,8 +3,7 @@ import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import WorkspacesPage from "./pages/WorkspacesPage";
 import WorkspacePage from "./pages/WorkspacePage";
-import CurationOverviewPage from "./pages/CurationOverviewPage";
-import CurationTriplePage from "./pages/CurationTriplePage";
+import CurationPage from "./pages/CurationPage";
 import UploadPage from "./pages/UploadPage";
 
 export const router = createBrowserRouter([
@@ -15,7 +14,6 @@ export const router = createBrowserRouter([
     { path: "/workspaces", element: <WorkspacesPage /> },
     { path: "/workspace", element: <WorkspacePage /> },
     { path: "/upload", element: <UploadPage /> },
-    { path: "/curation-overview", element: <CurationOverviewPage /> },
-    { path: "/curation-triple", element: <CurationTriplePage /> },
+    { path: "/curation", element: <CurationPage /> },
     { path: "*", element: <NotFound /> },
 ]);

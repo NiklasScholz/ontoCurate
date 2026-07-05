@@ -22,7 +22,7 @@
 	--color-nord15: #B48EAD;
 }
 
-.moving-stripes {
+.stripes-running {
 	background: repeating-linear-gradient(45deg,
 			transparent,
 			transparent 20px,
@@ -30,6 +30,15 @@
 			var(--color-nord4) 40px);
 	background-size: 56px 56px;
 	animation: moveStripes 1s linear infinite;
+}
+
+.stripes-failed {
+	background: repeating-linear-gradient(45deg,
+			transparent,
+			transparent 20px,
+			color-mix(in hsl, var(--color-nord11) 30%, transparent 70%) 20px,
+			color-mix(in hsl, var(--color-nord11) 30%, transparent 70%) 40px);
+	background-size: 56px 56px;
 }
 
 @keyframes moveStripes {
