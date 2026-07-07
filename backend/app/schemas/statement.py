@@ -21,13 +21,13 @@ class StatementPatchBody(BaseModel):
 
 
 class IncomingEdge(BaseModel):
-    subject: str
     predicate: str
+    subject: str
 
 
 class OutgoingEdge(BaseModel):
-    subject: str
     predicate: str
+    object: str
 
 
 class EntityNeighborhoodResponse(BaseModel):

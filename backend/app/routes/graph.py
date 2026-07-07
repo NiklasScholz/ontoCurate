@@ -3,12 +3,20 @@ from uuid import UUID
 from fastapi import APIRouter
 
 from app.routes.documents import order_statements
-from app.schemas.statement import EntityNeighborhoodResponse, StatementResponse
+from app.schemas.statement import (
+    EntityNeighborhoodResponse,
+    IncomingEdge,
+    OutgoingEdge,
+    StatementResponse,
+)
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
     PACO_ALIGNMENT_ACTIVITY,
     PACO_CANDIDATE,
     PACO_CURRENT,
+    PACO_OBJECT,
+    PACO_PREDICATE,
+    PACO_SUBJECT,
     PROV_GENERATED_BY,
     RDF_TYPE,
 )
@@ -46,11 +54,48 @@ async def get_deduplication(workspace_id: UUID):
 
 
 @router.get(
-    "/{workspace_id}/neighborhood/{entity_id}",
+    "/{workspace_id}/neighborhood",
     response_model=EntityNeighborhoodResponse,
 )
-async def get_neighborhood():
+async def get_neighborhood(workspace_id: UUID, entity_id: str):
     """
     Gets the local neighborhood of a statement.
     """
-    return EntityNeighborhoodResponse(incoming=[], outgoing=[])
+    graph = curation_graph(str(workspace_id))
+
+    incoming_payload = sparql_select(f"""
+        SELECT ?s ?p WHERE {{
+            GRAPH <{graph}> {{
+                ?r <{PACO_SUBJECT}> ?s .
+                ?r <{PACO_PREDICATE}> ?p .
+                ?r <{PACO_OBJECT}> <{entity_id}> .
+                ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?r <{PACO_CURRENT}> true .
+            }}
+        }}
+        ORDER BY ?p ?s
+    """)
+
+    outgoing_payload = sparql_select(f"""
+        SELECT ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?r <{PACO_SUBJECT}> <{entity_id}> .
+                ?r <{PACO_PREDICATE}> ?p .
+                ?r <{PACO_OBJECT}> ?o .
+                ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?r <{PACO_CURRENT}> true .
+            }}
+        }}
+        ORDER BY ?p ?o
+    """)
+
+    return EntityNeighborhoodResponse(
+        incoming=[
+            IncomingEdge(predicate=b["p"]["value"], subject=b["s"]["value"])
+            for b in incoming_payload.get("results", {}).get("bindings", [])
+        ],
+        outgoing=[
+            OutgoingEdge(predicate=b["p"]["value"], object=b["o"]["value"])
+            for b in outgoing_payload.get("results", {}).get("bindings", [])
+        ],
+    )

@@ -178,13 +178,24 @@ export default function CurationOverviewPage() {
                     )}
                 </div>
             </Panel>
-            <Popup show={selected !== undefined}>
-                <CurationDetail
-                    onClose={() => setSelected(undefined)}
-                    onNext={() => setSelected(selected + 1)}
-                    onPrevious={() => setSelected(selected + 1)}
-                />
-            </Popup>
+            {statements === undefined ||
+            selected >= statements.length ||
+            statements[selected] === undefined ? (
+                <></>
+            ) : (
+                <Popup show={true}>
+                    <CurationDetail
+                        onClose={() => setSelected(undefined)}
+                        onNext={() => setSelected(selected + 1)}
+                        onPrevious={() => setSelected(selected + 1)}
+                        index={selected}
+                        total={statements.length}
+                        statement={statements[selected]}
+                        workspaceId={wsId}
+                        markdown={doc.markdown}
+                    />
+                </Popup>
+            )}
         </Root>
     );
 }

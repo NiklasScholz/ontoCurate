@@ -496,7 +496,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/graph/{workspace_id}/neighborhood/{entity_id}": {
+    "/graph/{workspace_id}/neighborhood": {
         parameters: {
             query?: never;
             header?: never;
@@ -507,7 +507,7 @@ export interface paths {
          * Get Neighborhood
          * @description Gets the local neighborhood of a statement.
          */
-        get: operations["get_neighborhood_graph__workspace_id__neighborhood__entity_id__get"];
+        get: operations["get_neighborhood_graph__workspace_id__neighborhood_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -764,17 +764,17 @@ export interface components {
         };
         /** IncomingEdge */
         IncomingEdge: {
-            /** Subject */
-            subject: string;
             /** Predicate */
             predicate: string;
+            /** Subject */
+            subject: string;
         };
         /** OutgoingEdge */
         OutgoingEdge: {
-            /** Subject */
-            subject: string;
             /** Predicate */
             predicate: string;
+            /** Object */
+            object: string;
         };
         /** RunDetailResponse */
         RunDetailResponse: {
@@ -1676,11 +1676,15 @@ export interface operations {
             };
         };
     };
-    get_neighborhood_graph__workspace_id__neighborhood__entity_id__get: {
+    get_neighborhood_graph__workspace_id__neighborhood_get: {
         parameters: {
-            query?: never;
+            query: {
+                entity_id: string;
+            };
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1692,6 +1696,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntityNeighborhoodResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
