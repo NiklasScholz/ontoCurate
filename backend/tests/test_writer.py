@@ -1,4 +1,3 @@
-# Test for docker setup of oxigraph
 import json
 import uuid
 
@@ -39,10 +38,7 @@ def test_write_candidate_statements_from_ttl(tmp_path):
     ttl_file.write_text(TTL_TEXT, encoding="utf-8")
     workspace_id = gen_workspace_id()
 
-    try:
-        write_candidate_statements_from_ttl("run-1", "doc-1", ttl_file, workspace_id)
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    write_candidate_statements_from_ttl("run-1", "doc-1", ttl_file, workspace_id)
 
     sparql = f"""
 PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
@@ -57,10 +53,7 @@ SELECT ?s ?subject ?predicate ?object ?generatedBy WHERE {{
   }}
 }}
     """
-    try:
-        result = sparql_select(sparql)
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    result = sparql_select(sparql)
 
     bindings = result.get("results", {}).get("bindings", [])
     assert len(bindings) == 1
@@ -77,12 +70,9 @@ def test_write_candidate_statements_with_provenance(tmp_path):
     prov_file.write_text(json.dumps(PROVENANCE), encoding="utf-8")
     workspace_id = gen_workspace_id()
 
-    try:
-        write_candidate_statements_from_ttl(
-            "run-1", "doc-1", ttl_file, workspace_id, provenance_path=prov_file
-        )
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    write_candidate_statements_from_ttl(
+        "run-1", "doc-1", ttl_file, workspace_id, provenance_path=prov_file
+    )
 
     sparql = f"""
 PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
@@ -96,10 +86,7 @@ SELECT ?confidence ?spanText ?spanStart ?spanEnd WHERE {{
   }}
 }}
     """
-    try:
-        result = sparql_select(sparql)
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    result = sparql_select(sparql)
 
     bindings = result.get("results", {}).get("bindings", [])
     assert len(bindings) == 1
@@ -115,10 +102,7 @@ def test_write_candidate_statements_without_provenance_has_no_confidence(tmp_pat
     ttl_file.write_text(TTL_TEXT, encoding="utf-8")
     workspace_id = gen_workspace_id()
 
-    try:
-        write_candidate_statements_from_ttl("run-1", "doc-1", ttl_file, workspace_id)
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    write_candidate_statements_from_ttl("run-1", "doc-1", ttl_file, workspace_id)
 
     sparql = f"""
 PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
@@ -129,10 +113,7 @@ SELECT ?s WHERE {{
   }}
 }}
     """
-    try:
-        result = sparql_select(sparql)
-    except Exception as exc:
-        pytest.skip(f"Oxigraph HTTP endpoint is unavailable: {exc}")
+    result = sparql_select(sparql)
 
     bindings = result.get("results", {}).get("bindings", [])
     assert len(bindings) == 0
