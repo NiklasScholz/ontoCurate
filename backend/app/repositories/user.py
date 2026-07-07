@@ -30,7 +30,10 @@ class UserRepository:
         provider: str = "local",
     ) -> User:
         user = User(
-            email=email, password_hash=password_hash, name=name, provider=provider
+            email=email,
+            password_hash=password_hash,
+            username=username,
+            provider=provider,
         )
         self.session.add(user)
         await self.session.commit()
