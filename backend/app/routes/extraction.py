@@ -1,3 +1,4 @@
+import hashlib
 import time
 from typing import Annotated
 from uuid import UUID
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, NotFoundException
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
@@ -93,7 +94,9 @@ async def get_runs(workspace_id: UUID, session: AsyncSession = Depends(get_sessi
     return await run_repo.list(workspace_id)
 
 
-@router.post("/", status_code=202)
+@router.post(
+    "/", status_code=202, dependencies=[Depends(require_role("owner", "editor"))]
+)
 async def create_documents(
     files: list[UploadFileType] = File(...),
     workspace_id: UUID = Query(...),
@@ -113,20 +116,41 @@ async def create_documents(
         workspace_id=workspace_id, triggered_by=triggered_by, model=model
     )
     documents = []
+    # Create hashes to ensure files have not been uploaded yet
+    file_payloads = []
     for file in files:
         filename = file.filename or str(time.time())
         content = await file.read()
+        content_hash = hashlib.sha256(content).hexdigest()
+
+        existing = await doc_repo.get_by_hash(workspace_id, content_hash)
+        if existing:
+            raise BadRequestException(
+                f"'{filename}' has already been uploaded to this workspace"
+            )
+        file_payloads.append((filename, content, content_hash))
+    run = await run_repo.create(
+        workspace_id=workspace_id, triggered_by=current_user.id, model=model
+    )
+    documents = []
+    for filename, content, content_hash in file_payloads:
         if filename.lower().endswith(".pdf"):
             # pass raw bytes for PDFs
             doc = await doc_repo.create_pdf(
-                workspace_id=workspace_id, filename=filename, raw_bytes=content
+                workspace_id=workspace_id,
+                filename=filename,
+                raw_bytes=content,
+                content_hash=content_hash,
             )
             await run_repo.add_task(run.id, doc.id, task_name="Markdown Conversion")
         elif filename.lower().endswith(".md") or filename.lower().endswith(".txt"):
             # UploadFile.read() returns bytes -> decode to text for source_content
             text = content.decode("utf-8", errors="replace")
             doc = await doc_repo.create_markdown(
-                workspace_id=workspace_id, filename=filename, source_content=text
+                workspace_id=workspace_id,
+                filename=filename,
+                source_content=text,
+                content_hash=content_hash,
             )
             await run_repo.add_task(run.id, doc.id, task_name="Extracting")
         else:
@@ -136,7 +160,11 @@ async def create_documents(
     return {"run_id": run.id, "status": "queued"}
 
 
-@router.get("/{run_id}", response_model=RunDetailResponse)
+@router.get(
+    "/{run_id}",
+    response_model=RunDetailResponse,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def get_run(run_id: UUID, session: AsyncSession = Depends(get_session)):
     run_repo = RunRepository(session)
     run = await run_repo.get_by_id(run_id)
@@ -192,12 +220,20 @@ async def get_run_statements(
     }
 
 
-@router.post("/{run_id}/statements/bulk_accept", status_code=202)
+@router.post(
+    "/{run_id}/statements/bulk_accept",
+    status_code=202,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def bulk_accept_statements():
     pass
 
 
-@router.post("/{workspace_id}/statements/{statement_id:path}/accept", status_code=200)
+@router.post(
+    "/{workspace_id}/statements/{statement_id:path}/accept",
+    status_code=200,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def accept_statement_endpoint(
     workspace_id: UUID,
     statement_id: str,
@@ -226,7 +262,11 @@ async def accept_statement_endpoint(
     }
 
 
-@router.post("/{workspace_id}/statements/{statement_id:path}/reject", status_code=200)
+@router.post(
+    "/{workspace_id}/statements/{statement_id:path}/reject",
+    status_code=200,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def reject_statement_endpoint(
     workspace_id: UUID,
     statement_id: str,
@@ -255,7 +295,11 @@ async def reject_statement_endpoint(
     }
 
 
-@router.patch("/{workspace_id}/statements/{statement_id:path}", status_code=200)
+@router.patch(
+    "/{workspace_id}/statements/{statement_id:path}",
+    status_code=200,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def edit_statement_endpoint(
     workspace_id: UUID,
     statement_id: str,

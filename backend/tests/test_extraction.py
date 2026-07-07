@@ -20,7 +20,10 @@ from app.pipeline.extraction import (
 )
 
 SCHEMA_PATH = (
-    Path(__file__).parent.parent / "config" / "schemas" / "scholarly_schema.yaml"
+    Path(__file__).parent.parent
+    / "config"
+    / "scholarySchema"
+    / "extraction_schema.yaml"
 )
 # used for post processing tests
 URI_FIELDS = uri_fields_from_schema(SCHEMA_PATH)

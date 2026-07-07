@@ -61,7 +61,7 @@ async def login(
 ):
     user = await UserRepository(session).get_by_email(
         body.login_name
-    ) or await UserRepository(session).get_by_name(body.login_name)
+    ) or await UserRepository(session).get_by_username(body.login_name)
     if not user or user.provider != "local":
         raise UnauthorizedException("Invalid email or password")
 
@@ -85,11 +85,11 @@ async def register(
 ):
     if await UserRepository(session).get_by_email(body.email):
         raise BadRequestException("User with this email already exists")
-    if body.name and await UserRepository(session).get_by_name(body.name):
+    if body.username and await UserRepository(session).get_by_username(body.username):
         raise BadRequestException("User with this username already exists")
     user = await UserRepository(session).create(
         email=body.email,
-        name=body.name,
+        username=body.username,
         password_hash=get_password_hash(body.password),
         provider="local",
     )

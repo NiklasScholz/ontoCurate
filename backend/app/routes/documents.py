@@ -1,13 +1,19 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.deps import get_current_user
+from app.models.user import User
 from app.repositories.document import DocumentRepository
+from app.repositories.workspace import WorkspaceMemberRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import StatementResponse
 from app.store.client import curation_graph, sparql_select
@@ -86,7 +92,6 @@ async def get_triple_count(
     payload = sparql_select(f"""
         SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{graph}> {{
-                ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PACO_CURRENT}> true .
                 ?s <{PROV_GENERATED_BY}> ?e .
@@ -102,21 +107,52 @@ async def get_triple_count(
     return rows[0]
 
 
-@router.get("/{document_id}/markdown", response_class=FileResponse)
-async def get_document_markdown(document_id: UUID):
-    # TODO
-    return StreamingResponse(
-        iter(["The content of the document"]),
+@router.get("/{document_id}/markdown")
+async def get_document_markdown(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    if not doc.source_content:
+        return Response(
+            status_code=202,
+            content="Markdown conversion is still in progress. Please try again later.",
+        )
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+
+    markdown = doc.source_content
+    return FileResponse(
+        content=markdown,
         media_type="text/markdown",
         headers={"Content-Disposition": f"attachment; filename={document_id}.md"},
     )
 
 
-@router.get("/{document_id}/pdf", response_class=FileResponse)
-async def get_document_pdf(document_id: UUID):
-    # TODO
-    return StreamingResponse(
-        iter(["The content of the document"]),
+@router.get("/{document_id}/pdf")
+async def get_document_pdf(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+    if not doc.raw_bytes:
+        raise BadRequestException(f"PDF for document {document_id} is not available")
+    return Response(
+        content=doc.raw_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={document_id}.pdf"},
     )
@@ -124,15 +160,26 @@ async def get_document_pdf(document_id: UUID):
 
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
-    document_id: UUID, session: AsyncSession = Depends(get_session)
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    # TODO: Cancel all running tasks related to this document
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
     await DocumentRepository(session).delete(document_id)
 
 
 @router.get("/{document_id}/statements", response_model=list[StatementResponse])
 async def get_document_statements(
-    document_id: UUID, session: AsyncSession = Depends(get_session)
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
     """
     Returns all statements associated entirely with the given document.
@@ -149,8 +196,13 @@ async def get_document_statements(
 
     document = await DocumentRepository(session).get_by_id(document_id)
     if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise NotFoundException(f"Document {document_id} not found")
     workspace_id = document.workspace_id
+    role = await WorkspaceMemberRepository(session).get_role(
+        workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
 
     graph = curation_graph(str(workspace_id))
 

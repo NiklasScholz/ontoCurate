@@ -1,0 +1,115 @@
+settings:
+  # Shared penalty parameters
+  out_of_window_penalty: 0.8  # applied when a span match falls outside the declared window
+  win_distance_penalty: 1.0   # scales additional penalty by relative distance to nearest window
+  min_penalty_factor: 0.3     # floor on any distance-based penalty factor
+
+
+# Literal (datatype property) span extraction config.
+# Keys under windows are LinkML slot names
+# Each predicate can declare one window or a list (highest-confidence match wins).
+# Strategies: head (first N chars), tail (last N chars), section (markdown heading), full (default; full document)
+datatype_properties:
+  # Spatial outlier penalty for literal triples of the same entity.
+  # Entities whose span is far from the median span of all their literals get penalized.
+  outlier_penalty: 1.0
+  min_outlier_factor: 0.2
+  outlier_pentalty_entities:
+    - Person
+    - Organization
+    - AcademicArticle
+
+  # Predicates for which fuzzy fallback is disabled — only exact/case-insensitive/normalized
+  # matches are accepted. If the value is not found verbatim it is left unannotated (conf=None)
+  # rather than getting a misleading fuzzy score against unrelated digit sequences.
+  exact_only_predicates:
+    - issn
+    - eissn
+    - doi
+    - identifier
+
+  windows:
+
+    title_paper:
+      - strategy: head
+        chars: 400
+      - strategy: section
+        heading: "References"
+      - strategy: section
+        heading: "Bibliography"
+
+    abstract:
+      strategy: section
+      heading: "Abstract"
+
+    keywords:
+      strategy: section
+      heading: "Keywords"
+
+    name:
+      - strategy: head
+        chars: 1000
+      - strategy: section
+        heading: "References"
+      - strategy: section
+        heading: "Bibliography"
+
+    given_name:
+      - strategy: head
+        chars: 1000
+      - strategy: section
+        heading: "References"
+      - strategy: section
+        heading: "Bibliography"
+
+    family_name:
+      - strategy: head
+        chars: 1000
+      - strategy: section
+        heading: "References"
+      - strategy: section
+        heading: "Bibliography"
+
+    email:
+      strategy: head
+      chars: 3000
+
+    org_name:
+      - strategy: head
+        chars: 1200
+      - strategy: section
+        heading: "References"
+      - strategy: section
+        heading: "Bibliography"
+
+
+
+# Confidence scoring for object property triples 
+#
+# Available strategies:
+#   average_target_entity_confidence - avg literal confidence of the target entity
+#   average_entity_confidence        - avg literal confidence of both source and target
+#   spatial_cooccurrence             - avg confidence of both entities, scaled by their median span distance
+#   section_containment              - avg confidence of both entities, penalized if target median span
+#                                      is outside the configured sections
+object_properties:
+  default_strategy: average_target_entity_confidence
+
+  # spatial_cooccurrence tuning
+  cooccurrence_distance_penalty: 1.0  
+  cooccurrence_min_factor: 0.3         
+  cooccurrence_outlier_penalty: 1.0 
+  cooccurrence_min_outlier_factor: 0.2 
+
+  predicates:
+    author:
+      strategy: average_entity_confidence
+      apply_outlier_penalty: true
+      primary_entity_predicates: [abstract, keywords]
+      fallback_sections: ["References", "Bibliography"]
+
+    affiliation:
+      strategy: spatial_cooccurrence
+
+    editor:
+      strategy: spatial_cooccurrence

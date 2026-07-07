@@ -10,7 +10,7 @@ async def test_register_sets_cookie_and_creates_user(client):
     email = unique_email("register")
     resp = await client.post(
         "/auth/register",
-        json={"name": None, "email": email, "password": "password123"},
+        json={"username": None, "email": email, "password": "password123"},
     )
     assert resp.status_code == 200
     assert "access_token" in resp.cookies
@@ -19,7 +19,7 @@ async def test_register_sets_cookie_and_creates_user(client):
 
 async def test_register_duplicate_email_fails(client):
     email = unique_email("dup")
-    body = {"name": None, "email": email, "password": "password123"}
+    body = {"username": None, "email": email, "password": "password123"}
     assert (await client.post("/auth/register", json=body)).status_code == 200
     resp = await client.post("/auth/register", json=body)
     assert resp.status_code == 400
@@ -34,7 +34,7 @@ async def test_me_returns_current_user_after_register(client):
     email = unique_email("me")
     await client.post(
         "/auth/register",
-        json={"name": None, "email": email, "password": "password123"},
+        json={"username": None, "email": email, "password": "password123"},
     )
     resp = await client.get("/auth/me")
     assert resp.status_code == 200
@@ -45,7 +45,7 @@ async def test_login_success(client):
     email = unique_email("login")
     password = "test123"
     await client.post(
-        "/auth/register", json={"name": None, "email": email, "password": password}
+        "/auth/register", json={"username": None, "email": email, "password": password}
     )
     await client.post("/auth/logout")
 
@@ -60,7 +60,7 @@ async def test_login_wrong_password_fails(client):
     email = unique_email("badpw")
     await client.post(
         "/auth/register",
-        json={"name": None, "email": email, "password": "correctpassword"},
+        json={"username": None, "email": email, "password": "correctpassword"},
     )
     resp = await client.post(
         "/auth/login", json={"login_name": email, "password": "wrongpassword"}
@@ -80,7 +80,7 @@ async def test_logout_clears_session(client):
     email = unique_email("logout")
     await client.post(
         "/auth/register",
-        json={"name": None, "email": email, "password": "password123"},
+        json={"username": None, "email": email, "password": "password123"},
     )
     assert (await client.get("/auth/me")).status_code == 200
 
@@ -93,7 +93,7 @@ async def test_delete_account_removes_session(client):
     email = unique_email("delete")
     await client.post(
         "/auth/register",
-        json={"name": None, "email": email, "password": "password123"},
+        json={"username": None, "email": email, "password": "password123"},
     )
     resp = await client.delete("/auth/me")
     assert resp.status_code == 200

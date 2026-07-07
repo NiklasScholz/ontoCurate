@@ -15,17 +15,69 @@ import type { Document } from "../types";
 import Spinner from "../components/Spinner";
 import Panel from "../components/Panel";
 import NotFound from "./NotFound";
+import { type ExistingMember, type PendingInvite } from "../components/InviteMembersPanel";
+import InviteMembersSection from "../components/InviteMembersPanel";
 
 export default function WorkspacePage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    const [ws, setWs] = useState<{ id: string; name: string } | undefined>(
+    const [ws, setWs] = useState<{ id: string; name: string; role: string } | undefined>(
         undefined,
     );
-    const [docs, setDocs] = useState<Document[]>(undefined);
 
+    const [docs, setDocs] = useState<Document[]>(undefined);
     const [docStatus, setDocStatus] = useState<{ [id: string]: string }>({});
+    const [members, setMembers] = useState<ExistingMember[]>([]);
+    const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+    const [inviteError, setInviteError] = useState<string | null>(null);
+
+    const fetchMembers = (id: string) => {
+        client
+            .GET("/workspaces/{workspace_id}/members", {
+                params: { path: { workspace_id: id } },
+            })
+            .then(({ data }) => {
+                if (data) setMembers(data);
+            });
+    };
+
+    const handleInviteChange = async (updated: PendingInvite[]) => {
+        if (updated.length <= pendingInvites.length) {
+            setPendingInvites(updated);
+            return;
+        }
+
+        const newest = updated[updated.length - 1];
+        const { error } = await client.POST("/workspaces/{workspace_id}/members", {
+            params: { path: { workspace_id: ws.id } },
+            body: { user_info: newest.user_info, role: newest.role },
+        });
+
+        if (error) {
+            setInviteError((error as { detail?: string }).detail ?? "Failed to add member");
+        } else {
+            setInviteError(null);
+            setPendingInvites([]);
+            fetchMembers(ws.id);
+        }
+    };
+
+    const handleRemoveMember = async (member: ExistingMember) => {
+        const { error } = await client.DELETE(
+            "/workspaces/{workspace_id}/members/{user_id}",
+            {
+                params: { path: { workspace_id: ws.id, user_id: member.id } },
+            },
+        );
+
+        if (error) {
+            setInviteError((error as { detail?: string }).detail ?? "Failed to remove member");
+        } else {
+            setInviteError(null);
+            fetchMembers(ws.id);
+        }
+    };
 
     const wsId = searchParams.get("ws");
 
@@ -63,9 +115,14 @@ export default function WorkspacePage() {
                 });
         }
         updateDocStatus();
-        const interval = setInterval(updateDocStatus, 1000);
+        const interval = setInterval(updateDocStatus, 10000);
         return () => clearInterval(interval);
     }, [wsId]);
+    
+    useEffect(() => {
+        if (!ws || ws.role !== "owner") return;
+        fetchMembers(ws.id);
+    }, [ws]);
 
     if (wsId === null) {
         return <NotFound />;
@@ -82,7 +139,7 @@ export default function WorkspacePage() {
                         <ArrowLeftIcon size={16} />
                     </Link>
                     <h1 className="text-center text-xl">
-                        {ws ? <>Workspace {ws.name}</> : <Spinner />}
+                        {ws ? <>Workspace - {ws.name}</> : <Spinner />}
                     </h1>
                 </div>
 
@@ -193,6 +250,13 @@ export default function WorkspacePage() {
                         <div className="relative">Export</div>
                     </button>
                 </div>
+                {ws?.role === "owner" && (
+                    <>
+                        <h3 className="text-lg font-semibold">Invite Members</h3>
+                        <InviteMembersSection invites={pendingInvites} onChange={handleInviteChange} existingMembers={members} onRemoveMember={handleRemoveMember} />
+                        {inviteError && <p className="text-nord11 text-sm">{inviteError}</p>}
+                    </>
+                )}
             </Panel>
         </Root>
     );

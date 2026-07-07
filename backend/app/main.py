@@ -10,6 +10,7 @@ from app.routes.debug import router as debug_router
 from app.routes.documents import router as documents_router
 from app.routes.extraction import router as extractions_router
 from app.routes.graph import router as graph_router
+from app.routes.misc import schemas_router, users_router
 from app.routes.statements import router as statements_router
 from app.routes.workspaces import router as workspaces_router
 
@@ -52,6 +53,8 @@ app.include_router(extractions_router)
 app.include_router(graph_router)
 app.include_router(statements_router)
 app.include_router(workspaces_router)
+app.include_router(users_router)
+app.include_router(schemas_router)
 
 
 @app.get("/health", tags=["meta"])

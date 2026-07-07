@@ -63,3 +63,4 @@ pythonpath = ["app"]
 # SQLAlchemy manages its async operations via greenlet
 # needed so test coverage is aware of greenlet switches and will not report coverage for code that runs on the other
 concurrency = ["greenlet", "thread"]
+source = ["app"]

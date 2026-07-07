@@ -8,7 +8,7 @@ import { useAuth } from "../context/useAuth";
 
 export default function LoginPage() {
     const [isRegister, setIsRegister] = useState(false);
-    const [formData, setFormData] = useState({ name: "", login_name: "", password: "" });
+    const [formData, setFormData] = useState({ username: "", login_name: "", password: "" });
     const [error, setError] = useState<string | null>(null);
 
     const navigate = useNavigate();
@@ -22,7 +22,7 @@ export default function LoginPage() {
         setError(null);
         const endpoint = isRegister ? "/auth/register" : "/auth/login";
         const body = isRegister
-            ? { name: formData.name, email: formData.login_name, password: formData.password }
+            ? { username: formData.username, email: formData.login_name, password: formData.password }
             : { login_name: formData.login_name, password: formData.password };
         const { error } = await client.POST(endpoint, { body: body as never });
         if (error) {
@@ -56,8 +56,8 @@ export default function LoginPage() {
                                 </span>
                                 <input
                                     type="text"
-                                    name="name"
-                                    value={formData.name}
+                                    name="username"
+                                    value={formData.username}
                                     onChange={onChange}
                                     placeholder="Username"
                                     className="pl-11 bg-gray-50 text-gray-600 border border-gray-300 sm:text-sm rounded-lg focus:ring-1 focus:ring-gray-400 focus:border-transparent focus:outline-none block w-full py-3 px-4"

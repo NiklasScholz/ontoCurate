@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app.routes.documents import order_statements
 from app.schemas.statement import (
     EntityNeighborhoodResponse,
@@ -27,7 +27,11 @@ router = APIRouter(
 )
 
 
-@router.get("/{workspace_id}/deduplication", response_model=list[StatementResponse])
+@router.get(
+    "/{workspace_id}/deduplication",
+    response_model=list[StatementResponse],
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def get_deduplication(workspace_id: UUID):
     """
     Gets all of the owl:sameAs statements that span across documents.
@@ -59,6 +63,7 @@ async def get_deduplication(workspace_id: UUID):
 @router.get(
     "/{workspace_id}/neighborhood",
     response_model=EntityNeighborhoodResponse,
+    dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def get_neighborhood(workspace_id: UUID, entity_id: str):
     """

@@ -16,11 +16,17 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.name == name))
         return result.scalar_one_or_none()
 
+    async def get_by_username(self, username: str) -> User | None:
+        result = await self.session.execute(
+            select(User).where(User.username == username)
+        )
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         email: str,
         password_hash: str,
-        name: str | None = None,
+        username: str | None = None,
         provider: str = "local",
     ) -> User:
         user = User(

@@ -10,13 +10,13 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    name: str | None
+    username: str | None
     email: str
     password: str
 
-    @field_validator("name", mode="before")
+    @field_validator("username", mode="before")
     @classmethod
-    def validate_name(cls, v: str | None) -> str | None:
+    def validate_username(cls, v: str | None) -> str | None:
         if v is None:
             return v
         v = v.strip()
@@ -36,6 +36,7 @@ class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
     name: str | None
+    username: str | None
     picture: str | None
     model_config = {"from_attributes": True}
 

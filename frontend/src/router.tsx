@@ -6,6 +6,7 @@ import WorkspacePage from "./pages/WorkspacePage";
 import CurationPage from "./pages/CurationPage";
 import UploadPage from "./pages/UploadPage";
 import AppLayout from "./components/AppLayout";
+import WorkspaceCreationPage from "./pages/WorkspaceCreationPage";
 
 export const router = createBrowserRouter([
     {
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
             { path: "/workspaces", element: <WorkspacesPage /> },
+            {path: "/create-workspace", element: <WorkspaceCreationPage />},
             { path: "/workspace", element: <WorkspacePage /> },
             { path: "/upload", element: <UploadPage /> },
             { path: "/curation", element: <CurationPage /> }
