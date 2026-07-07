@@ -21,7 +21,7 @@ class RunRepository:
             user = await user_repo.get_by_email("system@localhost")
             if user is None:
                 user = await user_repo.create(
-                    email="system@localhost", password_encrypt=""
+                    email="system@localhost", password_hash=""
                 )
             triggered_by = user.id
 

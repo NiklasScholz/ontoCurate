@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.deps import get_current_user
 from app.routes.documents import order_statements
 from app.schemas.statement import (
     EntityNeighborhoodResponse,
@@ -21,7 +22,9 @@ from app.store.utils import (
     RDF_TYPE,
 )
 
-router = APIRouter(prefix="/graph", tags=["graph"])
+router = APIRouter(
+    prefix="/graph", tags=["graph"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/{workspace_id}/deduplication", response_model=list[StatementResponse])

@@ -34,6 +34,7 @@ app = FastAPI(
     version="0.1.0",
     description="Ontology-Guided Knowledge Extraction and Curation with LLMs",
     lifespan=lifespan,
+    swagger_ui_parameters={"withCredentials": True},
 )
 
 app.add_middleware(

@@ -28,6 +28,11 @@ dependencies = [
     "scikit-learn",
     "pymupdf4llm",
     "pronto>=2.7.3",
+    "google-auth",
+    "PyJWT",
+    "pwdlib[bcrypt]",
+    "argon2-cffi",
+    "pydantic[email]"
 ]
 
 [project.optional-dependencies]

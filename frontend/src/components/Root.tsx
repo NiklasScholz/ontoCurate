@@ -9,7 +9,7 @@ export default function Root({
 }) {
     return (
         <div
-            className={`bg-nord7 box-border flex h-screen items-center justify-center px-6 py-4 ${className}`}
+            className={`bg-nord7 box-border flex flex-1 h-screen items-center justify-center px-6 py-4 ${className}`}
         >
             {children}
         </div>

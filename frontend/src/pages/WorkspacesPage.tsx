@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import Root from "../components/Root";
-import { ArrowLeftIcon, SettingsIcon, TrashIcon, XIcon } from "lucide-react";
+import { SettingsIcon, TrashIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { client } from "../client";
 import Spinner from "../components/Spinner";
@@ -33,16 +33,6 @@ export default function WorkspacesPage() {
     return (
         <Root>
             <Panel className="w-160 flex-col gap-2">
-                <div className="relative mb-4">
-                    <Link
-                        to="/"
-                        className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
-                    >
-                        <ArrowLeftIcon size={16} />
-                    </Link>
-                    <h1 className="text-center text-xl">Workspaces</h1>
-                </div>
-
                 {workspaces === undefined ? (
                     <Spinner />
                 ) : workspaces.length === 0 ? (

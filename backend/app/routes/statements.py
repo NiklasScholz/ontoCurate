@@ -1,10 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.deps import get_current_user
 from app.schemas.statement import StatementPatchBody, StatementResponse
 
-router = APIRouter(prefix="/statements", tags=["statements"])
+router = APIRouter(
+    prefix="/statements", tags=["statements"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.post(

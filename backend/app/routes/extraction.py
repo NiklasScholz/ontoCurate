@@ -1,5 +1,4 @@
 import time
-from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -9,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.deps import get_current_user
+from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
-from app.repositories.user import UserRepository
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.run import RunDetailResponse, StatementEdit
 from app.store.client import curation_graph, sparql_select
@@ -19,7 +19,9 @@ from app.store.utils import *
 from app.store.writer import accept_statement, edit_statement, reject_statement
 from app.tasks import build_pipeline
 
-router = APIRouter(prefix="/extraction", tags=["extraction"])
+router = APIRouter(
+    prefix="/extraction", tags=["extraction"], dependencies=[Depends(get_current_user)]
+)
 
 
 def candidate_records_from_rows(rows: list[tuple[str, str, str]]) -> list[dict]:
@@ -96,24 +98,15 @@ async def create_documents(
     files: list[UploadFileType] = File(...),
     workspace_id: UUID = Query(...),
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    triggered_by = None  # will be replaced by user
+    triggered_by = current_user.id
     run_repo = RunRepository(session)
     doc_repo = DocumentRepository(session)
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        base = Path(__file__).parent.parent.parent / "config" / "schemas"
-        schema_path = str(base / "scholarly_schema.yaml")
-        provenance_path = str(base / "provenance_config.yaml")
-        alignment_config_path = str(base / "alignment_config.yaml")
-        workspace = await workspace_repo.create_with_id(
-            name="Default Workspace",
-            workspace_id=workspace_id,
-            schema_path=schema_path,
-            alignment_config_path=alignment_config_path,
-            provenance_config_path=provenance_path,
-        )
+        raise NotFoundException(f"Workspace {workspace_id} not found")
     model = "gpt-oss-120b"
 
     run = await run_repo.create(
@@ -206,7 +199,10 @@ async def bulk_accept_statements():
 
 @router.post("/{workspace_id}/statements/{statement_id:path}/accept", status_code=200)
 async def accept_statement_endpoint(
-    workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID,
+    statement_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     workspace_repo = WorkspaceRepository(session)
 
@@ -214,20 +210,10 @@ async def accept_statement_endpoint(
     if workspace is None:
         return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
-    triggered_by = None  # will be replaced by user
-
-    # If no triggering user supplied, create a system user
-    if triggered_by is None:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_email("system@localhost")
-        if user is None:
-            user = await user_repo.create(email="system@localhost", password_encrypt="")
-        triggered_by = user.id
-
     try:
         accept_statement(
             stmt_id=statement_id,
-            triggered_by=triggered_by,
+            triggered_by=current_user.id,
             workspace_id=str(workspace.id),
         )
     except ValueError as exc:
@@ -242,7 +228,10 @@ async def accept_statement_endpoint(
 
 @router.post("/{workspace_id}/statements/{statement_id:path}/reject", status_code=200)
 async def reject_statement_endpoint(
-    workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID,
+    statement_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     workspace_repo = WorkspaceRepository(session)
 
@@ -250,20 +239,10 @@ async def reject_statement_endpoint(
     if workspace is None:
         return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
-    triggered_by = None  # will be replaced by user
-
-    # If no triggering user supplied, create a system user
-    if triggered_by is None:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_email("system@localhost")
-        if user is None:
-            user = await user_repo.create(email="system@localhost", password_encrypt="")
-        triggered_by = user.id
-
     try:
         reject_statement(
             stmt_id=statement_id,
-            triggered_by=triggered_by,
+            triggered_by=current_user.id,
             workspace_id=str(workspace.id),
         )
     except ValueError as exc:
@@ -282,6 +261,7 @@ async def edit_statement_endpoint(
     statement_id: str,
     edit: StatementEdit,
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     workspace_repo = WorkspaceRepository(session)
 
@@ -289,20 +269,10 @@ async def edit_statement_endpoint(
     if workspace is None:
         return {"workspace_id": workspace_id, "error": "Workspace not found"}
 
-    triggered_by = None  # will be replaced by user
-
-    # If no triggering user supplied, create a system user
-    if triggered_by is None:
-        user_repo = UserRepository(session)
-        user = await user_repo.get_by_email("system@localhost")
-        if user is None:
-            user = await user_repo.create(email="system@localhost", password_encrypt="")
-        triggered_by = user.id
-
     try:
         edit_statement(
             stmt_id=statement_id,
-            triggered_by=triggered_by,
+            triggered_by=current_user.id,
             workspace_id=str(workspace.id),
             edit=edit,
         )

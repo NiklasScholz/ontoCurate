@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Google Auth */
+        post: operations["google_auth_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -15,6 +32,23 @@ export interface paths {
         put?: never;
         /** Login */
         post: operations["login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register */
+        post: operations["register_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -38,18 +72,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/refresh": {
+    "/auth/me": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Me */
+        get: operations["me_auth_me_get"];
         put?: never;
-        /** Refresh */
-        post: operations["refresh_auth_refresh_post"];
-        delete?: never;
+        post?: never;
+        /** Delete Me */
+        delete: operations["delete_me_auth_me_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -757,6 +792,11 @@ export interface components {
             /** Task Name */
             task_name: string;
         };
+        /** GoogleTokenRequest */
+        GoogleTokenRequest: {
+            /** Credential */
+            credential: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -769,12 +809,28 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Login Name */
+            login_name: string;
+            /** Password */
+            password: string;
+        };
         /** OutgoingEdge */
         OutgoingEdge: {
             /** Predicate */
             predicate: string;
             /** Object */
             object: string;
+        };
+        /** RegisterRequest */
+        RegisterRequest: {
+            /** Name */
+            name: string | null;
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
         /** RunDetailResponse */
         RunDetailResponse: {
@@ -857,6 +913,20 @@ export interface components {
             /** Text Span End */
             text_span_end: number | null;
         };
+        /** UserResponse */
+        UserResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string | null;
+            /** Picture */
+            picture: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -900,14 +970,18 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    login_auth_login_post: {
+    google_auth_auth_google_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleTokenRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -915,7 +989,82 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -940,7 +1089,27 @@ export interface operations {
             };
         };
     };
-    refresh_auth_refresh_post: {
+    me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    delete_me_auth_me_delete: {
         parameters: {
             query?: never;
             header?: never;
