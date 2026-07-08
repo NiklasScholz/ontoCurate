@@ -4,6 +4,7 @@ import pytest
 
 from app.pipeline.metrics.datatype_property_scoring import (
     apply_entity_outlier_penalty,
+    find_date_span_in,
     find_span,
     find_span_in,
     relocate_ambiguous_spans,
@@ -104,6 +105,70 @@ class TestCaseInsensitiveMatch:
         assert end - start == len("partnering with AI for KNOWLEDGE GRAPH Construction")
         start, end, conf = find_span_in(source, "Scholz et al.", 0)
         assert conf != 0.95
+
+
+# Date Matching Tests
+class TestDateMatching:
+    def test_day_month_year_match(self):
+        source = "The workshop on KGs took place on the 10th of May 2026 in Aachen and was organized by the dbis team."
+        start, end, conf = find_span_in(source, "2026-05-10", 0)
+        assert conf == 0.95
+        assert "10th of May 2026" in source[start:end]
+
+    def test_day_month_year_full_time_period(self):
+        source = "The conference ran from 10 June 2023 to 12 June 2023."
+        start, end, conf = find_span_in(source, "2023-06-10", 0)
+        assert conf == 0.95
+        assert "10 June 2023" in source[start:end]
+        start, end, conf = find_span_in(source, "2023-06-12", 0)
+        assert conf == 0.95
+        assert "12 June 2023" in source[start:end]
+
+    def test_numeric_day_month_year_matches(self):
+        source = "wewejoa jewjoe 10/05/2026."
+        start, end, conf = find_span_in(source, "2026-05-10", 0)
+        assert conf == 0.95
+        assert source[start:end] == "10/05/2026"
+
+    def test_exact_match_for_correct_date_format(self):
+        source = "Date: 2026-05-10."
+        start, end, conf = find_span_in(source, "2026-05-10", 0)
+        assert conf == 1.0
+        assert source[start:end] == "2026-05-10"
+
+    def test_month_year_only_partial_match(self):
+        source = "Event took place in May 2026 "
+        start, end, conf = find_span_in(source, "2026-05-10", 0)
+        assert conf == 0.75
+        assert "May 2026" in source[start:end]
+
+    def test_different_date_format(self):
+        source = "eawjeawojee 03/04/2026 ejaoweajowe"
+        start, end, conf = find_span_in(source, "2026-04-03", 0)
+        assert conf == 0.95
+        assert "03/04/2026" in source[start:end]
+
+    def test_no_date_expression_falls_back_to_fuzzy(self):
+        source = "Our study collected 20260 samples for the analysis."
+        result = find_span_in(source, "2026-05-10", 0)
+        assert result[2] <= 0.5
+
+    def test_year_only_value_is_unaffected(self):
+        # no full dates should go through normal matching
+        source = "Published in 2024 at the workshop XYZ."
+        start, end, conf = find_span_in(source, "2024", 0)
+        assert conf == 1.0
+        assert source[start:end] == "2024"
+
+    def test_find_date_span_in_returns_none_for_non_valid_date_value(self):
+        assert find_date_span_in("10th May 2026", "not-a-date") is None
+
+    def test_find_date_span_in_directly(self):
+        result = find_date_span_in("wjoeaowejoawr joeowe 10th May 2026.", "2026-05-10")
+        assert result is not None
+        start, end, conf = result
+        assert conf == 0.95
+        assert "10th May 2026" in "wjoeaowejoawr joeowe 10th May 2026."[start:end]
 
 
 # White Space Normalisation Tests
