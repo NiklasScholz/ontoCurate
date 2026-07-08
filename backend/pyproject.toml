@@ -23,6 +23,7 @@ dependencies = [
     "pydantic-settings",
     "ontogpt",
     "rapidfuzz",
+    "dateparser",
     "rdflib",
     "pyyaml",
     "scikit-learn",
@@ -47,6 +48,7 @@ dev = [
     "python-dotenv",
     "pyoxigraph",
     "coverage",
+    "types-dateparser",
 ]
 
 [tool.isort]
