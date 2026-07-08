@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
 
-from app.schemas.run import StatementEdit
+from app.schemas.statement import StatementEdit
 from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
 from app.store.utils import *
 
@@ -294,16 +294,16 @@ def write_alignment_results(
 
     if len(doc_ids) == 1:
         doc_key = doc_ids[0]
-        alignment_activity = NamedNode(
-            f"https://example.org/runs/{run_key}/documents/{doc_key}/activities/alignment"
-        )
+        alignment_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
+                doc_key
+            }/activities/alignment")
     else:
         sorted_ids = sorted(doc_ids)
         doc_key = "|".join(sorted_ids) if doc_ids else "unknown"
         pair_string = "/".join(sorted_ids) if doc_ids else "unknown"
-        alignment_activity = NamedNode(
-            f"https://example.org/runs/{run_key}/documents/{pair_string}/activities/cross-document-alignment"
-        )
+        alignment_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
+                pair_string
+            }/activities/cross-document-alignment")
 
     triples = [
         Triple(N_PACO_ENTITY_ALIGNMENT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -365,7 +365,7 @@ def write_alignment_results(
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
 
-def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> None:
+def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
 
@@ -507,8 +507,10 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
         }}
     """)
 
+    return accepted_statement_id
 
-def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> None:
+
+def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
 
     # Load the candidate statement
@@ -637,13 +639,15 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
         }}
     """)
 
+    return rejected_statement_id
+
 
 def edit_statement(
     stmt_id: str,
     triggered_by: uuid.UUID,
     workspace_id: str,
     edit: StatementEdit,
-) -> None:
+) -> str:
     graph = curation_graph(workspace_id)
 
     # Check that either object_iri or object_value is provided, but not both
@@ -808,3 +812,5 @@ def edit_statement(
             }}
         }}
     """)
+
+    return edited_statement_id

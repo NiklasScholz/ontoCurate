@@ -7,7 +7,7 @@ import {
     RotateCcwIcon,
     XIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
 import type { Statement } from "../types.ts";
@@ -43,14 +43,14 @@ function LocalGraphView({
         <svg viewBox="0 0 800 500" className="h-full w-full">
             {incoming.map(({ predicate, subject }, i) => {
                 return (
-                    <>
+                    <Fragment key={i}>
                         <line
                             x1="100"
                             y1={calcY(i, incoming.length)}
                             x2="400"
                             y2="250"
                             stroke={nord4}
-                            stroke-width="5"
+                            strokeWidth="5"
                         />
                         <circle
                             r="30"
@@ -61,36 +61,36 @@ function LocalGraphView({
                         <text
                             x="250"
                             y={(calcY(i, incoming.length) + 250) / 2}
-                            text-anchor="middle"
-                            dominant-baseline="middle"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
                             fill={nord0}
-                            font-size="18"
+                            fontSize="18"
                         >
                             {text(predicate)}
                         </text>
                         <text
                             x="100"
                             y={calcY(i, incoming.length)}
-                            text-anchor="middle"
-                            dominant-baseline="middle"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
                             fill={nord0}
-                            font-size="18"
+                            fontSize="18"
                         >
                             {text(subject)}
                         </text>
-                    </>
+                    </Fragment>
                 );
             })}
             {outgoing.map(({ predicate, object }, i) => {
                 return (
-                    <>
+                    <Fragment key={i}>
                         <line
                             x1="400"
                             y1="250"
                             x2="700"
                             y2={calcY(i, outgoing.length)}
                             stroke={nord4}
-                            stroke-width="5"
+                            strokeWidth="5"
                         />
                         <circle
                             r="30"
@@ -101,34 +101,34 @@ function LocalGraphView({
                         <text
                             x="550"
                             y={(calcY(i, outgoing.length) + 250) / 2}
-                            text-anchor="middle"
-                            dominant-baseline="middle"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
                             fill={nord0}
-                            font-size="18"
+                            fontSize="18"
                         >
                             {text(predicate)}
                         </text>
                         <text
                             x="700"
                             y={calcY(i, outgoing.length)}
-                            text-anchor="middle"
-                            dominant-baseline="middle"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
                             fill={nord0}
-                            font-size="18"
+                            fontSize="18"
                         >
                             {text(object)}
                         </text>
-                    </>
+                    </Fragment>
                 );
             })}
             <circle r="30" cx="400" cy="250" fill={nord8} />
             <text
                 x="400"
                 y="250"
-                text-anchor="middle"
-                dominant-baseline="middle"
+                textAnchor="middle"
+                dominantBaseline="middle"
                 fill={nord0}
-                font-size="18"
+                fontSize="18"
             >
                 {text(center)}
             </text>
@@ -177,6 +177,7 @@ export default function CurationDetail({
     onClose,
     onPrevious,
     onNext,
+    onChange,
     workspaceId,
     markdown,
     index,
@@ -186,6 +187,7 @@ export default function CurationDetail({
     onClose: () => void;
     onPrevious: () => void;
     onNext: () => void;
+    onChange: (id: string) => void;
     workspaceId: string;
     markdown: string;
     index: number;
@@ -194,60 +196,94 @@ export default function CurationDetail({
 }) {
     return (
         <div className="bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl">
-            <div className="">
-                <h1 className="text-center text-xl">
-                    Triple {index + 1}/{total}
-                </h1>
-            </div>
-            <div className="mb-4 flex justify-center gap-2">
-                <button
-                    disabled={index === 0}
-                    onClick={onPrevious}
-                    className="bg-nord8 flex h-7 w-12 items-center justify-center rounded"
-                >
-                    <ArrowLeftIcon size={16} />
-                </button>
+            <div className="mb-4 flex justify-between gap-2">
+                <div></div>
+                <div className="flex gap-4">
+                    <button
+                        disabled={index === 0}
+                        onClick={onPrevious}
+                        className="bg-nord8 flex h-7 w-12 items-center justify-center rounded"
+                    >
+                        <ArrowLeftIcon size={16} />
+                    </button>
+                    <h1 className="text-center text-xl">
+                        Triple {index + 1}/{total}
+                    </h1>
+                    <button
+                        disabled={index === total - 1}
+                        onClick={onNext}
+                        className="bg-nord8 flex h-7 w-12 items-center justify-center rounded"
+                    >
+                        <ArrowRightIcon size={16} />
+                    </button>
+                </div>
                 <button
                     onClick={onClose}
                     className="bg-nord4 flex h-7 w-12 items-center justify-center rounded"
                 >
                     <ListIcon size={16} />
                 </button>
-                <button
-                    disabled={index === total - 1}
-                    onClick={onNext}
-                    className="bg-nord8 flex h-7 w-12 items-center justify-center rounded"
-                >
-                    <ArrowRightIcon size={16} />
-                </button>
             </div>
 
-            <MarkdownView
-                text={markdown}
-                span={
+            <div
+                className={`h-60 ${
                     statement.text_span_start === null ||
                     statement.text_span_end === null
-                        ? undefined
-                        : {
-                              start: statement.text_span_start,
-                              end: statement.text_span_end,
-                          }
-                }
-            />
+                        ? "opacity-50"
+                        : ""
+                }`}
+            >
+                <MarkdownView
+                    text={markdown}
+                    span={
+                        statement.text_span_start === null ||
+                        statement.text_span_end === null
+                            ? undefined
+                            : {
+                                  start: statement.text_span_start,
+                                  end: statement.text_span_end,
+                              }
+                    }
+                />
+            </div>
             <div className="bg-nord4 rounded p-4">
                 <div className="mb-4 flex justify-center gap-2">
-                    <button className="bg-nord14 flex h-7 w-12 items-center justify-center rounded">
+                    <button
+                        className="bg-nord14 flex h-7 w-12 items-center justify-center rounded"
+                        onClick={() => {
+                            client
+                                .POST("/statements/{workspace_id}/accept", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: { statement_id: statement.id },
+                                    },
+                                })
+                                .then((res) => onChange(res.data.id));
+                        }}
+                    >
                         <CheckIcon size={16} />
                     </button>
                     <button className="bg-nord4 flex h-7 w-12 items-center justify-center rounded">
                         <RotateCcwIcon size={16} />
                     </button>
-                    <button className="bg-nord11 flex h-7 w-12 items-center justify-center rounded">
+                    <button
+                        className="bg-nord11 flex h-7 w-12 items-center justify-center rounded"
+                        onClick={() => {
+                            client
+                                .POST("/statements/{workspace_id}/reject", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: { statement_id: statement.id },
+                                    },
+                                })
+                                .then((res) => onChange(res.data.id));
+                        }}
+                    >
                         <XIcon size={16} />
                     </button>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-nord6 flex flex-col justify-between gap-2 rounded-t p-2">
+                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
                         <div className="font-mono text-sm wrap-anywhere">
                             {statement.subject}
                         </div>
@@ -260,7 +296,7 @@ export default function CurationDetail({
                             </button>
                         </div>
                     </div>
-                    <div className="bg-nord6 flex flex-col justify-between gap-2 rounded p-2">
+                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded p-2">
                         <div className="font-mono text-sm wrap-anywhere">
                             {statement.predicate}
                         </div>
@@ -273,7 +309,7 @@ export default function CurationDetail({
                             </button>
                         </div>
                     </div>
-                    <div className="bg-nord6 flex flex-col justify-between gap-2 rounded-t p-2">
+                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
                         <div className="font-mono text-sm wrap-anywhere">
                             {statement.object}
                         </div>

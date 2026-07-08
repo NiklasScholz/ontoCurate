@@ -14,10 +14,11 @@ class StatementResponse(BaseModel):
     text_span_end: int | None
 
 
-class StatementPatchBody(BaseModel):
-    subject: str
-    predicate: str
-    object: str
+class StatementEdit(BaseModel):
+    subject: str | None = None
+    predicate: str | None = None
+    object_value: str | None = None
+    object_iri: str | None = None
 
 
 class IncomingEdge(BaseModel):
@@ -33,3 +34,7 @@ class OutgoingEdge(BaseModel):
 class EntityNeighborhoodResponse(BaseModel):
     incoming: list[IncomingEdge]
     outgoing: list[OutgoingEdge]
+
+
+class StatementIdResponse(BaseModel):
+    id: str

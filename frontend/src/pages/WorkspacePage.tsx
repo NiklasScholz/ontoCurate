@@ -1,5 +1,4 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import Root from "../components/Root";
 import { client } from "../client";
 import { useEffect, useState } from "react";
 import {
@@ -15,16 +14,19 @@ import type { Document } from "../types";
 import Spinner from "../components/Spinner";
 import Panel from "../components/Panel";
 import NotFound from "./NotFound";
-import { type ExistingMember, type PendingInvite } from "../components/InviteMembersPanel";
+import {
+    type ExistingMember,
+    type PendingInvite,
+} from "../components/InviteMembersPanel";
 import InviteMembersSection from "../components/InviteMembersPanel";
 
 export default function WorkspacePage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    const [ws, setWs] = useState<{ id: string; name: string; role: string } | undefined>(
-        undefined,
-    );
+    const [ws, setWs] = useState<
+        { id: string; name: string; role: string } | undefined
+    >(undefined);
 
     const [docs, setDocs] = useState<Document[]>(undefined);
     const [docStatus, setDocStatus] = useState<{ [id: string]: string }>({});
@@ -49,13 +51,18 @@ export default function WorkspacePage() {
         }
 
         const newest = updated[updated.length - 1];
-        const { error } = await client.POST("/workspaces/{workspace_id}/members", {
-            params: { path: { workspace_id: ws.id } },
-            body: { user_info: newest.user_info, role: newest.role },
-        });
+        const { error } = await client.POST(
+            "/workspaces/{workspace_id}/members",
+            {
+                params: { path: { workspace_id: ws.id } },
+                body: { user_info: newest.user_info, role: newest.role },
+            },
+        );
 
         if (error) {
-            setInviteError((error as { detail?: string }).detail ?? "Failed to add member");
+            setInviteError(
+                (error as { detail?: string }).detail ?? "Failed to add member",
+            );
         } else {
             setInviteError(null);
             setPendingInvites([]);
@@ -72,7 +79,10 @@ export default function WorkspacePage() {
         );
 
         if (error) {
-            setInviteError((error as { detail?: string }).detail ?? "Failed to remove member");
+            setInviteError(
+                (error as { detail?: string }).detail ??
+                    "Failed to remove member",
+            );
         } else {
             setInviteError(null);
             fetchMembers(ws.id);
@@ -91,15 +101,6 @@ export default function WorkspacePage() {
     }, [wsId]);
 
     useEffect(() => {
-        if (wsId === null) return;
-        client
-            .GET("/documents/", {
-                params: { query: { workspace_id: wsId } },
-            })
-            .then((res) => setDocs(res.data));
-    }, [wsId]);
-
-    useEffect(() => {
         function updateDocStatus() {
             client
                 .GET("/extraction/{workspace_id}", {
@@ -112,13 +113,18 @@ export default function WorkspacePage() {
                         statusMap[entry.document_id] = entry.status;
                     }
                     setDocStatus(statusMap);
+                    client
+                        .GET("/documents/", {
+                            params: { query: { workspace_id: wsId } },
+                        })
+                        .then((res) => setDocs(res.data));
                 });
         }
         updateDocStatus();
         const interval = setInterval(updateDocStatus, 10000);
         return () => clearInterval(interval);
     }, [wsId]);
-    
+
     useEffect(() => {
         if (!ws || ws.role !== "owner") return;
         fetchMembers(ws.id);
@@ -129,135 +135,140 @@ export default function WorkspacePage() {
     }
 
     return (
-        <Root>
-            <Panel className="flex w-160 flex-col gap-2">
-                <div className="relative mb-4">
-                    <Link
-                        to="/workspaces"
-                        className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
-                    >
-                        <ArrowLeftIcon size={16} />
-                    </Link>
-                    <h1 className="text-center text-xl">
-                        {ws ? <>Workspace - {ws.name}</> : <Spinner />}
-                    </h1>
-                </div>
+        <Panel className="flex w-160 flex-col gap-2">
+            <div className="relative mb-4">
+                <Link
+                    to="/workspaces"
+                    className="bg-nord4 absolute top-0 left-0 flex h-full w-12 items-center justify-center rounded"
+                >
+                    <ArrowLeftIcon size={16} />
+                </Link>
+                <h1 className="text-center text-xl">
+                    {ws ? <>Workspace - {ws.name}</> : <Spinner />}
+                </h1>
+            </div>
 
-                {docs === undefined ? (
-                    <Spinner />
-                ) : docs.length === 0 ? (
-                    <div className="text-center italic">
-                        No documents have been uploaded yet.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-4 gap-2">
-                        <div>Document</div>
-                        <div>Extracted triples</div>
-                        <div>Pending review</div>
-                        <div></div>
-                        {docs.map((d) => (
-                            <div key={d.id} className="contents">
-                                <div>{d.filename}</div>
-                                {docStatus[d.id] === "done" ? (
-                                    <>
-                                        <div>{d.extracted_triples}</div>
-                                        <div>{d.pending_triples}</div>
-                                    </>
-                                ) : (
-                                    <div
-                                        className={`col-span-2 text-center ${
-                                            docStatus[d.id] === "failed"
-                                                ? "stripes-failed"
-                                                : "stripes-running"
-                                        }`}
-                                    >
-                                        {docStatus[d.id]}
-                                    </div>
-                                )}
-                                <div className="flex gap-2">
-                                    <button
-                                        className="bg-nord8 h-7 rounded px-2"
-                                        onClick={() => {
-                                            navigate(
-                                                `/curation?ws=${wsId}&doc=${d.id}`,
-                                            );
-                                        }}
-                                    >
-                                        <EditIcon size={16} />
-                                    </button>
-                                    <button
-                                        className="bg-nord8 h-7 rounded px-2"
-                                        onClick={() => {}}
-                                    >
-                                        <ShareIcon size={16} />
-                                    </button>
-                                    <button
-                                        className="bg-nord11 h-7 rounded px-2"
-                                        onClick={() => {
-                                            client.DELETE(
-                                                "/documents/{document_id}",
-                                                {
-                                                    params: {
-                                                        path: {
-                                                            document_id: d.id,
-                                                        },
+            {docs === undefined ? (
+                <Spinner />
+            ) : docs.length === 0 ? (
+                <div className="text-center italic">
+                    No documents have been uploaded yet.
+                </div>
+            ) : (
+                <div className="grid grid-cols-4 gap-2">
+                    <div>Document</div>
+                    <div>Extracted triples</div>
+                    <div>Pending review</div>
+                    <div></div>
+                    {docs.map((d) => (
+                        <div key={d.id} className="contents">
+                            <div>{d.filename}</div>
+                            {docStatus[d.id] === "done" ? (
+                                <>
+                                    <div>{d.extracted_triples}</div>
+                                    <div>{d.pending_triples}</div>
+                                </>
+                            ) : (
+                                <div
+                                    className={`col-span-2 text-center ${
+                                        docStatus[d.id] === "failed"
+                                            ? "stripes-failed"
+                                            : "stripes-running"
+                                    }`}
+                                >
+                                    {docStatus[d.id]}
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    className="bg-nord8 h-7 rounded px-2"
+                                    onClick={() => {
+                                        navigate(
+                                            `/curation?ws=${wsId}&doc=${d.id}`,
+                                        );
+                                    }}
+                                >
+                                    <EditIcon size={16} />
+                                </button>
+                                <button
+                                    className="bg-nord8 h-7 rounded px-2"
+                                    onClick={() => {}}
+                                >
+                                    <ShareIcon size={16} />
+                                </button>
+                                <button
+                                    className="bg-nord11 h-7 rounded px-2"
+                                    onClick={() => {
+                                        client.DELETE(
+                                            "/documents/{document_id}",
+                                            {
+                                                params: {
+                                                    path: {
+                                                        document_id: d.id,
                                                     },
                                                 },
-                                            );
-                                        }}
-                                    >
-                                        <TrashIcon size={16} />
-                                    </button>
-                                </div>
+                                            },
+                                        );
+                                    }}
+                                >
+                                    <TrashIcon size={16} />
+                                </button>
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                <div className="mt-4 flex justify-center gap-4">
-                    <Link
-                        to={`/upload?ws=${wsId}`}
-                        className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
-                    >
-                        <FilePlusIcon
-                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                            size={48}
-                        />
-                        <div className="relative">Start new run</div>
-                    </Link>
-                    <Link
-                        to={`/curation?ws=${wsId}`}
-                        className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
-                    >
-                        <MergeIcon
-                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                            size={48}
-                        />
-                        <div className="relative">Deduplication</div>
-                    </Link>
-                    <button className="bg-nord8 relative h-24 w-32 rounded px-2">
-                        <SearchIcon
-                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                            size={48}
-                        />
-                        <div className="relative">Queries</div>
-                    </button>
-                    <button className="bg-nord8 relative h-24 w-32 rounded px-2">
-                        <ShareIcon
-                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                            size={48}
-                        />
-                        <div className="relative">Export</div>
-                    </button>
+                        </div>
+                    ))}
                 </div>
-                {ws?.role === "owner" && (
-                    <>
-                        <h3 className="text-lg font-semibold">Invite Members</h3>
-                        <InviteMembersSection invites={pendingInvites} onChange={handleInviteChange} existingMembers={members} onRemoveMember={handleRemoveMember} />
-                        {inviteError && <p className="text-nord11 text-sm">{inviteError}</p>}
-                    </>
-                )}
-            </Panel>
-        </Root>
+            )}
+
+            <div className="mt-4 flex justify-center gap-4">
+                <Link
+                    to={`/upload?ws=${wsId}`}
+                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                >
+                    <FilePlusIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Start new run</div>
+                </Link>
+                <Link
+                    to={`/curation?ws=${wsId}`}
+                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                >
+                    <MergeIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Deduplication</div>
+                </Link>
+                <button className="bg-nord8 relative h-24 w-32 rounded px-2">
+                    <SearchIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Queries</div>
+                </button>
+                <button className="bg-nord8 relative h-24 w-32 rounded px-2">
+                    <ShareIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Export</div>
+                </button>
+            </div>
+            {ws?.role === "owner" && (
+                <>
+                    <h3 className="text-lg font-semibold">Invite Members</h3>
+                    <InviteMembersSection
+                        invites={pendingInvites}
+                        onChange={handleInviteChange}
+                        existingMembers={members}
+                        onRemoveMember={handleRemoveMember}
+                    />
+                    {inviteError && (
+                        <p className="text-nord11 text-sm">{inviteError}</p>
+                    )}
+                </>
+            )}
+        </Panel>
     );
 }

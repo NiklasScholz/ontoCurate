@@ -17,11 +17,11 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
             { path: "/workspaces", element: <WorkspacesPage /> },
-            {path: "/create-workspace", element: <WorkspaceCreationPage />},
+            { path: "/create-workspace", element: <WorkspaceCreationPage /> },
             { path: "/workspace", element: <WorkspacePage /> },
             { path: "/upload", element: <UploadPage /> },
-            { path: "/curation", element: <CurationPage /> }
-        ]
+            { path: "/curation", element: <CurationPage /> },
+        ],
     },
     { path: "*", element: <NotFound /> },
 ]);

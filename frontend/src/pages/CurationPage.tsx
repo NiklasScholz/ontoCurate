@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { client } from "../client";
 import Spinner from "../components/Spinner";
 import { Link, useSearchParams } from "react-router-dom";
-import Root from "../components/Root";
 import Panel from "../components/Panel";
 import type { DocumentDetail, Statement } from "../types";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
@@ -26,7 +25,7 @@ export default function CurationOverviewPage() {
     const wsId = searchParams.get("ws");
     const docId = searchParams.get("doc");
 
-    useEffect(() => {
+    const reloadStatements = useCallback(() => {
         if (docId === null) {
             client
                 .GET("/graph/{workspace_id}/deduplication", {
@@ -60,12 +59,16 @@ export default function CurationOverviewPage() {
         }
     }, [wsId, docId]);
 
+    useEffect(() => {
+        reloadStatements();
+    }, [reloadStatements]);
+
     if (wsId === null) {
         return <NotFound />;
     }
 
     return (
-        <Root>
+        <>
             <Panel className="flex h-full min-h-160 min-w-160 flex-col">
                 <div className="relative mb-4">
                     <Link
@@ -102,15 +105,30 @@ export default function CurationOverviewPage() {
                                                 className="even:bg-nord4"
                                                 onClick={() => setSelected(i)}
                                             >
-                                                <div className="grid grid-cols-3">
-                                                    <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                        {stm.subject}
-                                                    </div>
-                                                    <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                        {stm.predicate}
-                                                    </div>
-                                                    <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                        {stm.object}
+                                                <div
+                                                    className={
+                                                        stm.curation_status ===
+                                                        "accepted"
+                                                            ? "bg-nord14/50"
+                                                            : stm.curation_status ===
+                                                                "rejected"
+                                                              ? "bg-nord11/50"
+                                                              : stm.curation_status ===
+                                                                  "edited"
+                                                                ? "bg-nord13/50"
+                                                                : ""
+                                                    }
+                                                >
+                                                    <div className="grid grid-cols-3">
+                                                        <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                            {stm.subject}
+                                                        </div>
+                                                        <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                            {stm.predicate}
+                                                        </div>
+                                                        <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                            {stm.object}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </button>
@@ -187,7 +205,8 @@ export default function CurationOverviewPage() {
                     <CurationDetail
                         onClose={() => setSelected(undefined)}
                         onNext={() => setSelected(selected + 1)}
-                        onPrevious={() => setSelected(selected + 1)}
+                        onPrevious={() => setSelected(selected - 1)}
+                        onChange={() => reloadStatements()}
                         index={selected}
                         total={statements.length}
                         statement={statements[selected]}
@@ -196,6 +215,6 @@ export default function CurationOverviewPage() {
                     />
                 </Popup>
             )}
-        </Root>
+        </>
     );
 }

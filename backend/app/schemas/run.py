@@ -38,10 +38,3 @@ class DecideRequest(BaseModel):
 
 class BulkAcceptRequest(BaseModel):
     min_confidence: float = 0.9
-
-
-class StatementEdit(BaseModel):
-    subject: str | None = None
-    predicate: str | None = None
-    object_value: str | None = None
-    object_iri: str | None = None
