@@ -138,51 +138,70 @@ def syntactic_similarity(
     return avg
 
 
-def get_embedding(text: str) -> list[float]:
-    """Get embedding from OPENAI_API_BASE."""
-
+def get_embeddings_batch(
+    texts: list[str], batch_size: int = 100, retries: int = 3
+) -> dict[str, list[float]]:
+    """Get embeddings for {batch_size} texts from configured OpenAI endpoint.
+    Duplicate texts are only sent once.  Returns dictionary of form {text: embedding}
+    On failures of API call it retries with exponential backoff up to {retries} times.
+    Missing embeddings or text after retries are silently omitted for the stake of usability.
+    """
     api_base = os.getenv("OPENAI_API_BASE", "https://chat.kiconnect.nrw/api/v1")
     api_key = os.getenv("OPENAI_API_KEY")
-    endpoint = f"{api_base}/embeddings"
     if not api_key:
-        logging.error("OPENAI_API_KEY not set in environment")
-        return []
+        raise RuntimeError("OPENAI_API_KEY not set in environment")
     model = os.getenv("EMBEDDING_MODEL", "qwen3-embedding-8b")
-    payload = {
-        "input": text,
-        "model": model,
-    }
-
+    endpoint = f"{api_base}/embeddings"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    last_exception = None
-    for attempt in range(3):
-        try:
-            with httpx.Client(timeout=30.0) as client:
-                response = client.post(endpoint, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-                return data["data"][0]["embedding"]
-        except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
-            last_exception = e
-            time.sleep(2**attempt)
-        except Exception as e:
-            logging.error(f"Failed to get embedding for text: {e}")
-            return []
-    logging.error(f"Failed to get embedding after 3 attempts: {last_exception}")
-    return []
+
+    unique_texts = list(dict.fromkeys(texts))  # de-dupe, keep order
+    result = {}
+
+    for i in range(0, len(unique_texts), batch_size):
+        batch = unique_texts[i : i + batch_size]
+        payload = {"input": batch, "model": model}
+
+        data = None
+        last_exception = None
+        for attempt in range(retries):
+            try:
+                with httpx.Client(timeout=120.0) as client:
+                    response = client.post(endpoint, json=payload, headers=headers)
+                    response.raise_for_status()
+                    data = response.json()
+                break
+            except httpx.HTTPStatusError as e:
+                last_exception = e
+                if e.response.status_code == 429 or e.response.status_code >= 500:
+                    time.sleep(2**attempt)
+                    continue
+                logging.error(f"Failed to get embeddings: {e}")
+                break
+            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
+                last_exception = e
+                time.sleep(2**attempt)
+            except Exception as e:
+                logging.error(f"Failed to get embeddings: {e}")
+                break
+        else:
+            logging.error(
+                f"Failed to get embeddings after {retries} attempts: {last_exception}"
+            )
+
+        if data is None:
+            continue
+        for idx, item in enumerate(data["data"]):
+            result[batch[item.get("index", idx)]] = item["embedding"]
+
+    return result
 
 
-def semantic_similarity(
-    entity1: dict,
-    entity2: dict,
-    semantic_text_predicates: list[str] | None = None,
-) -> float:
-    """Computes semantic similarity using embeddings from KI Connect NRW
-    Uses text values from specified semantic_text_predicates (if both entities contain it)
-    """
-    predicates = semantic_text_predicates or ["name"]
-
-    # Only include values for predicates present in both entities
+def semantic_text_pair(
+    entity1: dict, entity2: dict, predicates: list[str]
+) -> tuple[str, str] | None:
+    """Builds the joined embedding-input text for both entities from fields
+    present on both sides or
+    None if no shared field has a value on both entities."""
     parts1, parts2 = [], []
     for field in predicates:
         vals1 = [v for v in entity1["literals"].get(field, []) if v.strip()]
@@ -190,12 +209,30 @@ def semantic_similarity(
         if vals1 and vals2:
             parts1.extend(vals1)
             parts2.extend(vals2)
-
     if not parts1 or not parts2:
-        return 0.0
+        return None
+    return " ".join(parts1), " ".join(parts2)
 
-    emb1 = get_embedding(" ".join(parts1))
-    emb2 = get_embedding(" ".join(parts2))
+
+def semantic_similarity(
+    entity1: dict,
+    entity2: dict,
+    semantic_text_predicates: list[str] | None = None,
+    embedding_lookup: dict[str, list[float]] | None = None,
+) -> float:
+    """Computes semantic similarity using embeddings from configured OpenAI endpoint
+    Uses text values from specified semantic_text_predicates (if both entities contain it).
+    Embeddings are looked up from {embedding_lookup} (built from precomputaiton)
+    """
+    predicates = semantic_text_predicates or ["name"]
+    pair_texts = semantic_text_pair(entity1, entity2, predicates)
+    if pair_texts is None:
+        return 0.0
+    text1, text2 = pair_texts
+
+    lookup = embedding_lookup or {}
+    emb1 = lookup.get(text1)
+    emb2 = lookup.get(text2)
 
     if not emb1 or not emb2:
         return 0.0
@@ -227,6 +264,7 @@ def combined_similarity(
     sparsity_penalty: float = 1.0,
     sparsity_max_fields: int = 1,
     hard_match_predicates: dict[str, float] | None = None,
+    embedding_lookup: dict[str, list[float]] | None = None,
 ) -> float:
     """Aggregates syntactic, semantic and structural similarity according to config"""
     w = weights or {"syntactic": 0.5, "semantic": 0.35, "structural": 0.15}
@@ -261,11 +299,8 @@ def combined_similarity(
 
     w_semantic = w.get("semantic", 0.0)
     if w_semantic > 0:
-        if (
-            score + w_semantic < 0.65
-        ):  # skip expensive semantic similarity if structural and syntactic similarity are already very low (configurable threshold)
-            return score
         score += w_semantic * semantic_similarity(
-            entity1, entity2, semantic_text_predicates
+            entity1, entity2, semantic_text_predicates, embedding_lookup
         )
+
     return score

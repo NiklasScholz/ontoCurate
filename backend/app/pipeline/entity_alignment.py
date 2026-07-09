@@ -6,7 +6,11 @@ import yaml
 from rdflib import Graph, URIRef
 from rdflib.namespace import OWL
 
-from app.pipeline.metrics.similarity_metrics import combined_similarity
+from app.pipeline.metrics.similarity_metrics import (
+    combined_similarity,
+    get_embeddings_batch,
+    semantic_text_pair,
+)
 from app.pipeline.utils.turtle_utils import load_entity_information
 from app.store.writer import write_alignment_results
 
@@ -144,6 +148,25 @@ def generate_candidate_pairs(
     return pairs
 
 
+def precompute_embeddings(
+    candidates: list[tuple[dict, dict]],
+    config: dict,
+) -> dict[str, list[float]]:
+    """Precomputes embeddings for all candidate pairs where semantic similarity is enabled and returns a lookup dict {text: embedding}"""
+    texts = set()
+    for a, b in candidates:
+        type_cfg = resolve_type_config(config, a["types"][0])
+        if type_cfg["weights"].get("semantic", 0.0) <= 0:
+            continue
+        pair_texts = semantic_text_pair(a, b, type_cfg["semantic_text_predicates"])
+        if pair_texts:
+            texts.update(pair_texts)
+
+    if not texts:
+        return {}
+    return get_embeddings_batch(list(texts))
+
+
 def similarity_computation(
     candidates: list[tuple[dict, dict]],
     config: dict,
@@ -151,6 +174,7 @@ def similarity_computation(
     """Compute a combined similarity score for every candidate pair.
     Skips metrics with configured weight 0.0
     """
+    embedding_lookup = precompute_embeddings(candidates, config)
 
     results: list[tuple[dict, dict, float]] = []
     for a, b in candidates:
@@ -166,6 +190,7 @@ def similarity_computation(
             sparsity_penalty=type_cfg["sparsity_penalty"],
             sparsity_max_fields=type_cfg["sparsity_max_fields"],
             hard_match_predicates=type_cfg["hard_match_predicates"],
+            embedding_lookup=embedding_lookup,
         )
         results.append((a, b, score))
     return results

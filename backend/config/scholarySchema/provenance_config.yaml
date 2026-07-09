@@ -19,7 +19,7 @@ datatype_properties:
     - Organization
     - AcademicArticle
 
-  # Predicates for which fuzzy fallback is disabled — only exact/case-insensitive/normalized
+  # Predicates for which fuzzy fallback is disabled - only exact/case-insensitive/normalized
   # matches are accepted. If the value is not found verbatim it is left unannotated (conf=None)
   # rather than getting a misleading fuzzy score against unrelated digit sequences.
   exact_only_predicates:
@@ -27,6 +27,10 @@ datatype_properties:
     - eissn
     - doi
     - identifier
+
+  # Languages to use for date matching
+  date_languages:
+    - en
 
   windows:
 

@@ -6,20 +6,20 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from datetime import date
 
+from dateparser.search import search_dates
 from rapidfuzz import fuzz
 
-# Extract Windows
 
-HEADING_RE = re.compile(r"^(#{1,6})\s+\**\s*(.+?)\s*\**\s*$", re.MULTILINE)
-
-
+# Window Resolution
 def extract_section(source: str, heading_name: str) -> tuple[str, int] | None:
     """Finds Sections by matching heading text (section strategy). Requires Markdown headings to work"""
-    for m in HEADING_RE.finditer(source):
+    heading_reg = re.compile(r"^(#{1,6})\s+\**\s*(.+?)\s*\**\s*$", re.MULTILINE)
+    for m in heading_reg.finditer(source):
         if m.group(2).strip().lower() == heading_name.strip().lower():
             content_start = m.end()
-            next_m = HEADING_RE.search(source, content_start)
+            next_m = heading_reg.search(source, content_start)
             content_end = next_m.start() if next_m else len(source)
             return source[content_start:content_end], content_start
     return None
@@ -63,8 +63,6 @@ def get_windows(
 
 
 # Search Span Logic
-
-
 def build_norm_map(text: str, strip_markdown: bool = False) -> tuple[str, list[int]]:
     """Collapse whitespace runs to a single space, optionally stripping markdown inline
     markers (* _ ` and em/en dashes replaced with hyphen).
@@ -125,13 +123,95 @@ def try_abbreviation_match(text: str, value: str) -> tuple[int, int] | None:
     return m.start(), pos
 
 
+# Date-aware Matching
+# Used to match LLM extracted dates of the format YYYY-MM-DD to the source text (e.g. "10th May 2010)")
+# works with all languages configured in the config
+
+
+def year_windows(text: str, year: int) -> list[tuple[str, int]]:
+    """Returns (window_text, window_offset) for every occurrence of {year} as a
+    standalone 4-digit number in {text}, padded with +-30 characters to ensure proper date extraction
+    """
+    date_window_radius = 30
+    windows = []
+    for m in re.finditer(rf"\b{year}\b", text):
+        start = max(0, m.start() - date_window_radius)
+        end = min(len(text), m.end() + date_window_radius)
+        windows.append((text[start:end], start))
+    return windows
+
+
+def find_date_span_in(
+    text: str, value: str, languages: list[str] | None = None
+) -> tuple[int, int, float] | None:
+    """Locates the source span for a date {value} of format YYYY-MM-DD even when
+    the source expresses it differently. (For example, "10th May 2026" for "2026-05-10")
+    Returns None if {value} isn't a valid date or no matching date expression is found.
+    {languages} restricts which langauges dateparser tries to improve performance
+
+    Confidence:
+    - 0.95 when a day+month+year expression resolves to exactly {value}
+    - 0.75 when only a month+year expression matches (source has no day)
+    """
+    try:
+        target = date.fromisoformat(value)
+    except ValueError:
+        return None
+
+    languages = languages or ["en"]
+
+    def is_full_match(parsed: date | None) -> bool:
+        return parsed is not None and parsed == target
+
+    def is_partial_match(parsed: date | None) -> bool:
+        return (
+            parsed is not None
+            and parsed.year == target.year
+            and parsed.month == target.month
+        )
+
+    windows = year_windows(text, target.year)
+    if not windows:
+        return None
+    full_date_components = ["day", "month", "year"]
+    partial_date_components = ["month", "year"]
+    # Loop through all confidence possibilities (Full vs. partial match -> Day First vs. Month First)
+    for require_parts, matches_target, confidence in (
+        (full_date_components, is_full_match, 0.95),
+        (partial_date_components, is_partial_match, 0.75),
+    ):
+        for date_order in ("DMY", "MDY"):
+            settings = {"REQUIRE_PARTS": require_parts, "DATE_ORDER": date_order}
+            for window_text, window_offset in windows:
+                matches = (
+                    search_dates(window_text, languages=languages, settings=settings)
+                    or []
+                )
+                for matched_text, parsed in matches:
+                    if not matches_target(parsed.date()):
+                        continue
+                    idx = window_text.find(matched_text)
+                    if idx >= 0:
+                        return (
+                            window_offset + idx,
+                            window_offset + idx + len(matched_text),
+                            confidence,
+                        )
+    return None
+
+
 def find_span_in(
-    text: str, value: str, offset: int, exact_only: bool = False
+    text: str,
+    value: str,
+    offset: int,
+    exact_only: bool = False,
+    date_languages: list[str] | None = None,
 ) -> tuple[int, int, float] | None:
     """Finds the best matching span of {value} in {text}, returning (start, end, confidence).
     Confidence is based on the type of match:
     - 1.0 exact match
     - 0.95 case-insensitive match
+    - 0.95/0.75 date-aware match (only tried when value is a date of format YYYY-MM-DD)
     - 0.9 Normalized Match (any whitespace noise in source or value, inter- or intra-word)
     - 0.0-0.94 partial match based on fuzzy string similarity (may yield higher scores than other matches)
 
@@ -152,6 +232,14 @@ def find_span_in(
     idx = lower_text.find(lower_value)
     if idx >= 0:  # case insensitive match
         return offset + idx, offset + idx + len(value), 0.95
+
+    # Date matcher
+    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # check for YYYY-MM-DD format
+    if date_regex.match(value):
+        date_result = find_date_span_in(text, value, languages=date_languages)
+        if date_result is not None:
+            start, end, conf = date_result
+            return offset + start, offset + end, conf
 
     # Normalized match
     norm_text, pos_map = build_norm_map(text)
@@ -227,6 +315,7 @@ def find_span(
     win_distance_penalty: float = 0.0,
     min_penalty_factor: float = 0.3,
     exact_only: bool = False,
+    date_languages: list[str] | None = None,
 ) -> tuple[int, int, float, bool] | None:
     """Search for {value} in {source}, going through all declared windows first.
     The following rules are being used (highest confidence wins):
@@ -236,19 +325,28 @@ def find_span(
         - If no declared windows exist the full document is searched with no penalty.
 
     When exact_only=True, fuzzy and abbreviation fallbacks are disabled in find_span_in.
+    {date_languages} is forwarded to find_span_in for the date-aware match tier.
     """
     windows = get_windows(source, predicate, windows_config)
 
     # Best match across all declared windows (in_window=True)
     best_in_window: tuple[int, int, float] | None = None
     for window_text, window_offset in windows:
-        result = find_span_in(window_text, value, window_offset, exact_only=exact_only)
+        result = find_span_in(
+            window_text,
+            value,
+            window_offset,
+            exact_only=exact_only,
+            date_languages=date_languages,
+        )
         if result is not None:
             if best_in_window is None or result[2] > best_in_window[2]:
                 best_in_window = result
 
     # Full-document result (penalised when declared windows exist)
-    full_result = find_span_in(source, value, 0, exact_only=exact_only)
+    full_result = find_span_in(
+        source, value, 0, exact_only=exact_only, date_languages=date_languages
+    )
     best_full: tuple[int, int, float, bool] | None = None
     if full_result is not None:
         start, end, conf = full_result

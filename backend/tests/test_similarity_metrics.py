@@ -9,8 +9,10 @@ from app.pipeline.entity_alignment import load_alignment_config, resolve_type_co
 from app.pipeline.metrics.similarity_metrics import (
     combined_similarity,
     fuzz_score,
+    get_embeddings_batch,
     initial_expanded_score,
     semantic_similarity,
+    semantic_text_pair,
     structural_similarity,
     syntactic_similarity,
 )
@@ -24,6 +26,11 @@ PERSON_CFG = resolve_type_config(CONFIG, "Person")
 CONF_CFG = resolve_type_config(CONFIG, "Conference")
 STRUCT_MIN = 0.4
 
+needs_api_key = pytest.mark.skipif(
+    not os.getenv("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set; skipping embedding tests",
+)
+
 
 def entity(uri: str, **literals) -> dict:
     """Helper to create entity information dicts (generated in pipeline usually)"""
@@ -32,6 +39,14 @@ def entity(uri: str, **literals) -> dict:
         "literals": {k: [v] for k, v in literals.items()},
         "relations_out": {},
     }
+
+
+def embedding_lookup_for(entity1: dict, entity2: dict, predicates: list[str]) -> dict:
+    """Helper to get embeddings for a pair of entities and predicates"""
+    pair_texts = semantic_text_pair(entity1, entity2, predicates)
+    if pair_texts is None:
+        return {}
+    return get_embeddings_batch(list(pair_texts))
 
 
 class TestFuzzScore:
@@ -121,12 +136,6 @@ class TestStructuralSimilarity:
         assert structural_similarity(e1, e2) == 1.0
 
 
-needs_api_key = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY not set; skipping embedding tests",
-)
-
-
 class TestSemanticSimilarity:
     FIELDS = CONF_CFG["semantic_text_predicates"]
 
@@ -136,19 +145,14 @@ class TestSemanticSimilarity:
         e2 = entity("ex:B", location="Tokyo")
         assert semantic_similarity(e1, e2, self.FIELDS) == 0.0
 
-    def test_api_unreachable_returns_zero(self):
-        # invalid API base is treated as 0.0
-        orig = os.environ.get("OPENAI_API_BASE")
-        os.environ["OPENAI_API_BASE"] = "http://localhost:19999"
-        try:
-            e1 = entity("ex:A", name="AIED")
-            e2 = entity("ex:B", name="ECTEL")
-            assert semantic_similarity(e1, e2, self.FIELDS) == 0.0
-        finally:
-            if orig is None:
-                os.environ.pop("OPENAI_API_BASE", None)
-            else:
-                os.environ["OPENAI_API_BASE"] = orig
+    def test_api_unreachable_returns_zero(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:19999")
+        e1 = entity("ex:A", name="AIED")
+        e2 = entity("ex:B", name="ECTEL")
+        lookup = embedding_lookup_for(e1, e2, self.FIELDS)
+        assert lookup == {}
+        assert semantic_similarity(e1, e2, self.FIELDS, lookup) == 0.0
 
 
 class TestSemanticSimilarityQuality:
@@ -160,7 +164,8 @@ class TestSemanticSimilarityQuality:
     def test_low_unrelated_conferences(self):
         e1 = entity("ex:A", name="AIED")
         e2 = entity("ex:B", name="ECTEL")
-        score = semantic_similarity(e1, e2, self.FIELDS)
+        lookup = embedding_lookup_for(e1, e2, self.FIELDS)
+        score = semantic_similarity(e1, e2, self.FIELDS, lookup)
         assert (
             score < 0.75
         ), f"Expected low similarity for unrelated conferences, got {score}"
@@ -169,7 +174,8 @@ class TestSemanticSimilarityQuality:
     def test_mid_related_venues(self):
         e1 = entity("ex:A", name="International Conference on AI")
         e2 = entity("ex:B", name="International Workshop on AI")
-        score = semantic_similarity(e1, e2, self.FIELDS)
+        lookup = embedding_lookup_for(e1, e2, self.FIELDS)
+        score = semantic_similarity(e1, e2, self.FIELDS, lookup)
         assert (
             0.5 <= score < 0.95
         ), f"Expected mid similarity for related venues, got {score}"
@@ -178,7 +184,8 @@ class TestSemanticSimilarityQuality:
     def test_high_abbreviation_vs_full_name(self):
         e1 = entity("ex:A", name="AIED")
         e2 = entity("ex:B", name="Artificial Intelligence in Education")
-        score = semantic_similarity(e1, e2, self.FIELDS)
+        lookup = embedding_lookup_for(e1, e2, self.FIELDS)
+        score = semantic_similarity(e1, e2, self.FIELDS, lookup)
         assert (
             score > 0.8
         ), f"Expected high similarity for abbreviation vs full name, got {score}"
@@ -229,12 +236,14 @@ class TestCombinedSimilarity:
     def test_with_semantic_low(self):
         e1 = entity("ex:A", name="NeurIPS")
         e2 = entity("ex:B", name="ICLR")
+        lookup = embedding_lookup_for(e1, e2, CONF_CFG["semantic_text_predicates"])
         score = combined_similarity(
             e1,
             e2,
             weights=CONF_CFG["weights"],
             comparison_predicates=CONF_CFG["comparison_predicates"],
             semantic_text_predicates=CONF_CFG["semantic_text_predicates"],
+            embedding_lookup=lookup,
         )
         assert (
             score < CONF_CFG["threshold"]
@@ -246,12 +255,14 @@ class TestCombinedSimilarity:
             "ex:A", name="Artificial Intelligence In Education", location="Tokyo"
         )
         e2 = entity("ex:B", name="AIED", location="Tokyo")
+        lookup = embedding_lookup_for(e1, e2, CONF_CFG["semantic_text_predicates"])
         score = combined_similarity(
             e1,
             e2,
             weights=CONF_CFG["weights"],
             comparison_predicates=CONF_CFG["comparison_predicates"],
             semantic_text_predicates=CONF_CFG["semantic_text_predicates"],
+            embedding_lookup=lookup,
         )
         assert (
             score >= CONF_CFG["threshold"]

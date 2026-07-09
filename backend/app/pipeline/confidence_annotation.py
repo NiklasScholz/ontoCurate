@@ -26,7 +26,9 @@ from app.pipeline.utils.turtle_utils import (
 # Load Config
 def load_config(
     config_path: Path,
-) -> tuple[dict, float, float, float, float, float, list[str], dict, set[str]]:
+) -> tuple[
+    dict, float, float, float, float, float, list[str], dict, set[str], list[str]
+]:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     s = raw.get("settings", {})
     dp = raw.get("datatype_properties", {})
@@ -39,6 +41,7 @@ def load_config(
     outlier_pentalty_entities = list(dp.get("outlier_pentalty_entities", []))
     obj_prop_config = raw.get("object_properties", {})
     exact_only_predicates = set(dp.get("exact_only_predicates", []))
+    date_languages = list(dp.get("date_languages", ["en"]))
     return (
         windows,
         penalty,
@@ -49,6 +52,7 @@ def load_config(
         outlier_pentalty_entities,
         obj_prop_config,
         exact_only_predicates,
+        date_languages,
     )
 
 
@@ -74,6 +78,7 @@ def annotate_confidence(
         outlier_pentalty_entities,
         obj_prop_config,
         exact_only_predicates,
+        date_languages,
     ) = load_config(config_path)
 
     source = source_path.read_text(encoding="utf-8")
@@ -94,6 +99,7 @@ def annotate_confidence(
             win_distance_penalty=win_distance_penalty,
             min_penalty_factor=min_penalty_factor,
             exact_only=predicate_label in exact_only_predicates,
+            date_languages=date_languages,
         )
         if result is None:
             continue

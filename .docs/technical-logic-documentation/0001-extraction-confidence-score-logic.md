@@ -38,6 +38,9 @@ datatype_properties:
     - eissn
     - doi
     - identifier
+  # Languages to use for trying to find the correct date in the source
+  date_languages:
+    - en
 
   windows:
     title_paper:
@@ -55,13 +58,14 @@ datatype_properties:
         heading: "References"
 ```
 
-- **exact_only_predicates**: predicates for which only exact, case-insensitive, and normalized matches are accepted (Tiers 1–3). Fuzzy and abbreviation matching (Tiers 4–5) are skipped. If no verbatim match is found the triple is left unannotated (`confidence = None`) rather than receiving a misleading fuzzy score. Intended for identifier fields (ISSN, DOI, etc.) where a digit-sequence fuzzy match against unrelated text produces false confidence.
+- **exact_only_predicates**: predicates for which only exact, case-insensitive, date-aware, and normalized matches are accepted (Tiers 1–5). Fuzzy and abbreviation matching (Tiers 6–7) are skipped. If no verbatim match is found the triple is left unannotated (`confidence = None`) rather than receiving a misleading fuzzy score. Intended for identifier fields (ISSN, DOI, etc.) where a digit-sequence fuzzy match against unrelated text produces false confidence.
 - **windows**: per-predicate window declarations. A predicate can declare a single window or a list — when multiple are declared the highest-confidence match across all windows wins. Supported strategies: `head` (first N chars), `tail` (last N chars), `section` (search for markdown heading), `full` (entire document, default).
 - **outlier_pentalty_entities**: only entities whose `rdf:type` local name appears in this list are subject to the outlier penalty.
+- **date_languages**: default `[en]`. Add code for everylanguage that maybe used for source documents. This is used for date matching using the `dataparser` library, which enables date recognition in over 200 languages. To reduce runtime signficantly, the config restricts to those languages possibly being present in uploaded source documents.
           
 
 ### Rule-based Tier Confidence Annotation: 
-The maximum scores from all the tiers is returned 
+Tiers are tried in order, from most to least strict. The first tier that finds any match returns its score immediately. The hierachical structure ensures later, lower-confidence tiers are never reached once an earlier tier finds a match. 
 
 #### Tier 1: Exact Matches
 Exact String Matches within the window (if provided) directly yields a confidence score of 1.0
@@ -69,13 +73,19 @@ Exact String Matches within the window (if provided) directly yields a confidenc
 #### Tier 2: Case Insenstive Matches
 Case Insenstive matches within the window yield a confidence score of 0.95
 
-#### Tier 3: Normalized Whitespace Match
+#### Tier 3: Date-aware Match
+This tier is only executed if dates in the format YYYY-MM-DD are provided (e.g., extracted dates by the LLM). Since ontoGPT extraction normalizes dates improving querying capabilities, the source text has a different representation of the date extracted. Hence, standard techniques employed for other predicates do not work. During annotation, we first attempt to find all occurances of the exact year (e.g., 2026) using regex. For dates, years typically do not have any other representation, such that this can be used as a fix point to search around. Then, within a window of +-30 characters, we use `dateparser.search.search_dates` (restricted to the configured `date_languages`) to find date-looking expressions in the window and compare their calendar value against the target date extracted from ontoGPT. Two passes are tried in order: a day+month+year pass (0.95 confidence) and, if nothing matched, a month+year-only pass (0.75 confidence, for sources that omit the day, but where ontoGPT may have hallucinated a date).We additionally, try to search first for day before month, before switching to month before day in the source text. Our system itself only supports schemas with date format (`YYYY-MM-DD`) produced during extraction, such that only the source text phrasing may change.
+
+#### Tier 4: Normalized Whitespace Match
 After cleaning white space and new lines (incl. intra-word) a confidence score of 0.9 is returned for matches
 
-#### Tier 4: Abbreviation Match:
+#### Tier 5: Markdown Normalized Match
+Same as Tier 4, but markdown inline markers (`*`, `_`, `` ` ``) and em/en dashes are additionally removed before comparing, to catch matches that were not caught due to markdown formatting of the conversion. Yields a confidence score of 0.88.
+
+#### Tier 6: Abbreviation Match:
 If partial abbreviations were found (e.g. KG Graph for Knowledge Graph) a confidence score of 0.75 is returned 
 
-#### Tier 5: Fuzzy Matches:
+#### Tier 7: Fuzzy Matches:
 On sentence level partial_ratio from rapidfuzz is provided (if best sentence score is >= 50). It expects to find a partial matching sentence in source of target length. 
 
 ### Penalities to Out-Of-Window & Outliers
