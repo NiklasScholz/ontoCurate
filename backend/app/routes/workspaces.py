@@ -61,7 +61,10 @@ async def create_workspace(
         raise BadRequestException(f"Schema '{data.schema_name}' does not exist")
 
     workspace = await WorkspaceRepository(session).create(
-        data.name, schema_path, provenance_path, alignment_config_path
+        data.name,
+        schema_path,
+        alignment_config_path=alignment_config_path,
+        provenance_config_path=provenance_path,
     )
     if not workspace:
         raise BadRequestException("Failed to create workspace")
