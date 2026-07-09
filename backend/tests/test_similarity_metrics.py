@@ -145,20 +145,14 @@ class TestSemanticSimilarity:
         e2 = entity("ex:B", location="Tokyo")
         assert semantic_similarity(e1, e2, self.FIELDS) == 0.0
 
-    def test_api_unreachable_returns_zero(self):
-        orig = os.environ.get("OPENAI_API_BASE")
-        os.environ["OPENAI_API_BASE"] = "http://localhost:19999"
-        try:
-            e1 = entity("ex:A", name="AIED")
-            e2 = entity("ex:B", name="ECTEL")
-            lookup = embedding_lookup_for(e1, e2, self.FIELDS)
-            assert lookup == {}
-            assert semantic_similarity(e1, e2, self.FIELDS, lookup) == 0.0
-        finally:
-            if orig is None:
-                os.environ.pop("OPENAI_API_BASE", None)
-            else:
-                os.environ["OPENAI_API_BASE"] = orig
+    def test_api_unreachable_returns_zero(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:19999")
+        e1 = entity("ex:A", name="AIED")
+        e2 = entity("ex:B", name="ECTEL")
+        lookup = embedding_lookup_for(e1, e2, self.FIELDS)
+        assert lookup == {}
+        assert semantic_similarity(e1, e2, self.FIELDS, lookup) == 0.0
 
 
 class TestSemanticSimilarityQuality:
