@@ -1,0 +1,147 @@
+# Entity alignment configuration.
+settings:
+  # Minimum similarity score for proposed owl:sameAs alignment 
+  default_threshold: 0.8
+
+  # Metric weights (must sum to 1.0)
+  default_weights:
+    syntactic: 0.6
+    semantic: 0.3
+    structural: 0.1
+
+  # Default fields used for syntactic similarity 
+  default_comparison_predicates:
+    - name
+
+  # Default fields used for semantic similarity
+  default_semantic_text_predicates:
+    - name
+
+  # Whether for every field initials should be considered during matching (i.e. single character matches first character of full token)
+  default_expand_initials: false
+
+  # Unique Keys
+  unique_keys:
+    - identifier
+    - doi
+    - issn
+    - eissn
+
+entity_types:
+  Person:
+    threshold: 0.92
+    weights:
+      syntactic: 0.9
+      semantic: 0.0
+      structural: 0.1
+    comparison_predicates:
+      - familyName
+      - name
+      - email
+    semantic_text_predicates:
+      - name
+      - givenName
+      - familyName
+      - email
+    expand_initials: true
+    sparsity_penalty: 0.85
+    sparsity_max_fields: 1
+    hard_match_predicates:
+      familyName: 0.97
+
+  Organization:
+    threshold: 0.90
+    weights:
+      syntactic: 0.75
+      semantic: 0.15
+      structural: 0.1
+    comparison_predicates:
+      - name
+      - location
+    semantic_text_predicates:
+      - name
+      - location
+    unique_keys:
+      - location
+
+  Conference:
+    threshold: 0.82
+    weights:
+      syntactic: 0.15
+      semantic: 0.8
+      structural: 0.05
+    comparison_predicates:
+      - name
+      - location
+    semantic_text_predicates:
+      - name
+      - location
+    expand_initials: true
+    unique_keys:
+      - startDate
+      - edition
+
+  Workshop:
+    threshold: 0.85
+    weights:
+      syntactic: 0.45
+      semantic: 0.45
+      structural: 0.1
+    comparison_predicates:
+      - name
+      - location
+    semantic_text_predicates:
+      - name
+      - location
+    unique_keys:
+      - startDate
+      - edition
+
+  Proceedings:
+    threshold: 0.88
+    weights:
+      syntactic: 0.6
+      semantic: 0.3
+      structural: 0.1
+    comparison_predicates:
+      - title
+      - volume
+      - issued
+    semantic_text_predicates:
+      - title
+    unique_keys:
+      - issued
+
+  Journal:
+    threshold: 0.9
+    weights:
+      syntactic: 0.6
+      semantic: 0.4
+      structural: 0.0
+    comparison_predicates:
+      - title
+      - issn
+      - eissn
+    semantic_text_predicates:
+      - title
+
+  Series:
+    threshold: 0.9
+    weights:
+      syntactic: 0.6
+      semantic: 0.4
+      structural: 0.0
+    comparison_predicates:
+      - name
+      - issn
+    semantic_text_predicates:
+      - name
+
+  AcademicArticle:
+    threshold: 0.85
+    weights:
+      syntactic: 0.9
+      semantic: 0.0
+      structural: 0.1
+    comparison_predicates:
+      - title

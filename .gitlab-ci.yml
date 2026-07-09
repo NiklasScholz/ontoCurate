@@ -16,11 +16,29 @@ backend-lint:
 backend-test:
   stage: test
   image: python:3.12-slim
+  services:
+    - postgres:16
+    - name: ghcr.io/oxigraph/oxigraph:latest
+      alias: oxigraph
+      command: ["serve", "--bind", "0.0.0.0:7878"]
+  variables:
+    POSTGRES_USER: onto
+    POSTGRES_PASSWORD: onto
+    POSTGRES_DB: onto
+    DATABASE_URL: postgresql+asyncpg://onto:onto@postgres:5432/onto
+    OXIGRAPH_URL: http://oxigraph:7878
   before_script:
     - cd backend
     - pip install --quiet -e ".[dev]"
   script:
-    - pytest tests/ -v
+    - coverage run --branch -m pytest tests/ -v
+    - coverage report
+    - coverage html
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    paths:
+      - backend/htmlcov/
+    expire_in: 1 day
 
 
 frontend-lint:

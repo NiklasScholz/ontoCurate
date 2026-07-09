@@ -1,6 +1,14 @@
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, Text, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +29,12 @@ class Document(Base):
     title: Mapped[str | None] = mapped_column(String, nullable=True)
     raw_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     source_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "content_hash", name="uq_document_hash_per_workspace"
+        ),
     )

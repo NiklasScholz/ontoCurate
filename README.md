@@ -1,5 +1,6 @@
 # onto-curate
-
+![coverage](https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate/badges/main/coverage.svg) 
+![pipeline](https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate/badges/main/pipeline.svg)
 ## Prerequisites
 
 - Docker Desktop
