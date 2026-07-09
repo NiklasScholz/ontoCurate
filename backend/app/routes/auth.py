@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, UnauthorizedException
+from app.core.limiter import limiter
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.deps import get_current_user
 from app.models.user import User
@@ -56,8 +57,12 @@ async def google_auth(
 
 
 @router.post("/login", response_model=UserResponse)
+@limiter.limit("5/minute")
 async def login(
-    body: LoginRequest, response: Response, session: AsyncSession = Depends(get_session)
+    request: Request,
+    body: LoginRequest,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
 ):
     user = await UserRepository(session).get_by_email(
         body.login_name
@@ -78,7 +83,9 @@ async def login(
 
 
 @router.post("/register", response_model=UserResponse)
+@limiter.limit("3/hour")
 async def register(
+    request: Request,
     body: RegisterRequest,
     response: Response,
     session: AsyncSession = Depends(get_session),

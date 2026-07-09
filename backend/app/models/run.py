@@ -15,8 +15,8 @@ class Run(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=False
     )
-    triggered_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    triggered_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     model: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(
