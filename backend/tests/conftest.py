@@ -20,7 +20,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.database import Base, get_session
+from app.core.limiter import limiter
 from app.main import app
+
+# disable rate limiting that requires redis
+limiter.enabled = False
 
 
 def _admin_db_url() -> str:
