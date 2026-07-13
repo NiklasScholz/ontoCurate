@@ -20,8 +20,82 @@ def validate_iri(value: str, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a valid IRI")
 
 
-def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
-    return None
+def curator_node(user_id: uuid.UUID) -> NamedNode:
+    return NamedNode(f"https://example.org/users/{user_id}")
+
+
+def upsert_curator(
+    workspace_id: str,
+    user_id: uuid.UUID,
+    name: str | None,
+    email: str,
+    username: str | None,
+) -> None:
+    """
+    Adds curator information into provenance graph for more informative provenance querying.
+    Workspace owners typically do not know the user_id of the curators, so we allow upserting curator information with the user_id, name, email, and username until their account gets deleted when this data is being anonymized.
+    """
+    graph = curation_graph(workspace_id)
+    curator = curator_node(user_id)
+
+    # ensure idempotence by deleting existing user with this information
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{
+                <{curator.value}> <{SCHEMA_NAME}> ?name .
+                <{curator.value}> <{SCHEMA_EMAIL}> ?email .
+                <{curator.value}> <{PACO_USERNAME}> ?username .
+            }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_NAME}> ?name . }}
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_EMAIL}> ?email . }}
+                OPTIONAL {{ <{curator.value}> <{PACO_USERNAME}> ?username . }}
+            }}
+        }}
+    """)
+
+    triples = [
+        Triple(curator, N_RDF_TYPE, N_PACO_CURATOR),
+        Triple(curator, N_RDF_TYPE, N_PROV_AGENT),
+        Triple(curator, N_SCHEMA_NAME, Literal(name or username or str(user_id))),
+        Triple(curator, N_SCHEMA_EMAIL, Literal(email)),
+    ]
+    if username:
+        triples.append(Triple(curator, N_PACO_USERNAME, Literal(username)))
+
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+    sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
+
+
+def anonymize_curator(user_id: uuid.UUID) -> None:
+    """Strips curators identifying information from the graph when their account is deleted."""
+    curator = curator_node(user_id)
+
+    sparql_update(f"""
+        DELETE {{
+            GRAPH ?g {{
+                <{curator.value}> <{SCHEMA_NAME}> ?name .
+                <{curator.value}> <{SCHEMA_EMAIL}> ?email .
+                <{curator.value}> <{PACO_USERNAME}> ?username .
+            }}
+        }}
+        INSERT {{
+            GRAPH ?g {{
+                <{curator.value}> <{SCHEMA_NAME}> "Deleted user" .
+                <{curator.value}> <{PACO_DELETED}> true .
+            }}
+        }}
+        WHERE {{
+            GRAPH ?g {{
+                <{curator.value}> <{RDF_TYPE}> <{PACO_CURATOR}> .
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_NAME}> ?name . }}
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_EMAIL}> ?email . }}
+                OPTIONAL {{ <{curator.value}> <{PACO_USERNAME}> ?username . }}
+            }}
+        }}
+    """)
 
 
 def load_prov(

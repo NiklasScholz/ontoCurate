@@ -189,6 +189,18 @@ paco:isCurrentVersion a owl:DatatypeProperty ;
     rdfs:label "is current version" ;
     rdfs:comment "Indicates whether this statement version is the current active version within its derivation chain." .
 
+paco:username a owl:DatatypeProperty ;
+    rdfs:domain paco:Curator ;
+    rdfs:range xsd:string ;
+    rdfs:label "username" ;
+    rdfs:comment "The username of the curator at the time it was recorded. Use schema:name and schema:email for display name and email." .
+
+paco:isDeleted a owl:DatatypeProperty ;
+    rdfs:domain paco:Curator ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is anonymized" ;
+    rdfs:comment "True once the curator's identifying information (schema:name, schema:email, paco:username) has been deleted following account deletion. The curator node itself is retained so that prov:wasAssociatedWith and paco:origin edges, and therefore contribution counts, remain intact." .
+
 #################################################################
 # NOTES FOR PROV-O USAGE
 #################################################################
