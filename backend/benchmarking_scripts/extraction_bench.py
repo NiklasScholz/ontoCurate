@@ -20,6 +20,7 @@ def process_document(
     api_key: str,
     provenance_config_path: Path | None,
     max_text_length: int | None,
+    max_output_tokens: int | None = None,
 ) -> list[dict]:
     print(f"Processing document: {doc_path.name} [{idx + 1}/{total}]")
     try:
@@ -31,6 +32,7 @@ def process_document(
             api_base=api_base,
             api_key=api_key,
             max_text_length=max_text_length,
+            max_output_tokens=max_output_tokens,
         )
     except Exception as e:
         print(f"Extraction failed for {doc_path.name}, skipping. Error: {e}")
@@ -91,6 +93,7 @@ def run_extraction_bench(
     api_key: str,
     provenance_config_path: Path | None = None,
     max_text_length: int | None = None,
+    max_output_tokens: int | None = None,
     max_workers: int = 1,
 ):
     total = len(input_paths)
@@ -110,6 +113,7 @@ def run_extraction_bench(
                     api_key,
                     provenance_config_path,
                     max_text_length,
+                    max_output_tokens,
                 )
             )
         return all_rows
@@ -129,6 +133,7 @@ def run_extraction_bench(
                 api_key,
                 provenance_config_path,
                 max_text_length,
+                max_output_tokens,
             ): doc_path
             for idx, doc_path in enumerate(input_paths)
         }

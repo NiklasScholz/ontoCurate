@@ -26,6 +26,7 @@ def extract_document(
     api_base: str,
     api_key: str,
     max_text_length: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> tuple[Path, Path]:
     """
     Stage 1: Call `ontogpt extract` as a subprocess, clean the YAML output,
@@ -40,6 +41,7 @@ def extract_document(
     - api_base: Base URL for KI Connect NRW API (e.g. "https://chat.kiconnect.nrw/api/v1")
     - api_key: API key for KI Connect NRW
     - max_text_length: Optional max text length to pass to ontoGPT for internal chunking
+    - max_output_tokens: Optional max completion tokens per LLM call (see ontogpt_patches/llm_client.py)
     Returns:
         (yaml_path, ttl_path)
     """
@@ -60,6 +62,7 @@ def extract_document(
         api_base=api_base,
         api_key=api_key,
         max_text_length=max_text_length,
+        max_output_tokens=max_output_tokens,
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     yaml_to_turtle(yaml_out, ttl_out, schema_path)
@@ -75,14 +78,17 @@ def extract_onto(
     api_base: str | None = None,
     api_key: str | None = None,
     output_format: str = "yaml",
-    verbose: bool = False,
+    verbose: bool = True,
     max_text_length: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> None:
     env = os.environ.copy()
     if api_base:
         env["OPENAI_API_BASE"] = api_base
     if api_key:
         env["OPENAI_API_KEY"] = api_key
+    if max_output_tokens is not None:
+        env["ONTOGPT_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
     base_url = env.get("OPENAI_API_BASE", "")
 
     cmd = ["ontogpt"]
@@ -107,19 +113,9 @@ def extract_onto(
     ]
     if max_text_length is not None:
         cmd += ["--max-text-length", str(max_text_length)]
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    result = subprocess.run(cmd, env=env, text=True)
     if result.returncode != 0:
-        import logging
-
-        logging.getLogger(__name__).error(
-            "ontogpt failed (exit %d)\nstdout: %s\nstderr: %s",
-            result.returncode,
-            result.stdout,
-            result.stderr,
-        )
-        raise subprocess.CalledProcessError(
-            result.returncode, cmd, output=result.stdout, stderr=result.stderr
-        )
+        raise subprocess.CalledProcessError(result.returncode, cmd)
 
 
 def uri_fields_from_schema(schema_path: Path) -> frozenset[str]:

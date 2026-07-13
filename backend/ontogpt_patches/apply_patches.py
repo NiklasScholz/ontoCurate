@@ -9,6 +9,7 @@ _PATCHES_DIR = Path(__file__).parent
 # Maps patch filename
 _PATCHES: dict[str, tuple[str, str]] = {
     "spires_engine.py": ("ontogpt", "engines/spires_engine.py"),
+    "llm_client.py": ("ontogpt", "clients/llm_client.py"),
 }
 
 
