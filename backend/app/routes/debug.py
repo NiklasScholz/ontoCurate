@@ -1,8 +1,11 @@
+import uuid
+
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.deps import get_current_user
 from app.models.workspace import Workspace
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
@@ -91,36 +94,46 @@ async def check_oxigraph():
     }
 
 
-@router.post("/seed-statement", status_code=201)
+@router.post("/seed-statement/{workspace_id}", status_code=201)
 async def seed_statement_for_testing(
+    workspace_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
 ):
     workspace_repo = WorkspaceRepository(session)
     run_repo = RunRepository(session)
-    workspace = await workspace_repo.create(
-        name="Test Workspace",
-        schema_path="test-schema-path",
-        alignment_config_path="test-alignment-config-path",
-        provenance_config_path="test-provenance-config-path",
-    )
-    workspace_id = workspace.id
+
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        workspace = await workspace_repo.create_with_id(
+            name="Test Workspace",
+            workspace_id=workspace_id,
+            schema_path="test-schema-path",
+            alignment_config_path="test-alignment-config-path",
+            provenance_config_path="test-provenance-config-path",
+        )
 
     run = await run_repo.create(
-        workspace_id=workspace_id,
-        triggered_by=None,
+        workspace_id=workspace.id,
+        triggered_by=user.id,
         model="test-model",
     )
 
-    graph = curation_graph(str(workspace_id))
+    graph = curation_graph(str(workspace.id))
 
     statement_id = (
         f"https://example.org/workspaces/"
         f"{workspace_id}/candidate-statements/test-paper-author"
     )
 
+    source_document_id = (
+        f"https://example.org/workspaces/" f"{workspace_id}/source-documents/test-paper"
+    )
+
     sparql_update(f"""
     INSERT DATA {{
         GRAPH <{graph}> {{
+            <{source_document_id}> a <https://example.org/provenance-and-curation-ontology/SourceDocument> .
             <{statement_id}> a <https://example.org/provenance-and-curation-ontology/CandidateStatement> .
             <{statement_id}> a <http://www.w3.org/ns/prov#Entity> .
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/subject> <https://example.org/entities/Paper_X> .
@@ -129,6 +142,7 @@ async def seed_statement_for_testing(
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/curationStatus> <https://example.org/provenance-and-curation-ontology/pending> .
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/isCurrentVersion> true .
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/confidence> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+            <{statement_id}> <http://www.w3.org/ns/prov#wasDerivedFrom> <{source_document_id}> .
         }}
     }}
     """)
@@ -137,6 +151,7 @@ async def seed_statement_for_testing(
         "workspace_id": workspace_id,
         "run_id": run.id,
         "statement_id": statement_id,
+        "source_document_id": source_document_id,
         "status": "seeded",
         "next_step": (
             f"POST /extraction/{run.id}/statements/" f"{statement_id}/accept"

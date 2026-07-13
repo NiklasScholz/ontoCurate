@@ -8,7 +8,12 @@ from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.statement import StatementEdit, StatementIdResponse, StatementResponse
-from app.store.writer import accept_statement, edit_statement, reject_statement
+from app.store.writer import (
+    accept_statement,
+    edit_statement,
+    reject_statement,
+    reset_statement,
+)
 
 router = APIRouter(
     prefix="/statements", tags=["statements"], dependencies=[Depends(get_current_user)]
@@ -120,8 +125,27 @@ async def edit_statement_endpoint(
     response_model=StatementResponse,
     dependencies=[Depends(require_role("owner", "editor"))],
 )
-async def reset_statement(workspace_id: UUID, statement_id: str):
+async def reset_statement_endpoint(
+    workspace_id: UUID,
+    statement_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Rolls back a statement to its original version, and set it to neither accepted nor rejected.
+    Rolls back a statement to its original version, and set it to reset.
     Returns the new CandidateStatement.
     """
+    workspace_repo = WorkspaceRepository(session)
+
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    try:
+        return reset_statement(
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

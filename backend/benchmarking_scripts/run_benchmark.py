@@ -115,6 +115,11 @@ def main():
     )
     parser.add_argument("--model", default="gpt-oss-120b", help="LLM model name")
     parser.add_argument(
+        "--schema-name",
+        default="scholarySchema",
+        help="Name of schema subfolder under config/ (defaults to scholarySchema)",
+    )
+    parser.add_argument(
         "--schema",
         default=None,
         type=Path,
@@ -151,9 +156,9 @@ def main():
     args = parser.parse_args()
 
     backend_root = Path(__file__).parent.parent
-    config_dir = backend_root / "config" / "schemas"
+    config_dir = backend_root / "config" / args.schema_name
 
-    default_schema = config_dir / "scholarly_schema.yaml"
+    default_schema = config_dir / "extraction_schema.yaml"
     schema_path = args.schema or default_schema
     if not schema_path.exists():
         print(f"Schema not found: {schema_path}", file=sys.stderr)
