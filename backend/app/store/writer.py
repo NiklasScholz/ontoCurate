@@ -261,9 +261,11 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     if PACO_TEXT_SPAN_END in props:
         text_span_end = props[PACO_TEXT_SPAN_END]
 
-    # Get is_current and status
+    # Get is_current, status, origin, and created_at properties
     is_current = props.get(PACO_CURRENT)
     status = props.get(PACO_STATUS)
+    origin = props.get(PACO_ORIGIN)
+    created_at = props.get(PACO_CREATED_AT)
 
     return {
         "props": props,
@@ -275,6 +277,8 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
         "text_span_end": text_span_end,
         "is_current": is_current,
         "status": status,
+        "origin": origin,
+        "created_at": created_at,
     }
 
 

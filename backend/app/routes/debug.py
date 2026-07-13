@@ -143,6 +143,8 @@ async def seed_statement_for_testing(
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/isCurrentVersion> true .
             <{statement_id}> <https://example.org/provenance-and-curation-ontology/confidence> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
             <{statement_id}> <http://www.w3.org/ns/prov#wasDerivedFrom> <{source_document_id}> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/origin> <https://example.org/origins/test-origin> .
+            <{statement_id}> <https://example.org/provenance-and-curation-ontology/createdAt> "2023-10-01T12:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
         }}
     }}
     """)

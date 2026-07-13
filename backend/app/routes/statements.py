@@ -8,9 +8,12 @@ from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.statement import StatementEdit, StatementIdResponse, StatementResponse
+from app.store.client import curation_graph
+from app.store.queries import get_current_candidate_statement
 from app.store.writer import (
     accept_statement,
     edit_statement,
+    load_candidate_statement,
     reject_statement,
     reset_statement,
 )
@@ -149,3 +152,56 @@ async def reset_statement_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get(
+    "/{workspace_id}/statements/{statement_id:path}/current",
+    response_model=StatementResponse,
+)
+async def get_current_statement_endpoint(
+    workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
+):
+    workspace_repo = WorkspaceRepository(session)
+
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found",
+        )
+
+    graph = curation_graph(str(workspace_id))
+
+    try:
+        current_statement_id = get_current_candidate_statement(
+            stmt_id=statement_id,
+            graph=graph,
+        )
+
+        statement = load_candidate_statement(
+            stmt_id=current_statement_id,
+            graph=graph,
+        )
+
+        object_node = statement["object_node"]
+
+        object_value = object_node.value
+
+        return StatementResponse(
+            id=current_statement_id,
+            subject=statement["subject"],
+            predicate=statement["predicate"],
+            object=object_value,
+            origin=statement["origin"],
+            curation_status=statement["status"],
+            created_at=statement["created_at"],
+            confidence=statement["confidence_score"],
+            text_span_start=statement["text_span_start"],
+            text_span_end=statement["text_span_end"],
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
