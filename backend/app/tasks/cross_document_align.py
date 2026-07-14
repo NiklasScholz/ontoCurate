@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import shutil
 from pathlib import Path
 from uuid import UUID
 
@@ -54,8 +53,6 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
             await update_all("failed")
             logger.exception("[%s] Cross-document alignment failed", run_id)
             raise
-        finally:
-            shutil.rmtree(TMP_BASE / run_id, ignore_errors=True)
 
     asyncio.run(run())
     return workspace_id
