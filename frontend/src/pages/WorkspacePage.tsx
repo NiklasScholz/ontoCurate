@@ -208,6 +208,15 @@ export default function WorkspacePage() {
                                     >
                                         {d.filename}
                                     </a>
+                                ) : d.file_type === "markdown" ? (
+                                    <a
+                                        className="underline"
+                                        href={apiUrl(`/documents/${d.id}/markdown`)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        {d.filename}
+                                    </a>
                                 ) : (
                                     d.filename
                                 )}
