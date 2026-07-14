@@ -11,6 +11,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - OXIGRAPH_URL=http://oxigraph:7878
       - OXIGRAPH_DATA_PATH=/data/oxigraph
+      - "WIKIMEDIA_USER_AGENT=OntoCurateBot/0.1-test (private RWTH GitLab project; kiran.monteiro.pai@rwth-aachen.de)"
     env_file:
       - backend/secrets.env
     depends_on:
@@ -29,6 +30,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - OXIGRAPH_URL=http://oxigraph:7878
       - OXIGRAPH_DATA_PATH=/data/oxigraph
+      - "WIKIMEDIA_USER_AGENT=OntoCurateBot/0.1-test (private RWTH GitLab project; kiran.monteiro.pai@rwth-aachen.de)"
     env_file:
       - backend/secrets.env
     depends_on:
