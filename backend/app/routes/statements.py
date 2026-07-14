@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.exceptions import NotFoundException
 from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.workspace import WorkspaceRepository
@@ -42,7 +43,7 @@ async def accept_statement_endpoint(
 
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
         return StatementIdResponse(
@@ -75,7 +76,7 @@ async def reject_statement_endpoint(
 
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
         return StatementIdResponse(
@@ -108,7 +109,7 @@ async def edit_statement_endpoint(
 
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
         return StatementIdResponse(
@@ -142,7 +143,7 @@ async def reset_statement_endpoint(
 
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
         return reset_statement(
@@ -165,10 +166,7 @@ async def get_current_statement_endpoint(
 
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Workspace not found",
-        )
+        raise NotFoundException(f"Workspace {workspace_id} not found")
 
     graph = curation_graph(str(workspace_id))
 

@@ -286,44 +286,43 @@ def find_original_candidate_statement(
     stmt_id: str,
     graph: str,
 ) -> str:
-    current_id = stmt_id
+    payload = sparql_select(f"""
+        SELECT ?originalStatement
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}>
+                    <{PROV_DERIVED_FROM}>*
+                    ?originalStatement .
 
-    while True:
-        payload = sparql_select(f"""
-            SELECT ?parent ?parentType WHERE {{
-                GRAPH <{graph}> {{
-                    <{current_id}> <{PROV_DERIVED_FROM}> ?parent .
-                    OPTIONAL {{
-                        ?parent <{RDF_TYPE}> ?parentType .
-                    }}
-                }}
+                ?originalStatement
+                    <{RDF_TYPE}>
+                    <{PACO_CANDIDATE}> .
+
+                ?originalStatement
+                    <{PROV_DERIVED_FROM}>
+                    ?sourceDocument .
+
+                ?sourceDocument
+                    <{RDF_TYPE}>
+                    <{PACO_SOURCE_DOCUMENT}> .
             }}
-            """)
+        }}
+        """)
 
-        bindings = payload.get("results", {}).get("bindings", [])
+    bindings = payload.get("results", {}).get("bindings", [])
 
-        if not bindings:
-            raise ValueError(
-                f"Statement {current_id} has no prov:wasDerivedFrom relation"
-            )
+    if len(bindings) == 0:
+        raise ValueError(
+            f"No original CandidateStatement found for statement {stmt_id}"
+        )
 
-        parent_id = bindings[0]["parent"]["value"]
-        parent_types = {
-            binding["parentType"]["value"]
-            for binding in bindings
-            if "parentType" in binding
-        }
+    if len(bindings) > 1:
+        raise ValueError(
+            f"Expected exactly one original CandidateStatement for {stmt_id}, "
+            f"found {len(bindings)}"
+        )
 
-        if PACO_SOURCE_DOCUMENT in parent_types:
-            return current_id
-
-        if PACO_CANDIDATE not in parent_types:
-            raise ValueError(
-                f"Unexpected provenance parent {parent_id}: "
-                "expected CandidateStatement or SourceDocument"
-            )
-
-        current_id = parent_id
+    return bindings[0]["originalStatement"]["value"]
 
 
 def set_to_not_current(stmt_id: str, graph: str) -> None:
