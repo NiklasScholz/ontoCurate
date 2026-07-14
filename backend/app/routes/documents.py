@@ -54,6 +54,7 @@ async def list_documents(
             title=doc.title,
             extracted_triples=await get_triple_count(doc.id, session, False),
             pending_triples=await get_triple_count(doc.id, session, True),
+            created_at=doc.created_at,
         )
         for doc in await DocumentRepository(session).list_by_workspace(workspace_id)
     ]
@@ -71,6 +72,7 @@ async def get_document(document_id: UUID, session: AsyncSession = Depends(get_se
         title=doc.title,
         extracted_triples=await get_triple_count(document_id, session, False),
         pending_triples=await get_triple_count(document_id, session, True),
+        created_at=doc.created_at,
         markdown=str(doc.source_content),
     )
 
