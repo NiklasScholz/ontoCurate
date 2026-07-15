@@ -325,7 +325,12 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     if old_object_type == "uri":
         object_node = NamedNode(old_object_value)
     else:
-        object_node = Literal(old_object_value)
+        old_object_datatype = old_object_binding.get("datatype")
+        object_node = Literal(
+            old_object_value,
+            language=old_object_binding.get("xml:lang"),
+            datatype=NamedNode(old_object_datatype) if old_object_datatype else None,
+        )
 
     # Get confidence score
     confidence_score = props.get(PACO_CONFIDENCE)

@@ -30,8 +30,6 @@ def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id:
         get_document_chain(doc["document_id"], doc["file_type"], run_id)
         for doc in documents
     )
-    if len(documents) < 2:
-        return doc_group
 
     cross_doc = align_cross_document_task.si(workspace_id, run_id)
     return chord(doc_group, cross_doc)

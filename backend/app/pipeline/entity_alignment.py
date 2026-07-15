@@ -12,6 +12,7 @@ from app.pipeline.metrics.similarity_metrics import (
     semantic_text_pair,
 )
 from app.pipeline.utils.turtle_utils import load_entity_information
+from app.store.queries import get_existing_alignment_pairs, get_prior_entities
 from app.store.writer import write_alignment_results
 
 logger = logging.getLogger(__name__)
@@ -291,16 +292,30 @@ def run_cross_document_alignment(
     for ttl_path in ttl_files:
         for entity in load_entity_information(ttl_path):
             entity["source_document"] = ttl_path.stem
+            entity["is_prior"] = False
             entities.append(entity)
+
+    prior_entities = get_prior_entities(
+        workspace_id, exclude_document_ids=[p.stem for p in ttl_files]
+    )
+    entities.extend(prior_entities)
 
     config = load_alignment_config(config_path)
     candidates = [
         (a, b)
         for a, b in generate_candidate_pairs(entities, config)
-        if a.get("source_document") != b.get("source_document")
+        if not (a.get("is_prior") and b.get("is_prior"))
+        and a.get("source_document") != b.get("source_document")
     ]
 
     alignments = score_and_filter(candidates, config)
+
+    existing_pairs = get_existing_alignment_pairs(workspace_id)
+    alignments = [
+        (uri_a, uri_b, score, src_a, src_b)
+        for uri_a, uri_b, score, src_a, src_b in alignments
+        if frozenset({uri_a, uri_b}) not in existing_pairs
+    ]
 
     if not alignments:
         return
