@@ -3,12 +3,13 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from pydantic import BaseModel, WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.limiter import limiter
 from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.document import DocumentRepository
@@ -96,7 +97,9 @@ async def get_runs(workspace_id: UUID, session: AsyncSession = Depends(get_sessi
 @router.post(
     "/", status_code=202, dependencies=[Depends(require_role("owner", "editor"))]
 )
+@limiter.limit("5/hour")
 async def create_documents(
+    request: Request,
     files: list[UploadFileType] = File(...),
     workspace_id: UUID = Query(...),
     session: AsyncSession = Depends(get_session),

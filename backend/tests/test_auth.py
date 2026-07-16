@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 
 def unique_email(label: str) -> str:
-    return f"{label}-{uuid.uuid4().hex[:8]}@example.com"
+    return f"{label}-{uuid.uuid4().hex[:8]}@rwth-aachen.de"
 
 
 async def test_register_sets_cookie_and_creates_user(client):

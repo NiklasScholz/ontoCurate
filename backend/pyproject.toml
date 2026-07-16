@@ -33,7 +33,8 @@ dependencies = [
     "PyJWT",
     "pwdlib[bcrypt]",
     "argon2-cffi",
-    "pydantic[email]"
+    "pydantic[email]",
+    "slowapi"
 ]
 
 [project.optional-dependencies]
