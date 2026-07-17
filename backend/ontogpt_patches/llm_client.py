@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -15,6 +14,11 @@ from oaklib.utilities.apikey_manager import get_apikey_value
 from ontogpt import DEFAULT_MODEL
 
 logger = logging.getLogger(__name__)
+
+
+class LLMCompletionError(Exception):
+    """Raised when an LLM completion request fails or returns no usable content."""
+
 
 # Necessary to avoid repeated debug messages
 litellm.suppress_debug_info = True
@@ -183,17 +187,10 @@ class LLMClient:
         if show_prompt:
             logger.info(f" SENDING PROMPT:\n{prompt}")
 
-        response: object | None = None
-
         these_messages = [{"content": prompt, "role": "user"}]
 
         if self.system_message:
             these_messages.insert(0, {"content": self.system_message, "role": "system"})
-
-        # This toggle controls whether we can continue or not.
-        # Some errors may be temporary, while others, such as authentication errors,
-        # require action before we may continue.
-        force_stop = False
 
         try:
             # TODO: expose user prompt to CLI
@@ -214,47 +211,55 @@ class LLMClient:
             response = completion(**request_kwargs)
         except openai.APITimeoutError as e:
             logger.error(f"Encountered API timeout error: {e}")
+            raise LLMCompletionError(f"API timeout error: {e}") from e
         except litellm.exceptions.AuthenticationError as e:
             logger.error(f"Encountered authentication error: {e}")
-            force_stop = True
+            raise LLMCompletionError(f"Authentication error: {e}") from e
         except litellm.exceptions.NotFoundError as e:
             logger.error(
                 f"Encountered error due to unrecognized model or endpoint: {e}"
             )
-            force_stop = True
+            raise LLMCompletionError(f"Unrecognized model or endpoint: {e}") from e
         except litellm.exceptions.ContextWindowExceededError as e:
             logger.error(f"Exceeded context window: {e}")
+            raise LLMCompletionError(f"Context window exceeded: {e}") from e
         except litellm.exceptions.BadRequestError as e:
             logger.error(f"Encountered error due to bad request: {e}")
-            force_stop = True
+            raise LLMCompletionError(f"Bad request: {e}") from e
         except litellm.exceptions.UnprocessableEntityError as e:
             logger.error(f"Encountered error due to unprocessable entity: {e}")
+            raise LLMCompletionError(f"Unprocessable entity: {e}") from e
         except litellm.exceptions.PermissionDeniedError as e:
             logger.error(f"Encountered error - permission denied: {e}")
-            force_stop = True
+            raise LLMCompletionError(f"Permission denied: {e}") from e
         except litellm.exceptions.RateLimitError as e:
             logger.error(f"Encountered rate limiting: {e}")
+            raise LLMCompletionError(f"Rate limited: {e}") from e
         except litellm.exceptions.ServiceUnavailableError as e:
             logger.error(f"Service unavailable: {e}")
-            force_stop = True
+            raise LLMCompletionError(f"Service unavailable: {e}") from e
         except litellm.exceptions.InternalServerError as e:
             logger.error(f"Internal server error: {e}")
-            force_stop = True
+            raise LLMCompletionError(f"Internal server error: {e}") from e
         except litellm.exceptions.APIError as e:
             logger.error(f"API returned an invalid response: {e}")
+            raise LLMCompletionError(f"API returned an invalid response: {e}") from e
         except litellm.exceptions.APIConnectionError as e:
             logger.error(f"API connection error: {e}")
+            raise LLMCompletionError(f"API connection error: {e}") from e
+        except openai.OpenAIError as e:
+            # Covers any provider error (e.g. from a custom OpenAI-compatible
+            # gateway) that litellm didn't map to one of its own exception
+            # types above, such as a plain openai.AuthenticationError.
+            logger.error(f"Encountered OpenAI client error: {type(e)}, Error: {e}")
+            raise LLMCompletionError(f"OpenAI client error: {e}") from e
         except Exception as e:
             logger.error(f"Encountered error: {type(e)}, Error: {e}")
+            raise LLMCompletionError(f"Unexpected error calling LLM: {e}") from e
 
-        if force_stop:
-            sys.exit("Exiting...")
-
-        if response is not None:
-            payload = self._extract_response_text(response)
-        else:
-            logger.error("No response or response is empty.")
-            payload = ""
+        payload = self._extract_response_text(response)
+        if not payload:
+            raise LLMCompletionError("LLM call returned no completion content.")
 
         return payload
 
