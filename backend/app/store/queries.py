@@ -5,19 +5,7 @@ from app.pipeline.utils.turtle_utils import (
     sparql_binding_to_term,
 )
 from app.store.client import curation_graph, sparql_select
-from app.store.utils import (
-    OWL_SAME_AS,
-    PACO_CANDIDATE,
-    PACO_CURRENT,
-    PACO_OBJECT,
-    PACO_PREDICATE,
-    PACO_REJECTED,
-    PACO_SOURCE_DOCUMENT,
-    PACO_STATUS,
-    PACO_SUBJECT,
-    PROV_DERIVED_FROM,
-    create_source_document_entity,
-)
+from app.store.utils import *
 
 
 def get_prior_entities(
@@ -101,3 +89,39 @@ def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
         frozenset({b["duplicateSubject"]["value"], b["duplicateTarget"]["value"]})
         for b in bindings
     }
+
+
+def get_current_candidate_statement(
+    stmt_id: str,
+    graph: str,
+) -> str:
+    payload = sparql_select(f"""
+        SELECT DISTINCT ?currentStatement
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}>
+                    (^<{PROV_DERIVED_FROM}>)* 
+                    ?currentStatement .
+
+                ?currentStatement
+                    <{RDF_TYPE}>
+                    <{PACO_CANDIDATE}> .
+
+                ?currentStatement
+                    <{PACO_CURRENT}>
+                    true .
+            }}
+        }}
+        """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    if not bindings:
+        raise ValueError(f"No current CandidateStatement found for statement {stmt_id}")
+
+    if len(bindings) > 1:
+        raise ValueError(
+            f"Multiple current CandidateStatements found for statement {stmt_id}"
+        )
+
+    return bindings[0]["currentStatement"]["value"]

@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
 
-from app.schemas.statement import StatementEdit
+from app.schemas.statement import StatementEdit, StatementResponse
 from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
 from app.store.utils import *
 
@@ -297,12 +297,6 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
 
     props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
 
-    # Check that the statement is the current version
-
-    version_status = props.get(PACO_CURRENT)
-    if version_status is None or version_status.lower() != "true":
-        raise ValueError(f"Statement {stmt_id} is not the current version")
-
     # Get the subject and predicate for the statement
     old_subject = props.get(PACO_SUBJECT)
     old_predicate = props.get(PACO_PREDICATE)
@@ -346,6 +340,12 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     if PACO_TEXT_SPAN_END in props:
         text_span_end = props[PACO_TEXT_SPAN_END]
 
+    # Get is_current, status, origin, and created_at properties
+    is_current = props.get(PACO_CURRENT)
+    status = props.get(PACO_STATUS)
+    origin = props.get(PACO_ORIGIN)
+    created_at = props.get(PACO_CREATED_AT)
+
     return {
         "props": props,
         "subject": old_subject,
@@ -354,7 +354,74 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
         "confidence_score": confidence_score,
         "text_span_start": text_span_start,
         "text_span_end": text_span_end,
+        "is_current": is_current,
+        "status": status,
+        "origin": origin,
+        "created_at": created_at,
     }
+
+
+def find_original_candidate_statement(
+    stmt_id: str,
+    graph: str,
+) -> str:
+    payload = sparql_select(f"""
+        SELECT ?originalStatement
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}>
+                    <{PROV_DERIVED_FROM}>*
+                    ?originalStatement .
+
+                ?originalStatement
+                    <{RDF_TYPE}>
+                    <{PACO_CANDIDATE}> .
+
+                ?originalStatement
+                    <{PROV_DERIVED_FROM}>
+                    ?sourceDocument .
+
+                ?sourceDocument
+                    <{RDF_TYPE}>
+                    <{PACO_SOURCE_DOCUMENT}> .
+            }}
+        }}
+        """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    if len(bindings) == 0:
+        raise ValueError(
+            f"No original CandidateStatement found for statement {stmt_id}"
+        )
+
+    if len(bindings) > 1:
+        raise ValueError(
+            f"Expected exactly one original CandidateStatement for {stmt_id}, "
+            f"found {len(bindings)}"
+        )
+
+    return bindings[0]["originalStatement"]["value"]
+
+
+def set_to_not_current(stmt_id: str, graph: str) -> None:
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> true .
+            }}
+        }}
+        INSERT {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> false .
+            }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> <{PACO_CURRENT}> true .
+            }}
+        }}
+    """)
 
 
 def write_alignment_results(
@@ -518,6 +585,13 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     # Load the candidate statement
     candidate_statement = load_candidate_statement(stmt_id, graph)
 
+    # Check that the statement is the current version
+    if (
+        candidate_statement["is_current"] is None
+        or candidate_statement["is_current"].lower() != "true"
+    ):
+        raise ValueError(f"Statement {stmt_id} is not the current version")
+
     old_subject = candidate_statement["subject"]
     old_predicate = candidate_statement["predicate"]
     object_node = candidate_statement["object_node"]
@@ -537,23 +611,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     )
     # Mark the old statement as not current
 
-    sparql_update(f"""
-        DELETE {{
-            GRAPH <{graph}> {{
-                <{stmt_id}> <{PACO_CURRENT}> true .
-            }}
-        }}
-        INSERT {{
-            GRAPH <{graph}> {{
-                <{stmt_id}> <{PACO_CURRENT}> false .
-            }}
-        }}
-        WHERE {{
-            GRAPH <{graph}> {{
-                <{stmt_id}> <{PACO_CURRENT}> true .
-            }}
-        }}
-    """)
+    set_to_not_current(stmt_id, graph)
 
     # Create the new accepted statement with the same subject/predicate/object but with curation status accepted, and link it to the accepting activity
 
@@ -662,6 +720,13 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     # Load the candidate statement
 
     candidate_statement = load_candidate_statement(stmt_id, graph)
+
+    # Check that the statement is the current version
+    if (
+        candidate_statement["is_current"] is None
+        or candidate_statement["is_current"].lower() != "true"
+    ):
+        raise ValueError(f"Statement {stmt_id} is not the current version")
 
     old_subject = candidate_statement["subject"]
     old_predicate = candidate_statement["predicate"]
@@ -804,6 +869,13 @@ def edit_statement(
     # Load the candidate statement
 
     candidate_statement = load_candidate_statement(stmt_id, graph)
+
+    # Check that the statement is the current version
+    if (
+        candidate_statement["is_current"] is None
+        or candidate_statement["is_current"].lower() != "true"
+    ):
+        raise ValueError(f"Statement {stmt_id} is not the current version")
 
     old_subject = candidate_statement["subject"]
     old_predicate = candidate_statement["predicate"]
@@ -960,3 +1032,209 @@ def edit_statement(
     """)
 
     return edited_statement_id
+
+
+def reset_statement(
+    stmt_id: str,
+    triggered_by: uuid.UUID,
+    workspace_id: str,
+) -> StatementResponse:
+    graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
+
+    # Load the current candidate statement and verify that it is current.
+    current_statement = load_candidate_statement(stmt_id, graph)
+
+    if not current_statement["is_current"] == "true":
+        raise ValueError("Only the current statement version can be reset")
+
+    # Find and load the original candidate statement.
+    original_stmt_id = find_original_candidate_statement(stmt_id, graph)
+    original_statement = load_candidate_statement(original_stmt_id, graph)
+    if original_statement["is_current"] == "true":
+        raise ValueError("The original statement is already the current version")
+
+    original_subject = original_statement["subject"]
+    original_predicate = original_statement["predicate"]
+    original_object_node = original_statement["object_node"]
+    original_confidence_score = original_statement["confidence_score"]
+    original_text_span_start = original_statement["text_span_start"]
+    original_text_span_end = original_statement["text_span_end"]
+
+    # If the current version is accepted, remove its materialized triple.
+    if current_statement["status"] == PACO_ACCEPTED:
+        current_data_triple = Triple(
+            NamedNode(current_statement["subject"]),
+            NamedNode(current_statement["predicate"]),
+            current_statement["object_node"],
+        )
+
+        current_data_triple_text = serialize(
+            [current_data_triple],
+            format=RdfFormat.N_TRIPLES,
+        ).decode("utf-8")
+
+        sparql_update(f"""
+            DELETE DATA {{
+                GRAPH <{accepted_graph}> {{
+                    {current_data_triple_text}
+                }}
+            }}
+            """)
+
+    # Mark the current version as no longer current.
+    set_to_not_current(stmt_id, graph)
+
+    reset_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    created_at = reset_at
+
+    resetting_activity_id = (
+        f"https://example.org/workspaces/{workspace_id}/activities/reset/{uuid4()}"
+    )
+
+    reset_statement_id = (
+        f"https://example.org/workspaces/"
+        f"{workspace_id}/candidate-statements/{uuid4()}"
+    )
+
+    rdf_type = NamedNode(RDF_TYPE)
+
+    new_statement = NamedNode(reset_statement_id)
+    resetting_activity = NamedNode(resetting_activity_id)
+
+    candidate_class = NamedNode(PACO_CANDIDATE)
+    resetting_activity_class = NamedNode(PACO_RESETTING_ACTIVITY)
+
+    prov_entity = NamedNode(PROV_ENTITY)
+    prov_activity = NamedNode(PROV_ACTIVITY)
+    prov_agent = NamedNode(PROV_AGENT)
+
+    curator = NamedNode(f"https://example.org/users/{triggered_by}")
+    curator_class = NamedNode(PACO_CURATOR)
+
+    triples = [
+        Triple(resetting_activity, rdf_type, resetting_activity_class),
+        Triple(resetting_activity, rdf_type, prov_activity),
+        Triple(curator, rdf_type, curator_class),
+        Triple(curator, rdf_type, prov_agent),
+        Triple(
+            resetting_activity,
+            NamedNode(PROV_ASSOCIATED_WITH),
+            curator,
+        ),
+        Triple(
+            resetting_activity,
+            NamedNode(PROV_USED),
+            NamedNode(stmt_id),
+        ),
+        Triple(
+            resetting_activity,
+            NamedNode(PACO_RESET_AT),
+            Literal(reset_at, datatype=NamedNode(XSD_DATETIME)),
+        ),
+        Triple(new_statement, rdf_type, candidate_class),
+        Triple(new_statement, rdf_type, prov_entity),
+        Triple(
+            new_statement,
+            NamedNode(PACO_SUBJECT),
+            NamedNode(original_subject),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_PREDICATE),
+            NamedNode(original_predicate),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_OBJECT),
+            original_object_node,
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_STATUS),
+            NamedNode(PACO_RESET),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_CURRENT),
+            Literal(True),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_CREATED_AT),
+            Literal(created_at, datatype=NamedNode(XSD_DATETIME)),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_ORIGIN),
+            curator,
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PROV_GENERATED_BY),
+            resetting_activity,
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PROV_DERIVED_FROM),
+            NamedNode(stmt_id),
+        ),
+        Triple(
+            new_statement,
+            NamedNode(PACO_CONFIDENCE),
+            Literal(original_confidence_score),
+        ),
+    ]
+
+    if original_text_span_start is not None and original_text_span_end is not None:
+        triples.extend(
+            [
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_TEXT_SPAN_START),
+                    Literal(
+                        original_text_span_start,
+                        datatype=NamedNode(XSD_INTEGER),
+                    ),
+                ),
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_TEXT_SPAN_END),
+                    Literal(
+                        original_text_span_end,
+                        datatype=NamedNode(XSD_INTEGER),
+                    ),
+                ),
+            ]
+        )
+
+    triples_text = serialize(
+        triples,
+        format=RdfFormat.N_TRIPLES,
+    ).decode("utf-8")
+
+    sparql_update(f"""
+        INSERT DATA {{
+            GRAPH <{graph}> {{
+                {triples_text}
+            }}
+        }}
+        """)
+
+    if isinstance(original_object_node, NamedNode):
+        object = original_object_node.value
+    elif isinstance(original_object_node, Literal):
+        object = original_object_node.value
+
+    return StatementResponse(
+        id=reset_statement_id,
+        subject=original_subject,
+        predicate=original_predicate,
+        object=object,
+        confidence=original_confidence_score,
+        text_span_start=original_text_span_start,
+        text_span_end=original_text_span_end,
+        curation_status=PACO_RESET,
+        origin=curator.value,
+        created_at=created_at,
+    )
