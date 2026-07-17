@@ -7,7 +7,7 @@ import {
     RotateCcwIcon,
     XIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
 import type { Statement } from "../types.ts";
@@ -18,6 +18,161 @@ type Neighborhood = {
     outgoing: { predicate: string; object: string }[];
 };
 
+function SvgMultilineText({
+    x,
+    y,
+    text,
+    maxWidth,
+}: {
+    x: number;
+    y: number;
+    text: string;
+    maxWidth: number;
+}) {
+    const measureWidth = (str: string): number => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        return ctx.measureText(str).width;
+    };
+
+    const lines = useMemo(() => {
+        const words = text.split(/\s+/);
+        let result: string[] = [];
+        let currentLine = "";
+
+        for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const testWidth = measureWidth(testLine);
+
+            if (testWidth <= maxWidth) {
+                currentLine = testLine;
+            } else {
+                if (currentLine) {
+                    result.push(currentLine);
+                }
+                if (measureWidth(word) > maxWidth) {
+                    let charLine = "";
+                    for (const char of word) {
+                        const testCharLine = charLine + char;
+                        if (measureWidth(testCharLine) <= maxWidth) {
+                            charLine = testCharLine;
+                        } else {
+                            result.push(charLine);
+                            charLine = char;
+                        }
+                    }
+                    if (charLine) {
+                        currentLine = charLine;
+                    } else {
+                        currentLine = "";
+                    }
+                } else {
+                    currentLine = word;
+                }
+            }
+        }
+
+        if (currentLine) {
+            result.push(currentLine);
+        }
+
+        if (result.length > 3) {
+            result = result.slice(0, 3);
+            result[2] += "...";
+        }
+
+        return result;
+    }, [text, maxWidth]);
+
+    const styles = getComputedStyle(document.documentElement);
+    const nord0 = styles.getPropertyValue("--color-nord0");
+
+    return (
+        <text
+            x={x}
+            y={y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={nord0}
+            fontSize="18"
+        >
+            {lines.map((line, i) => (
+                <tspan
+                    key={i}
+                    x={x}
+                    y={y + (i + 0.5 - lines.length / 2.0) * 20}
+                >
+                    {line}
+                </tspan>
+            ))}
+        </text>
+    );
+}
+
+function processEntityLabel(s: string): string {
+    return s.split(/[/#]/).at(-1);
+}
+
+function Neighbors({
+    neighbors,
+    incoming,
+}: {
+    neighbors: { node: string; predicate: string }[];
+    incoming: boolean;
+}) {
+    const styles = getComputedStyle(document.documentElement);
+    const nord4 = styles.getPropertyValue("--color-nord4");
+    const MAX_NODES = 6;
+
+    return neighbors
+        .filter((_, i) => i < MAX_NODES)
+        .map(({ node, predicate }, i) => {
+            const ypos =
+                (i + 0.5) * (500 / Math.min(neighbors.length, MAX_NODES));
+            return (
+                <Fragment key={i}>
+                    <line
+                        x1={incoming ? 100 : 700}
+                        y1={ypos}
+                        x2="400"
+                        y2="250"
+                        stroke={nord4}
+                        strokeWidth="5"
+                    />
+                    {neighbors.length > MAX_NODES && i === MAX_NODES - 1 ? (
+                        <SvgMultilineText
+                            x={incoming ? 100 : 700}
+                            y={ypos}
+                            maxWidth={100}
+                            text="..."
+                        />
+                    ) : (
+                        <>
+                            <circle
+                                r="30"
+                                cx={incoming ? 100 : 700}
+                                cy={ypos}
+                                fill={nord4}
+                            />
+                            <SvgMultilineText
+                                x={incoming ? 250 : 550}
+                                y={(ypos + 250) / 2}
+                                maxWidth={100}
+                                text={processEntityLabel(predicate)}
+                            />
+                            <SvgMultilineText
+                                x={incoming ? 100 : 700}
+                                y={ypos}
+                                maxWidth={100}
+                                text={processEntityLabel(node)}
+                            />
+                        </>
+                    )}
+                </Fragment>
+            );
+        });
+}
+
 function LocalGraphView({
     center,
     incoming,
@@ -26,112 +181,29 @@ function LocalGraphView({
     center: string;
 } & Neighborhood) {
     const styles = getComputedStyle(document.documentElement);
-    const nord0 = styles.getPropertyValue("--color-nord0");
-    const nord4 = styles.getPropertyValue("--color-nord4");
     const nord8 = styles.getPropertyValue("--color-nord8");
-
-    function calcY(i: number, n: number): number {
-        return (i + 0.5) * (500 / n);
-    }
-
-    function text(s: string): string {
-        const url = "http://example.org/scholarly-metadata-ontology";
-        return s.startsWith(url) ? s.substring(url.length) : s;
-    }
 
     return (
         <svg viewBox="0 0 800 500" className="h-full w-full">
-            {incoming.map(({ predicate, subject }, i) => {
-                return (
-                    <Fragment key={i}>
-                        <line
-                            x1="100"
-                            y1={calcY(i, incoming.length)}
-                            x2="400"
-                            y2="250"
-                            stroke={nord4}
-                            strokeWidth="5"
-                        />
-                        <circle
-                            r="30"
-                            cx="100"
-                            cy={calcY(i, incoming.length)}
-                            fill={nord4}
-                        />
-                        <text
-                            x="250"
-                            y={(calcY(i, incoming.length) + 250) / 2}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill={nord0}
-                            fontSize="18"
-                        >
-                            {text(predicate)}
-                        </text>
-                        <text
-                            x="100"
-                            y={calcY(i, incoming.length)}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill={nord0}
-                            fontSize="18"
-                        >
-                            {text(subject)}
-                        </text>
-                    </Fragment>
-                );
-            })}
-            {outgoing.map(({ predicate, object }, i) => {
-                return (
-                    <Fragment key={i}>
-                        <line
-                            x1="400"
-                            y1="250"
-                            x2="700"
-                            y2={calcY(i, outgoing.length)}
-                            stroke={nord4}
-                            strokeWidth="5"
-                        />
-                        <circle
-                            r="30"
-                            cx="700"
-                            cy={calcY(i, outgoing.length)}
-                            fill={nord4}
-                        />
-                        <text
-                            x="550"
-                            y={(calcY(i, outgoing.length) + 250) / 2}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill={nord0}
-                            fontSize="18"
-                        >
-                            {text(predicate)}
-                        </text>
-                        <text
-                            x="700"
-                            y={calcY(i, outgoing.length)}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill={nord0}
-                            fontSize="18"
-                        >
-                            {text(object)}
-                        </text>
-                    </Fragment>
-                );
-            })}
+            <Neighbors
+                neighbors={incoming.map(({ subject, predicate }) => {
+                    return { node: subject, predicate };
+                })}
+                incoming={true}
+            />
+            <Neighbors
+                neighbors={outgoing.map(({ object, predicate }) => {
+                    return { node: object, predicate };
+                })}
+                incoming={false}
+            />
             <circle r="30" cx="400" cy="250" fill={nord8} />
-            <text
-                x="400"
-                y="250"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={nord0}
-                fontSize="18"
-            >
-                {text(center)}
-            </text>
+            <SvgMultilineText
+                x={400}
+                y={250}
+                maxWidth={100}
+                text={processEntityLabel(center)}
+            />
         </svg>
     );
 }
