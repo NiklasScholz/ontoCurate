@@ -444,6 +444,73 @@ def write_alignment_results(
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
 
+def delete_document_data(workspace_id: str, document_id: str) -> None:
+    """Removes everything a document contributed to a workspace from oxigraph"""
+    graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
+    source_document = create_source_document_entity(workspace_id, document_id)
+
+    # remove data graph triples from the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{accepted_graph}> {{ ?s ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                ?cs <{PACO_SUBJECT}> ?s ;
+                    <{PACO_PREDICATE}> ?p ;
+                    <{PACO_OBJECT}> ?o ;
+                    <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+            }}
+            GRAPH <{accepted_graph}> {{ ?s ?p ?o }}
+        }}
+    """)
+
+    # remove all activities that are associated with the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ ?activity ?ap ?ao }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                {{
+                    ?activity <{PROV_USED}> <{source_document.value}> .
+                }} UNION {{
+                    ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+                    ?activity <{PROV_USED}> ?cs .
+                }} UNION {{
+                    ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+                    ?activity <{PROV_GENERATED}> ?cs .
+                }}
+                ?activity ?ap ?ao .
+            }}
+        }}
+    """)
+
+    # Remove all candidate statements associated with the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ ?cs ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> ;
+                    ?p ?o .
+            }}
+        }}
+    """)
+
+    # Remove the source document entity triples
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ <{source_document.value}> ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{ <{source_document.value}> ?p ?o }}
+        }}
+    """)
+
+
 def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)

@@ -35,6 +35,7 @@ from app.store.utils import (
     RDF_TYPE,
     create_source_document_entity,
 )
+from app.store.writer import delete_document_data
 
 router = APIRouter(
     prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)]
@@ -172,8 +173,11 @@ async def delete_document(
     role = await WorkspaceMemberRepository(session).get_role(
         doc.workspace_id, current_user.id
     )
-    if not role:
-        raise ForbiddenException(f"You do not have access to document {document_id}")
+    if role != "owner":
+        raise ForbiddenException(
+            f"Only workspace owners can delete document {document_id}"
+        )
+    delete_document_data(str(doc.workspace_id), str(document_id))
     await DocumentRepository(session).delete(document_id)
 
 
