@@ -12,6 +12,7 @@ import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
 import type { Statement } from "../types.ts";
 import MarkdownView from "../components/MarkdownView.tsx";
+import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology.ts";
 
 type Neighborhood = {
     incoming: { predicate: string; subject: string }[];
@@ -259,15 +260,17 @@ export default function CurationDetail({
     onClose: () => void;
     onPrevious: () => void;
     onNext: () => void;
-    onChange: (id: string) => void;
+    onChange: (index: number) => void;
     workspaceId: string;
-    markdown: string;
+    markdown: string | undefined;
     index: number;
     total: number;
     statement: Statement;
 }) {
     return (
-        <div className="bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl">
+        <div
+            className={`bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl ${statement.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.curation_status === PACO_REJECTED && "tint-rejected"}`}
+        >
             <div className="mb-4 flex justify-between gap-2">
                 <div></div>
                 <div className="flex gap-4">
@@ -297,27 +300,30 @@ export default function CurationDetail({
                 </button>
             </div>
 
-            <div
-                className={`h-60 ${
-                    statement.text_span_start === null ||
-                    statement.text_span_end === null
-                        ? "opacity-50"
-                        : ""
-                }`}
-            >
-                <MarkdownView
-                    text={markdown}
-                    span={
+            {markdown !== undefined && (
+                <div
+                    className={`h-60 ${
                         statement.text_span_start === null ||
                         statement.text_span_end === null
-                            ? undefined
-                            : {
-                                  start: statement.text_span_start,
-                                  end: statement.text_span_end,
-                              }
-                    }
-                />
-            </div>
+                            ? "opacity-50"
+                            : ""
+                    }`}
+                >
+                    <MarkdownView
+                        text={markdown}
+                        span={
+                            statement.text_span_start === null ||
+                            statement.text_span_end === null
+                                ? undefined
+                                : {
+                                      start: statement.text_span_start,
+                                      end: statement.text_span_end,
+                                  }
+                        }
+                    />
+                </div>
+            )}
+
             <div className="bg-nord4 rounded p-4">
                 <div className="mb-4 flex justify-center gap-2">
                     <button
@@ -330,7 +336,7 @@ export default function CurationDetail({
                                         query: { statement_id: statement.id },
                                     },
                                 })
-                                .then((res) => onChange(res.data.id));
+                                .then(() => onChange(index));
                         }}
                     >
                         <CheckIcon size={16} />
@@ -348,7 +354,7 @@ export default function CurationDetail({
                                         query: { statement_id: statement.id },
                                     },
                                 })
-                                .then((res) => onChange(res.data.id));
+                                .then(() => onChange(index));
                         }}
                     >
                         <XIcon size={16} />

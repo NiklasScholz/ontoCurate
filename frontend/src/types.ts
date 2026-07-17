@@ -22,4 +22,5 @@ export type Statement = {
     confidence: number;
     text_span_start: number | null;
     text_span_end: number | null;
+    original: string;
 };

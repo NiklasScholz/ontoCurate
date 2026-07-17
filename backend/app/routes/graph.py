@@ -8,7 +8,7 @@ from app.schemas.statement import (
     EntityNeighborhoodResponse,
     IncomingEdge,
     OutgoingEdge,
-    StatementResponse,
+    StatementResponseWithOriginal,
 )
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
@@ -18,6 +18,7 @@ from app.store.utils import (
     PACO_OBJECT,
     PACO_PREDICATE,
     PACO_SUBJECT,
+    PROV_DERIVED_FROM,
     PROV_GENERATED_BY,
     RDF_TYPE,
 )
@@ -29,7 +30,7 @@ router = APIRouter(
 
 @router.get(
     "/{workspace_id}/deduplication",
-    response_model=list[StatementResponse],
+    response_model=list[StatementResponseWithOriginal],
     dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def get_deduplication(workspace_id: UUID):
@@ -40,12 +41,13 @@ async def get_deduplication(workspace_id: UUID):
     graph = curation_graph(str(workspace_id))
 
     payload = sparql_select(f"""
-        SELECT ?s ?p ?o WHERE {{
+        SELECT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PACO_CURRENT}> true .
-                ?s <{PROV_GENERATED_BY}> ?e .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
                 ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
             }}
         }}
@@ -53,7 +55,7 @@ async def get_deduplication(workspace_id: UUID):
     """)
 
     rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"])
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
 

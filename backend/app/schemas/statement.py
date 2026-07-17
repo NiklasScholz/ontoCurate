@@ -14,6 +14,10 @@ class StatementResponse(BaseModel):
     text_span_end: int | None
 
 
+class StatementResponseWithOriginal(StatementResponse):
+    original: str
+
+
 class StatementEdit(BaseModel):
     subject: str | None = None
     predicate: str | None = None
