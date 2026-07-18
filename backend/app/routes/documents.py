@@ -44,8 +44,16 @@ router = APIRouter(
 
 @router.get("/", response_model=list[DocumentResponse])
 async def list_documents(
-    workspace_id: UUID, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
+    role = await WorkspaceMemberRepository(session).get_role(
+        workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
+
     return [
         # TODO: Return extracted/pending triples
         DocumentResponse(
@@ -62,10 +70,19 @@ async def list_documents(
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
-async def get_document(document_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_document(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
     return DocumentDetailResponse(
         id=doc.id,
         filename=doc.filename,
