@@ -67,3 +67,8 @@ pythonpath = ["app"]
 # needed so test coverage is aware of greenlet switches and will not report coverage for code that runs on the other
 concurrency = ["greenlet", "thread"]
 source = ["app"]
+omit = [
+    "app/routes/debug.py",
+    "app/tasks/test.py",
+    "app/core/limiter.py",
+]

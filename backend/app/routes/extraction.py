@@ -105,7 +105,6 @@ async def create_documents(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    triggered_by = current_user.id
     run_repo = RunRepository(session)
     doc_repo = DocumentRepository(session)
     workspace_repo = WorkspaceRepository(session)
@@ -114,10 +113,6 @@ async def create_documents(
         raise NotFoundException(f"Workspace {workspace_id} not found")
     model = "gpt-oss-120b"
 
-    run = await run_repo.create(
-        workspace_id=workspace_id, triggered_by=triggered_by, model=model
-    )
-    documents = []
     # Create hashes to ensure files have not been uploaded yet
     file_payloads = []
     for file in files:

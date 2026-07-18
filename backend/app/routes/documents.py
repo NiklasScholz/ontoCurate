@@ -148,7 +148,7 @@ async def get_document_markdown(
         raise ForbiddenException(f"You do not have access to document {document_id}")
 
     markdown = doc.source_content
-    return FileResponse(
+    return Response(
         content=markdown,
         media_type="text/markdown",
         headers={"Content-Disposition": f"attachment; filename={document_id}.md"},
