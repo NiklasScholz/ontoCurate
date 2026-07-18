@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / "secrets.env")
+load_dotenv(Path(__file__).parent.parent.parent / "secrets.env")
 
 # Seperate to dev database to avoid dropping data accidentally during testing
 dev_db_url = os.environ.get(
@@ -70,7 +70,9 @@ async def session(engine):
     async with engine.connect() as connection:
         transaction = await connection.begin()
         async_session = AsyncSession(
-            bind=connection, join_transaction_mode="create_savepoint"
+            bind=connection,
+            join_transaction_mode="create_savepoint",
+            expire_on_commit=False,
         )
 
         app.dependency_overrides[get_session] = lambda: async_session
