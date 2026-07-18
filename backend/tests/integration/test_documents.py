@@ -1,4 +1,18 @@
-from test_utils import add_member, as_user, create_workspace, register_user
+from test_utils import (
+    add_candidate_statements,
+    add_member,
+    as_user,
+    create_workspace,
+    register_user,
+    sparql_count,
+)
+
+from app.store.client import curation_graph
+
+TTL_TEXT = """
+@prefix ex: <http://example.org/> .
+ex:s ex:p "o" .
+"""
 
 
 async def create_workspace_with_document(client, owner_token):
@@ -46,3 +60,25 @@ async def test_owner_can_delete_document(client):
     assert resp.status_code == 204
     resp = await client.get("/documents/", params={"workspace_id": workspace_id})
     assert resp.json() == []
+
+
+async def test_delete_removes_statements_from_oxigraph(client, tmp_path):
+    _, _, owner_token = await register_user(client, "owner")
+    workspace_id, document_id = await create_workspace_with_document(
+        client, owner_token
+    )
+    add_candidate_statements(tmp_path, workspace_id, TTL_TEXT, document_id=document_id)
+
+    count_sparql = f"""
+        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        SELECT (COUNT(*) AS ?count) WHERE {{
+            GRAPH <{curation_graph(workspace_id)}> {{
+                ?cs a paco:CandidateStatement .
+            }}
+        }}
+    """
+    assert sparql_count(count_sparql) == 1
+    as_user(client, owner_token)
+    resp = await client.delete(f"/documents/{document_id}")
+    assert resp.status_code == 204
+    assert sparql_count(count_sparql) == 0

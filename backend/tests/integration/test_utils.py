@@ -70,19 +70,34 @@ def add_candidate_statements(
     )
 
 
-def find_candidate_id(workspace_id: str, predicate: str) -> str:
+def find_candidate_id(
+    workspace_id: str,
+    predicate: str,
+    subject: str | None = None,
+    object_value: str | None = None,
+) -> str:
+    subject_triple = f"?s paco:subject <{subject}> .\n    " if subject else ""
+    object_triple = f'?s paco:object "{object_value}" .\n    ' if object_value else ""
     sparql = f"""
-PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
-SELECT ?s WHERE {{
-  GRAPH <{curation_graph(workspace_id)}> {{
-    ?s a paco:CandidateStatement ;
-       paco:predicate <{predicate}> .
-  }}
-}}
+        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        SELECT ?s WHERE {{
+        GRAPH <{curation_graph(workspace_id)}> {{
+            ?s a paco:CandidateStatement ;
+            paco:predicate <{predicate}> .
+            {subject_triple}{object_triple}}}
+        }}
     """
     result = sparql_select(sparql)
     bindings = result.get("results", {}).get("bindings", [])
-    assert bindings, f"No candidate statement found for predicate {predicate}"
+    filters = f"predicate {predicate}"
+    if subject:
+        filters += f", subject {subject}"
+    if object_value:
+        filters += f", object {object_value}"
+    assert bindings, f"No candidate statement found for {filters}"
+    assert (
+        len(bindings) == 1
+    ), f"Expected exactly one candidate statement for {filters}, found {len(bindings)}"
     return bindings[0]["s"]["value"]
 
 
@@ -91,7 +106,19 @@ def sparql_count(query: str) -> int:
     return int(bindings[0]["count"]["value"])
 
 
-def seed_statements(
+def activity_count(workspace_id: str, activity_class: str) -> int:
+    sparql = f"""
+        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        SELECT (COUNT(*) AS ?count) WHERE {{
+            GRAPH <{curation_graph(workspace_id)}> {{
+                ?a a paco:{activity_class} .
+            }}
+        }}
+    """
+    return sparql_count(sparql)
+
+
+def add_statements(
     tmp_path: Path,
     workspace_id: str,
     triples: list[tuple[str, str, str]],
@@ -129,3 +156,38 @@ def seed_statements(
         predicate: find_candidate_id(workspace_id, predicate)
         for _, predicate, _ in triples
     }
+
+
+def add_statement(
+    tmp_path: Path,
+    workspace_id: str,
+    subject: str,
+    predicate: str,
+    object_value: str,
+    document_id: str = "doc-1",
+    run_id: str = "run-1",
+) -> str:
+    """Adds a single candidate statement and returns its statement id."""
+    return add_statements(
+        tmp_path,
+        workspace_id,
+        [(subject, predicate, object_value)],
+        document_id=document_id,
+        run_id=run_id,
+    )[predicate]
+
+
+async def setup_workspace_with_statement(
+    client,
+    tmp_path,
+    subject: str = "http://example.org/s",
+    predicate: str = "http://example.org/p",
+    object_value: str = "o",
+) -> tuple[str, str, str]:
+    """Registers an owner, creates a workspace, and adds one candidate statement
+    in it. Returns (workspace_id, statement_id, owner_token)."""
+    _, _, owner_token = await register_user(client, "owner")
+    as_user(client, owner_token)
+    workspace_id = await create_workspace(client)
+    stmt_id = add_statement(tmp_path, workspace_id, subject, predicate, object_value)
+    return workspace_id, stmt_id, owner_token

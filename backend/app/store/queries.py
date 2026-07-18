@@ -11,8 +11,7 @@ from app.store.utils import *
 def get_prior_entities(
     workspace_id: str, exclude_document_ids: list[str]
 ) -> list[dict]:
-    """Gets entities from all current-version, non-rejected CandidateStatements
-    in {workspaceid} provenance graph
+    """Gets entities from all current-version, non-rejected CandidateStatements in {workspaceid} provenance graph.
     Additionally excludes {exclude_document_ids} from the results, so that a new run's entities are not compared against themselves.
     Used to perform cross-document cross-run entity alignment.
     """

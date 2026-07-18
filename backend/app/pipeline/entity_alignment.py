@@ -283,7 +283,8 @@ def run_cross_document_alignment(
     config_path: Path,
 ) -> None:
     """
-    Cross document entity alignment loading all per-document aligned ttls and performing entity alignment between them again
+    Cross document entity alignment loading all per-document aligned ttls and performing entity alignment between them again.
+    Additionally, it checks for entities from previous runs and aligns them with the current run.
     """
 
     ttl_files = list(working_dir.glob("*.ttl"))

@@ -716,6 +716,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
 
 def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
 
     # Load the candidate statement
 
@@ -734,6 +735,26 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     confidence_score = candidate_statement["confidence_score"]
     text_span_start = candidate_statement["text_span_start"]
     text_span_end = candidate_statement["text_span_end"]
+
+    # Remove persisted triple if already accepted
+    if candidate_statement["status"] == PACO_ACCEPTED:
+        current_data_triple = Triple(
+            NamedNode(old_subject),
+            NamedNode(old_predicate),
+            object_node,
+        )
+        current_data_triple_text = serialize(
+            [current_data_triple],
+            format=RdfFormat.N_TRIPLES,
+        ).decode("utf-8")
+
+        sparql_update(f"""
+            DELETE DATA {{
+                GRAPH <{accepted_graph}> {{
+                    {current_data_triple_text}
+                }}
+            }}
+            """)
 
     # Get the current timestamp in ISO 8601 format with UTC timezone
 
@@ -900,7 +921,9 @@ def edit_statement(
 
     no_subject_change = edit.subject is None or edit.subject == old_subject
     no_predicate_change = edit.predicate is None or edit.predicate == old_predicate
-    no_object_change = edit.object_iri is None and edit.object_value is None
+    no_object_change = (
+        edit.object_iri is None and edit.object_value is None
+    ) or new_object == object_node
 
     if no_subject_change and no_predicate_change and no_object_change:
         raise ValueError("No changes detected in subject, predicate, or object")
