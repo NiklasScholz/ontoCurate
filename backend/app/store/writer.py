@@ -881,6 +881,7 @@ def edit_statement(
     edit: StatementEdit,
 ) -> str:
     graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
 
     # Check that either object_iri or object_value is provided, but not both
 
@@ -904,6 +905,27 @@ def edit_statement(
     confidence_score = candidate_statement["confidence_score"]
     text_span_start = candidate_statement["text_span_start"]
     text_span_end = candidate_statement["text_span_end"]
+
+    # Remove persisted triple if accepted
+    if candidate_statement["status"] == PACO_ACCEPTED:
+        current_data_triple = Triple(
+            NamedNode(old_subject),
+            NamedNode(old_predicate),
+            object_node,
+        )
+
+        current_data_triple_text = serialize(
+            [current_data_triple],
+            format=RdfFormat.N_TRIPLES,
+        ).decode("utf-8")
+
+        sparql_update(f"""
+            DELETE DATA {{
+                GRAPH <{accepted_graph}> {{
+                    {current_data_triple_text}
+                }}
+            }}
+            """)
 
     new_subject = edit.subject or old_subject
     new_predicate = edit.predicate or old_predicate

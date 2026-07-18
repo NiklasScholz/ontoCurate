@@ -277,6 +277,33 @@ class TestEditStatementEndpoint:
             == edited_id
         )
 
+    async def test_editing_accepted_statement_removes_stale_data_graph_triple(
+        self, client, tmp_path
+    ):
+        workspace_id, stmt_id, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        accept_resp = await client.post(
+            f"/statements/{workspace_id}/accept", params={"statement_id": stmt_id}
+        )
+        accepted_id = accept_resp.json()["id"]
+        old_data_sparql = f"""
+            SELECT (COUNT(*) AS ?count) WHERE {{
+                GRAPH <{data_graph(workspace_id)}> {{
+                    <{SUBJECT}> <{PREDICATE}> "{OBJECT_VALUE}"
+                }}
+            }}
+        """
+        assert sparql_count(old_data_sparql) == 1
+        resp = await client.patch(
+            f"/statements/{workspace_id}/edit",
+            params={"statement_id": accepted_id},
+            json={"object_value": "new-value"},
+        )
+        assert resp.status_code == 200
+        assert sparql_count(old_data_sparql) == 0
+
     async def test_non_member_cannot_edit(self, client, tmp_path):
         workspace_id, stmt_id, _ = await setup_workspace_with_statement(
             client, tmp_path
