@@ -1,3 +1,4 @@
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -88,9 +89,22 @@ async def get_deduplication(workspace_id: UUID):
 )
 async def get_neighborhood(workspace_id: UUID, entity_id: str):
     """
-    Gets the local neighborhood of a statement.
+    Gets the local neighborhood of a given entity.
     """
+    # invalid characters for iri/uri
+    iriref_invalid = re.compile(r'[\x00-\x20<>"{}|^`\\]')
+
+    def is_iri(value: str) -> bool:
+        """Returns true if given value is a valid IRI/URI, false otherwise."""
+        return bool(
+            re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", value)
+        ) and not iriref_invalid.search(value)
+
     graph = curation_graph(str(workspace_id))
+
+    # literal objects should not return any neighborhood, as they are no entities and are solely derived for the subject entity
+    if not is_iri(entity_id):
+        return EntityNeighborhoodResponse(incoming=[], outgoing=[])
 
     incoming_payload = sparql_select(f"""
         SELECT ?s ?p WHERE {{
