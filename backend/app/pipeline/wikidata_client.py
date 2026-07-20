@@ -249,16 +249,20 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
             details = fetch_wikidata_entity_details(result["wikidata_id"])
 
             # Extract literals from Wikidata properties
-            # For now, use label and description as basic literals
+            candidate_literals = {
+                "name": [result["label"]],
+            }
+
+            if entity_type == "AcademicArticle":
+                candidate_literals["title"] = [result["label"]]
+
             candidate = {
                 "uri": result["uri"],
                 "wikidata_id": result["wikidata_id"],
                 "label": result["label"],
                 "description": result["description"],
-                "literals": {
-                    "name": [result["label"]],
-                },
-                "types": entity["types"],  # Use same types
+                "literals": candidate_literals,
+                "types": entity["types"],
                 "source": "wikidata",
                 "relations_out": {},
                 "relations_in": {},
@@ -267,10 +271,16 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
             # Add aliases as alternative names
             if details.get("aliases"):
                 aliases = details["aliases"].get("en", [])
-                if aliases:
-                    candidate["literals"]["name"].extend(
-                        [a.get("value", "") for a in aliases]
-                    )
+                alias_values = [
+                    alias.get("value", "")
+                    for alias in aliases
+                    if alias.get("value", "").strip()
+                ]
+
+                candidate["literals"]["name"].extend(alias_values)
+
+                if entity_type == "AcademicArticle":
+                    candidate["literals"]["title"].extend(alias_values)
 
             candidates.append(candidate)
 
