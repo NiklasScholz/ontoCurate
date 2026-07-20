@@ -39,13 +39,11 @@ def data_graph(workspace_id: str) -> str:
     return f"https://ontocurate.org/workspaces/{workspace_id}/graphs/data"
 
 
-def export_graph_ttl(graph_iri: str) -> str:
-    """Return all triples in a named graph as a Turtle string."""
+def sparql_construct_ttl(query: str) -> str:
+    """Execute a SPARQL CONSTRUCT query and return the result as a Turtle string."""
     response = httpx.post(
         f"{settings.oxigraph_url}/query",
-        content=f"""CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{
-            graph_iri
-        }> {{ ?s ?p ?o }} }}""".encode(),
+        content=query.encode(),
         headers={
             "Content-Type": "application/sparql-query",
             "Accept": "text/turtle",
@@ -54,6 +52,13 @@ def export_graph_ttl(graph_iri: str) -> str:
     )
     response.raise_for_status()
     return response.text
+
+
+def export_graph_ttl(graph_iri: str) -> str:
+    """Return all triples in a named graph as a Turtle string."""
+    return sparql_construct_ttl(
+        f"CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{graph_iri}> {{ ?s ?p ?o }} }}"
+    )
 
 
 def drop_workspace_graphs(workspace_id: str) -> None:

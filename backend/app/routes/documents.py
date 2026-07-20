@@ -17,6 +17,7 @@ from app.repositories.workspace import WorkspaceMemberRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import StatementResponse
 from app.store.client import curation_graph, sparql_select
+from app.store.queries import export_document_data_ttl, export_document_provenance_ttl
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
@@ -284,7 +285,58 @@ def order_statements(rows: list[tuple[str, str, str]]):
     return records
 
 
-@router.get("/{document_id}/export/provenance.ttl")
-async def export_document_ttl(document_id: str, response_class=FileResponse):
-    # TODO
-    pass
+async def _get_document_or_403(
+    document_id: UUID,
+    current_user: User,
+    session: AsyncSession,
+    roles: tuple[str, ...] | None = None,
+):
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role or (roles is not None and role not in roles):
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+    return doc
+
+
+@router.get("/{document_id}/export/provenance.ttl", response_class=FileResponse)
+async def export_document_provenance(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(
+        document_id, current_user, session, roles=("owner",)
+    )
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(
+        str(doc.workspace_id), str(document_id)
+    ).value
+    ttl = export_document_provenance_ttl(graph, document_entity)
+    return Response(
+        content=ttl,
+        media_type="text/turtle",
+        headers={"Content-Disposition": 'attachment; filename="provenance.ttl"'},
+    )
+
+
+@router.get("/{document_id}/export/data.ttl", response_class=FileResponse)
+async def export_document_data(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(document_id, current_user, session)
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(
+        str(doc.workspace_id), str(document_id)
+    ).value
+    ttl = export_document_data_ttl(graph, document_entity)
+    return Response(
+        content=ttl,
+        media_type="text/turtle",
+        headers={"Content-Disposition": 'attachment; filename="data.ttl"'},
+    )

@@ -24,7 +24,12 @@ from app.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceResponse,
 )
-from app.store.client import curation_graph, drop_workspace_graphs, export_graph_ttl
+from app.store.client import (
+    curation_graph,
+    data_graph,
+    drop_workspace_graphs,
+    export_graph_ttl,
+)
 
 router = APIRouter(
     prefix="/workspaces", tags=["workspaces"], dependencies=[Depends(get_current_user)]
@@ -95,7 +100,7 @@ async def get_workspace(
 
 @router.get(
     "/{workspace_id}/export/provenance.ttl",
-    dependencies=[Depends(require_role("owner", "editor"))],
+    dependencies=[Depends(require_role("owner"))],
     response_class=FileResponse,
 )
 async def export_provenance_graph(workspace_id: str):
@@ -104,6 +109,20 @@ async def export_provenance_graph(workspace_id: str):
         content=ttl,
         media_type="text/turtle",
         headers={"Content-Disposition": f'attachment; filename="provenance.ttl"'},
+    )
+
+
+@router.get(
+    "/{workspace_id}/export/data.ttl",
+    dependencies=[Depends(require_role("owner", "editor"))],
+    response_class=FileResponse,
+)
+async def export_data_graph(workspace_id: str):
+    ttl = export_graph_ttl(data_graph(workspace_id))
+    return Response(
+        content=ttl,
+        media_type="text/turtle",
+        headers={"Content-Disposition": f'attachment; filename="data.ttl"'},
     )
 
 
