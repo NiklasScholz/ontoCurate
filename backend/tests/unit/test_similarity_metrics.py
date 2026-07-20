@@ -18,7 +18,10 @@ from app.pipeline.metrics.similarity_metrics import (
 )
 
 ALIGNMENT_CONFIG_PATH = (
-    Path(__file__).parent.parent / "config" / "scholarySchema" / "alignment_config.yaml"
+    Path(__file__).parent.parent.parent
+    / "config"
+    / "scholarySchema"
+    / "alignment_config.yaml"
 )
 # load current config of scholarly use case
 CONFIG = load_alignment_config(ALIGNMENT_CONFIG_PATH)

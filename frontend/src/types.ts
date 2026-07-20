@@ -5,6 +5,7 @@ export type Document = {
     title: string | null;
     extracted_triples: number;
     pending_triples: number;
+    created_at: string;
 };
 
 export type DocumentDetail = Document & {

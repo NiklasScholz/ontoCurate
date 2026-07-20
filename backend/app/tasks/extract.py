@@ -65,6 +65,8 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 model=model,
                 api_base=settings.openai_api_base,
                 api_key=settings.openai_api_key,
+                max_text_length=settings.max_text_length,
+                max_output_tokens=settings.max_output_tokens,
             )
 
             provenance_path = annotate_confidence(

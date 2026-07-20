@@ -10,7 +10,7 @@ export default function Popup({
 }) {
     return (
         <div
-            className={`bg-nord0/50 fixed inset-0 flex items-center justify-center p-4 backdrop-blur ${!show ? "hidden" : ""}`}
+            className={`bg-nord0/50 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur ${!show ? "hidden" : ""}`}
         >
             <div>{children}</div>
         </div>

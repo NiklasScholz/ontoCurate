@@ -776,6 +776,11 @@ export interface components {
             extracted_triples: number;
             /** Pending Triples */
             pending_triples: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             /** Markdown */
             markdown: string;
         };
@@ -796,6 +801,11 @@ export interface components {
             extracted_triples: number;
             /** Pending Triples */
             pending_triples: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** EntityNeighborhoodResponse */
         EntityNeighborhoodResponse: {

@@ -35,6 +35,7 @@ from app.store.utils import (
     RDF_TYPE,
     create_source_document_entity,
 )
+from app.store.writer import delete_document_data
 
 router = APIRouter(
     prefix="/documents", tags=["documents"], dependencies=[Depends(get_current_user)]
@@ -43,8 +44,16 @@ router = APIRouter(
 
 @router.get("/", response_model=list[DocumentResponse])
 async def list_documents(
-    workspace_id: UUID, session: AsyncSession = Depends(get_session)
+    workspace_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
+    role = await WorkspaceMemberRepository(session).get_role(
+        workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
+
     return [
         # TODO: Return extracted/pending triples
         DocumentResponse(
@@ -54,16 +63,26 @@ async def list_documents(
             title=doc.title,
             extracted_triples=await get_triple_count(doc.id, session, False),
             pending_triples=await get_triple_count(doc.id, session, True),
+            created_at=doc.created_at,
         )
         for doc in await DocumentRepository(session).list_by_workspace(workspace_id)
     ]
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
-async def get_document(document_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_document(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
     return DocumentDetailResponse(
         id=doc.id,
         filename=doc.filename,
@@ -71,6 +90,7 @@ async def get_document(document_id: UUID, session: AsyncSession = Depends(get_se
         title=doc.title,
         extracted_triples=await get_triple_count(document_id, session, False),
         pending_triples=await get_triple_count(document_id, session, True),
+        created_at=doc.created_at,
         markdown=str(doc.source_content),
     )
 
@@ -128,7 +148,7 @@ async def get_document_markdown(
         raise ForbiddenException(f"You do not have access to document {document_id}")
 
     markdown = doc.source_content
-    return FileResponse(
+    return Response(
         content=markdown,
         media_type="text/markdown",
         headers={"Content-Disposition": f"attachment; filename={document_id}.md"},
@@ -170,8 +190,11 @@ async def delete_document(
     role = await WorkspaceMemberRepository(session).get_role(
         doc.workspace_id, current_user.id
     )
-    if not role:
-        raise ForbiddenException(f"You do not have access to document {document_id}")
+    if role != "owner":
+        raise ForbiddenException(
+            f"Only workspace owners can delete document {document_id}"
+        )
+    delete_document_data(str(doc.workspace_id), str(document_id))
     await DocumentRepository(session).delete(document_id)
 
 

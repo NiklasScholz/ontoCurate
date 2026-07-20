@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     openai_api_base: str = "https://chat.kiconnect.nrw/api/v1"
     default_model: str = "gpt-oss-120b"
     embedding_model: str = "qwen3-embedding-8b"
+    max_text_length: int | None = None
+    max_output_tokens: int | None = None
 
     model_config = ConfigDict(env_file="secrets.env")
     debug: bool = True

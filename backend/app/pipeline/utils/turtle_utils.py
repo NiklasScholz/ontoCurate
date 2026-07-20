@@ -5,6 +5,17 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF
 
 
+def sparql_binding_to_term(binding: dict) -> URIRef | Literal:
+    """Convert a SPARQL JSON result binding into the matching rdflib term."""
+    if binding["type"] == "uri":
+        return URIRef(binding["value"])
+    return Literal(
+        binding["value"],
+        datatype=binding.get("datatype"),
+        lang=binding.get("xml:lang"),
+    )
+
+
 def local_name(uri) -> str | None:
     """Extract the local name from a URI (i.e., strips the prefix)."""
     if uri is None:
@@ -16,9 +27,10 @@ def local_name(uri) -> str | None:
 
 
 def load_entity_information(
-    ttl_path: Path, exclude_owlSameAs: bool = True
+    source: Path | Graph, exclude_owlSameAs: bool = True
 ) -> list[dict]:
-    """Loads all named entities and their properties from a ttl.
+    """Loads all named entities and their properties from a ttl file or an
+    already-parsed rdflib Graph.
 
     Returns list of entity dicts:
         {
@@ -29,8 +41,11 @@ def load_entity_information(
             "relations_in":  dict[str, list[str]],
         }
     """
-    g = Graph()
-    g.parse(ttl_path, format="turtle")
+    if isinstance(source, Graph):
+        g = source
+    else:
+        g = Graph()
+        g.parse(source, format="turtle")
 
     out_edges: dict = defaultdict(list)  # s -> [(p, o)]
     in_edges: dict = defaultdict(list)  # o -> [(s, p)]

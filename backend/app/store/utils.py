@@ -61,6 +61,8 @@ PACO_REJECTED_AT = f"{PACO}rejectedAt"
 PACO_RESET_AT = f"{PACO}resetAt"
 PACO_MANUALLY_CREATED_AT = f"{PACO}manuallyCreatedAt"
 PACO_CURRENT = f"{PACO}isCurrentVersion"
+PACO_USERNAME = f"{PACO}username"
+PACO_DELETED = f"{PACO}isDeleted"
 
 # PROV classes
 PROV_ACTIVITY = f"{PROV}Activity"
@@ -76,6 +78,7 @@ PROV_DERIVED_FROM = f"{PROV}wasDerivedFrom"
 PROV_GENERATED = f"{PROV}generated"
 # Schema.org properties
 SCHEMA_NAME = f"{SCHEMA}name"
+SCHEMA_EMAIL = f"{SCHEMA}email"
 
 # OWL properties
 OWL_SAME_AS = f"{OWL}sameAs"
@@ -122,6 +125,8 @@ N_PACO_ACCEPTED_AT = NamedNode(PACO_ACCEPTED_AT)
 N_PACO_RESET_AT = NamedNode(PACO_RESET_AT)
 N_PACO_MANUALLY_CREATED_AT = NamedNode(PACO_MANUALLY_CREATED_AT)
 N_PACO_CURRENT = NamedNode(PACO_CURRENT)
+N_PACO_USERNAME = NamedNode(PACO_USERNAME)
+N_PACO_DELETED = NamedNode(PACO_DELETED)
 
 # PROV classes
 N_PROV_ACTIVITY = NamedNode(PROV_ACTIVITY)
@@ -138,6 +143,7 @@ N_PROV_GENERATED = NamedNode(PROV_GENERATED)
 
 # Schema.org
 N_SCHEMA_NAME = NamedNode(SCHEMA_NAME)
+N_SCHEMA_EMAIL = NamedNode(SCHEMA_EMAIL)
 
 # OWL
 N_OWL_SAME_AS = NamedNode(OWL_SAME_AS)
