@@ -33,12 +33,6 @@ if not WIKIMEDIA_USER_AGENT:
         "version, and contact information."
     )
 
-if not WIKIMEDIA_USER_AGENT:
-    raise RuntimeError(
-        "WIKIMEDIA_USER_AGENT must be configured with an application name, "
-        "version, and contact information."
-    )
-
 
 def create_wikimedia_client() -> httpx.Client:
     """Create an HTTP client compliant with Wikimedia's User-Agent policy."""
@@ -92,6 +86,27 @@ def search_wikidata(
             response.raise_for_status()
             data = response.json()
 
+            api_error = data.get("error")
+
+            if api_error:
+                logger.error(
+                    "Wikidata API error for query %r: "
+                    "code=%r info=%r retry_after=%r api_error_header=%r",
+                    query,
+                    api_error.get("code"),
+                    api_error.get("info"),
+                    response.headers.get("Retry-After"),
+                    response.headers.get("MediaWiki-API-Error"),
+                )
+                return []
+
+            search_items = data.get("search", [])
+            logger.info(
+                "Wikidata search returned %d result(s) for query %r",
+                len(search_items),
+                query,
+            )
+
     except httpx.HTTPStatusError as exc:
         logger.error(
             "Wikidata returned HTTP %s for query %r: %s",
@@ -111,7 +126,7 @@ def search_wikidata(
 
     results = []
 
-    for item in data.get("search", []):
+    for item in search_items:
         qid = item.get("id")
         if not qid:
             continue
@@ -230,6 +245,13 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
         if not names:
             names = entity.get("literals", {}).get("title", [])
         search_queries.extend(names[:2])
+
+    # Deduplicate search_queries
+    search_queries = list(
+        dict.fromkeys(
+            query.strip() for query in search_queries if query and query.strip()
+        )
+    )
 
     # Execute searches
     for query in search_queries:
