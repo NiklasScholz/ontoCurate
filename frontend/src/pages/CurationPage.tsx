@@ -3,7 +3,7 @@ import { client } from "../client";
 import Spinner from "../components/Spinner";
 import { Link, useSearchParams } from "react-router-dom";
 import Panel from "../components/Panel";
-import type { DocumentDetail, Statement } from "../types";
+import type { CurrentAndOriginalStatement, DocumentDetail } from "../types";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import NotFound from "./NotFound";
 import MarkdownView from "../components/MarkdownView";
@@ -17,7 +17,7 @@ function StatementsView({
     setPage,
     setSelected,
 }: {
-    statements: Statement[];
+    statements: CurrentAndOriginalStatement[];
     page: number;
     setPage: React.Dispatch<React.SetStateAction<number>>;
     setSelected: React.Dispatch<React.SetStateAction<number | undefined>>;
@@ -26,21 +26,23 @@ function StatementsView({
         <div className="flex min-h-0 flex-col gap-3">
             <div className="flex flex-col overflow-scroll">
                 {statements
-                    .filter(
-                        (_stm, i) => i >= page * 100 && i < (page + 1) * 100,
-                    )
                     .map((stm, i) => {
+                        return { stm, i };
+                    })
+                    .filter(({ i }) => i >= page * 100 && i < (page + 1) * 100)
+                    .map(({ stm, i }) => {
                         return (
                             <button
-                                key={stm.original}
+                                key={stm.original.id}
                                 className="even:bg-nord4"
                                 onClick={() => setSelected(i)}
                             >
                                 <div
                                     className={
-                                        stm.curation_status === PACO_ACCEPTED
+                                        stm.current.curation_status ===
+                                        PACO_ACCEPTED
                                             ? "bg-nord14/50"
-                                            : stm.curation_status ===
+                                            : stm.current.curation_status ===
                                                 PACO_REJECTED
                                               ? "bg-nord11/50"
                                               : ""
@@ -48,16 +50,16 @@ function StatementsView({
                                 >
                                     <div className="grid grid-cols-[30px_1fr_1fr_1fr] gap-5">
                                         <div className="overflow-hidden text-right text-nowrap text-ellipsis">
-                                            {i}
+                                            {i + 1}
                                         </div>
                                         <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.subject}
+                                            {stm.current.subject}
                                         </div>
                                         <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.predicate}
+                                            {stm.current.predicate}
                                         </div>
                                         <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.object}
+                                            {stm.current.object}
                                         </div>
                                     </div>
                                 </div>
@@ -99,9 +101,9 @@ export default function CurationPage() {
 
     const [doc, setDoc] = useState<DocumentDetail | undefined>(undefined);
 
-    const [statements, setStatements] = useState<Statement[] | undefined>(
-        undefined,
-    );
+    const [statements, setStatements] = useState<
+        CurrentAndOriginalStatement[] | undefined
+    >(undefined);
 
     const tabs = [
         {
@@ -215,16 +217,16 @@ export default function CurationPage() {
                                     text={doc.markdown}
                                     span={
                                         selected === undefined ||
-                                        statements[selected].text_span_start ===
-                                            null ||
-                                        statements[selected].text_span_end ===
-                                            null
+                                        statements[selected].current
+                                            .text_span_start === null ||
+                                        statements[selected].current
+                                            .text_span_end === null
                                             ? undefined
                                             : {
                                                   start: statements[selected]
-                                                      .text_span_start,
+                                                      .current.text_span_start,
                                                   end: statements[selected]
-                                                      .text_span_end,
+                                                      .current.text_span_end,
                                               }
                                     }
                                 />
@@ -256,7 +258,8 @@ export default function CurationPage() {
                                         params: {
                                             path: {
                                                 workspace_id: wsId,
-                                                statement_id: statements[i].id,
+                                                statement_id:
+                                                    statements[i].current.id,
                                             },
                                         },
                                     },
@@ -269,7 +272,8 @@ export default function CurationPage() {
                                                       original:
                                                           statements[i]
                                                               .original,
-                                                      ...newStatement.data,
+                                                      current:
+                                                          newStatement.data,
                                                   }
                                                 : stm,
                                         ),

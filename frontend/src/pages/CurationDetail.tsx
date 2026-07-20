@@ -2,7 +2,6 @@ import {
     ArrowLeftIcon,
     ArrowRightIcon,
     CheckIcon,
-    EditIcon,
     ListIcon,
     RotateCcwIcon,
     XIcon,
@@ -10,7 +9,7 @@ import {
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
-import type { Statement } from "../types.ts";
+import type { CurrentAndOriginalStatement } from "../types.ts";
 import MarkdownView from "../components/MarkdownView.tsx";
 import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology.ts";
 
@@ -246,6 +245,41 @@ function EntityView({
     );
 }
 
+function TextField({
+    current,
+    original,
+    onChange,
+}: {
+    current: string;
+    original: string;
+    onChange: (newValue: string) => void;
+}) {
+    const [value, setValue] = useState<string>(current);
+
+    return (
+        <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
+            <div className="h-full font-mono text-sm wrap-anywhere">
+                <textarea
+                    className="h-full w-full"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onBlur={() => onChange(value)}
+                />
+            </div>
+            <div
+                className={`flex justify-center gap-2 ${current === original && "hidden"}`}
+            >
+                <button
+                    className="bg-nord4 flex h-7 w-12 items-center justify-center rounded"
+                    onClick={() => onChange(original)}
+                >
+                    <RotateCcwIcon size={16} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function CurationDetail({
     onClose,
     onPrevious,
@@ -265,11 +299,11 @@ export default function CurationDetail({
     markdown: string | undefined;
     index: number;
     total: number;
-    statement: Statement;
+    statement: CurrentAndOriginalStatement;
 }) {
     return (
         <div
-            className={`bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl ${statement.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.curation_status === PACO_REJECTED && "tint-rejected"}`}
+            className={`bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl ${statement.current.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.current.curation_status === PACO_REJECTED && "tint-rejected"}`}
         >
             <div className="mb-4 flex justify-between gap-2">
                 <div></div>
@@ -303,8 +337,8 @@ export default function CurationDetail({
             {markdown !== undefined && (
                 <div
                     className={`h-60 ${
-                        statement.text_span_start === null ||
-                        statement.text_span_end === null
+                        statement.current.text_span_start === null ||
+                        statement.current.text_span_end === null
                             ? "opacity-50"
                             : ""
                     }`}
@@ -312,12 +346,12 @@ export default function CurationDetail({
                     <MarkdownView
                         text={markdown}
                         span={
-                            statement.text_span_start === null ||
-                            statement.text_span_end === null
+                            statement.current.text_span_start === null ||
+                            statement.current.text_span_end === null
                                 ? undefined
                                 : {
-                                      start: statement.text_span_start,
-                                      end: statement.text_span_end,
+                                      start: statement.current.text_span_start,
+                                      end: statement.current.text_span_end,
                                   }
                         }
                     />
@@ -333,7 +367,9 @@ export default function CurationDetail({
                                 .POST("/statements/{workspace_id}/accept", {
                                     params: {
                                         path: { workspace_id: workspaceId },
-                                        query: { statement_id: statement.id },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
                                     },
                                 })
                                 .then(() => onChange(index));
@@ -341,7 +377,21 @@ export default function CurationDetail({
                     >
                         <CheckIcon size={16} />
                     </button>
-                    <button className="bg-nord4 flex h-7 w-12 items-center justify-center rounded">
+                    <button
+                        className="bg-nord4 flex h-7 w-12 items-center justify-center rounded"
+                        onClick={() => {
+                            client
+                                .POST("/statements/{workspace_id}/reset", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
+                                    },
+                                })
+                                .then(() => onChange(index));
+                        }}
+                    >
                         <RotateCcwIcon size={16} />
                     </button>
                     <button
@@ -351,7 +401,9 @@ export default function CurationDetail({
                                 .POST("/statements/{workspace_id}/reject", {
                                     params: {
                                         path: { workspace_id: workspaceId },
-                                        query: { statement_id: statement.id },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
                                     },
                                 })
                                 .then(() => onChange(index));
@@ -361,45 +413,60 @@ export default function CurationDetail({
                     </button>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
-                        <div className="font-mono text-sm wrap-anywhere">
-                            {statement.subject}
-                        </div>
-                        <div className="flex justify-center gap-2">
-                            <button className="bg-nord8 flex h-7 w-12 items-center justify-center rounded">
-                                <EditIcon size={16} />
-                            </button>
-                            <button className="bg-nord4 flex h-7 w-12 items-center justify-center rounded">
-                                <RotateCcwIcon size={16} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded p-2">
-                        <div className="font-mono text-sm wrap-anywhere">
-                            {statement.predicate}
-                        </div>
-                        <div className="flex justify-center gap-2">
-                            <button className="bg-nord8 flex h-7 w-12 items-center justify-center rounded">
-                                <EditIcon size={16} />
-                            </button>
-                            <button className="bg-nord4 flex h-7 w-12 items-center justify-center rounded">
-                                <RotateCcwIcon size={16} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
-                        <div className="font-mono text-sm wrap-anywhere">
-                            {statement.object}
-                        </div>
-                        <div className="flex justify-center gap-2">
-                            <button className="bg-nord8 flex h-7 w-12 items-center justify-center rounded">
-                                <EditIcon size={16} />
-                            </button>
-                            <button className="bg-nord4 flex h-7 w-12 items-center justify-center rounded">
-                                <RotateCcwIcon size={16} />
-                            </button>
-                        </div>
-                    </div>
+                    <TextField
+                        key={statement.current.subject}
+                        current={statement.current.subject}
+                        original={statement.original.subject}
+                        onChange={(newValue: string) => {
+                            client
+                                .PATCH("/statements/{workspace_id}/edit", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
+                                    },
+                                    body: { subject: newValue },
+                                })
+                                .then(() => onChange(index));
+                        }}
+                    />
+                    <TextField
+                        key={statement.current.predicate}
+                        current={statement.current.predicate}
+                        original={statement.original.predicate}
+                        onChange={(newValue: string) => {
+                            client
+                                .PATCH("/statements/{workspace_id}/edit", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
+                                    },
+                                    body: { predicate: newValue },
+                                })
+                                .then(() => onChange(index));
+                        }}
+                    />
+                    <TextField
+                        key={statement.current.object}
+                        current={statement.current.object}
+                        original={statement.original.object}
+                        onChange={(newValue: string) => {
+                            client
+                                .PATCH("/statements/{workspace_id}/edit", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: {
+                                            statement_id: statement.current.id,
+                                        },
+                                    },
+                                    body: { object_value: newValue },
+                                })
+                                .then(() => onChange(index));
+                        }}
+                    />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-nord6 h-4"></div>
@@ -410,13 +477,13 @@ export default function CurationDetail({
                     <div className="bg-nord6 rounded-tr rounded-b">
                         <EntityView
                             workspaceId={workspaceId}
-                            entityId={statement.subject}
+                            entityId={statement.current.subject}
                         />
                     </div>
                     <div className="bg-nord6 rounded-tl rounded-b">
                         <EntityView
                             workspaceId={workspaceId}
-                            entityId={statement.object}
+                            entityId={statement.current.object}
                         />
                     </div>
                 </div>

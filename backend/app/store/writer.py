@@ -733,6 +733,7 @@ def edit_statement(
 
     old_subject = candidate_statement["subject"]
     old_predicate = candidate_statement["predicate"]
+    old_status = candidate_statement["status"]
     object_node = candidate_statement["object_node"]
     confidence_score = candidate_statement["confidence_score"]
     text_span_start = candidate_statement["text_span_start"]
@@ -840,7 +841,7 @@ def edit_statement(
             Triple(new_statement, NamedNode(PACO_SUBJECT), NamedNode(new_subject)),
             Triple(new_statement, NamedNode(PACO_PREDICATE), NamedNode(new_predicate)),
             Triple(new_statement, NamedNode(PACO_OBJECT), new_object),
-            Triple(new_statement, NamedNode(PACO_STATUS), NamedNode(PACO_EDITED)),
+            Triple(new_statement, NamedNode(PACO_STATUS), Literal(old_status)),
             Triple(new_statement, NamedNode(PACO_CURRENT), Literal(True)),
             Triple(
                 new_statement,
@@ -947,8 +948,7 @@ def reset_statement(
     )
 
     reset_statement_id = (
-        f"https://example.org/workspaces/"
-        f"{workspace_id}/candidate-statements/{uuid4()}"
+        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
     )
 
     rdf_type = NamedNode(RDF_TYPE)
@@ -1006,7 +1006,7 @@ def reset_statement(
         Triple(
             new_statement,
             NamedNode(PACO_STATUS),
-            NamedNode(PACO_RESET),
+            NamedNode(PACO_PENDING),
         ),
         Triple(
             new_statement,
@@ -1088,7 +1088,7 @@ def reset_statement(
         confidence=original_confidence_score,
         text_span_start=original_text_span_start,
         text_span_end=original_text_span_end,
-        curation_status=PACO_RESET,
+        curation_status=PACO_PENDING,
         origin=curator.value,
         created_at=created_at,
     )

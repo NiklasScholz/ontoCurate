@@ -11,6 +11,11 @@ export type DocumentDetail = Document & {
     markdown: string;
 };
 
+export type CurrentAndOriginalStatement = {
+    current: Statement;
+    original: Statement;
+};
+
 export type Statement = {
     id: string;
     subject: string;
@@ -22,5 +27,4 @@ export type Statement = {
     confidence: number;
     text_span_start: number | null;
     text_span_end: number | null;
-    original: string;
 };

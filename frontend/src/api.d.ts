@@ -776,6 +776,11 @@ export interface components {
             /** Files */
             files: string[];
         };
+        /** CurrentAndOriginalStatement */
+        CurrentAndOriginalStatement: {
+            current: components["schemas"]["StatementResponse"];
+            original: components["schemas"]["StatementResponse"];
+        };
         /** DocumentDetailResponse */
         DocumentDetailResponse: {
             /**
@@ -972,31 +977,6 @@ export interface components {
             text_span_start: number | null;
             /** Text Span End */
             text_span_end: number | null;
-        };
-        /** StatementResponseWithOriginal */
-        StatementResponseWithOriginal: {
-            /** Id */
-            id: string;
-            /** Subject */
-            subject: string;
-            /** Predicate */
-            predicate: string;
-            /** Object */
-            object: string;
-            /** Origin */
-            origin: string;
-            /** Curation Status */
-            curation_status: string;
-            /** Created At */
-            created_at: string;
-            /** Confidence */
-            confidence: number | null;
-            /** Text Span Start */
-            text_span_start: number | null;
-            /** Text Span End */
-            text_span_end: number | null;
-            /** Original */
-            original: string;
         };
         /** UserResponse */
         UserResponse: {
@@ -1551,7 +1531,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementResponseWithOriginal"][];
+                    "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
                 };
             };
             /** @description Validation Error */
@@ -1847,7 +1827,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementResponse"][];
+                    "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
                 };
             };
             /** @description Validation Error */

@@ -18,6 +18,11 @@ class StatementResponseWithOriginal(StatementResponse):
     original: str
 
 
+class CurrentAndOriginalStatement(BaseModel):
+    current: StatementResponse
+    original: StatementResponse
+
+
 class StatementEdit(BaseModel):
     subject: str | None = None
     predicate: str | None = None

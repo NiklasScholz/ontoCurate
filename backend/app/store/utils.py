@@ -32,10 +32,8 @@ PACO_ALIGNMENT_ACTIVITY = f"{PACO}AlignmentActivity"
 
 # PACO status individuals
 PACO_PENDING = f"{PACO}pending"
-PACO_EDITED = f"{PACO}edited"
 PACO_ACCEPTED = f"{PACO}accepted"
 PACO_REJECTED = f"{PACO}rejected"
-PACO_RESET = f"{PACO}reset"
 
 # PACO agent individuals
 PACO_ONTOGPT = f"{PACO}ontogpt"

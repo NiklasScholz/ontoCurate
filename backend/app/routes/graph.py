@@ -3,12 +3,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from app.deps import get_current_user, require_role
-from app.routes.documents import order_statements
+from app.routes.documents import order_statements, zip_current_originals
 from app.schemas.statement import (
+    CurrentAndOriginalStatement,
     EntityNeighborhoodResponse,
     IncomingEdge,
     OutgoingEdge,
-    StatementResponseWithOriginal,
 )
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
@@ -30,7 +30,7 @@ router = APIRouter(
 
 @router.get(
     "/{workspace_id}/deduplication",
-    response_model=list[StatementResponseWithOriginal],
+    response_model=list[CurrentAndOriginalStatement],
     dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def get_deduplication(workspace_id: UUID):
@@ -59,7 +59,26 @@ async def get_deduplication(workspace_id: UUID):
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
-    return order_statements(rows)
+    originals_payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+    """)
+
+    originals_rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        for b in originals_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return zip_current_originals(
+        order_statements(rows), order_statements(originals_rows)
+    )
 
 
 @router.get(

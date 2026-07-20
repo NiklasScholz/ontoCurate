@@ -15,7 +15,10 @@ from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.workspace import WorkspaceMemberRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
-from app.schemas.statement import StatementResponseWithOriginal
+from app.schemas.statement import (
+    CurrentAndOriginalStatement,
+    StatementResponseWithOriginal,
+)
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
     PACO_CANDIDATE,
@@ -180,7 +183,8 @@ async def delete_document(
 
 
 @router.get(
-    "/{document_id}/statements", response_model=list[StatementResponseWithOriginal]
+    "/{document_id}/statements",
+    response_model=list[CurrentAndOriginalStatement],
 )
 async def get_document_statements(
     document_id: UUID,
@@ -234,10 +238,48 @@ async def get_document_statements(
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
-    return order_statements(rows)
+
+    originals_payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> <{document_entity}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+    """)
+
+    originals_rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        for b in originals_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return zip_current_originals(
+        order_statements(rows), order_statements(originals_rows)
+    )
 
 
-def order_statements(rows: list[tuple[str, str, str, str]]):
+def zip_current_originals(
+    current: list[StatementResponseWithOriginal],
+    original: list[StatementResponseWithOriginal],
+) -> list[CurrentAndOriginalStatement]:
+    result = []
+    for stm in current:
+        matches = [x for x in original if x.id == stm.original]
+        result.append(
+            CurrentAndOriginalStatement(
+                current=stm, original=matches[0] if len(matches) >= 1 else stm
+            )
+        )
+    return result
+
+
+def order_statements(
+    rows: list[tuple[str, str, str, str]],
+) -> list[StatementResponseWithOriginal]:
     grouped: dict[str, dict[str, list[str]]] = {}
     originals: dict[str, str] = {}
     for subject, predicate, obj, original in rows:
