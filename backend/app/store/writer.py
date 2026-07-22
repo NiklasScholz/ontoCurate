@@ -20,8 +20,82 @@ def validate_iri(value: str, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a valid IRI")
 
 
-def write_candidate_statements(statements: list[dict], workspace_id: str) -> None:
-    return None
+def curator_node(user_id: uuid.UUID) -> NamedNode:
+    return NamedNode(f"https://example.org/users/{user_id}")
+
+
+def upsert_curator(
+    workspace_id: str,
+    user_id: uuid.UUID,
+    name: str | None,
+    email: str,
+    username: str | None,
+) -> None:
+    """
+    Adds curator information into provenance graph for more informative provenance querying.
+    Workspace owners typically do not know the user_id of the curators, so we allow upserting curator information with the user_id, name, email, and username until their account gets deleted when this data is being anonymized.
+    """
+    graph = curation_graph(workspace_id)
+    curator = curator_node(user_id)
+
+    # ensure idempotence by deleting existing user with this information
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{
+                <{curator.value}> <{SCHEMA_NAME}> ?name .
+                <{curator.value}> <{SCHEMA_EMAIL}> ?email .
+                <{curator.value}> <{PACO_USERNAME}> ?username .
+            }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_NAME}> ?name . }}
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_EMAIL}> ?email . }}
+                OPTIONAL {{ <{curator.value}> <{PACO_USERNAME}> ?username . }}
+            }}
+        }}
+    """)
+
+    triples = [
+        Triple(curator, N_RDF_TYPE, N_PACO_CURATOR),
+        Triple(curator, N_RDF_TYPE, N_PROV_AGENT),
+        Triple(curator, N_SCHEMA_NAME, Literal(name or username or str(user_id))),
+        Triple(curator, N_SCHEMA_EMAIL, Literal(email)),
+    ]
+    if username:
+        triples.append(Triple(curator, N_PACO_USERNAME, Literal(username)))
+
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+    sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
+
+
+def anonymize_curator(user_id: uuid.UUID) -> None:
+    """Strips curators identifying information from the graph when their account is deleted."""
+    curator = curator_node(user_id)
+
+    sparql_update(f"""
+        DELETE {{
+            GRAPH ?g {{
+                <{curator.value}> <{SCHEMA_NAME}> ?name .
+                <{curator.value}> <{SCHEMA_EMAIL}> ?email .
+                <{curator.value}> <{PACO_USERNAME}> ?username .
+            }}
+        }}
+        INSERT {{
+            GRAPH ?g {{
+                <{curator.value}> <{SCHEMA_NAME}> "Deleted user" .
+                <{curator.value}> <{PACO_DELETED}> true .
+            }}
+        }}
+        WHERE {{
+            GRAPH ?g {{
+                <{curator.value}> <{RDF_TYPE}> <{PACO_CURATOR}> .
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_NAME}> ?name . }}
+                OPTIONAL {{ <{curator.value}> <{SCHEMA_EMAIL}> ?email . }}
+                OPTIONAL {{ <{curator.value}> <{PACO_USERNAME}> ?username . }}
+            }}
+        }}
+    """)
 
 
 def load_prov(
@@ -245,7 +319,12 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     if old_object_type == "uri":
         object_node = NamedNode(old_object_value)
     else:
-        object_node = Literal(old_object_value)
+        old_object_datatype = old_object_binding.get("datatype")
+        object_node = Literal(
+            old_object_value,
+            language=old_object_binding.get("xml:lang"),
+            datatype=NamedNode(old_object_datatype) if old_object_datatype else None,
+        )
 
     # Get confidence score
     confidence_score = props.get(PACO_CONFIDENCE)
@@ -432,6 +511,73 @@ def write_alignment_results(
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
 
+def delete_document_data(workspace_id: str, document_id: str) -> None:
+    """Removes everything a document contributed to a workspace from oxigraph"""
+    graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
+    source_document = create_source_document_entity(workspace_id, document_id)
+
+    # remove data graph triples from the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{accepted_graph}> {{ ?s ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                ?cs <{PACO_SUBJECT}> ?s ;
+                    <{PACO_PREDICATE}> ?p ;
+                    <{PACO_OBJECT}> ?o ;
+                    <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+            }}
+            GRAPH <{accepted_graph}> {{ ?s ?p ?o }}
+        }}
+    """)
+
+    # remove all activities that are associated with the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ ?activity ?ap ?ao }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                {{
+                    ?activity <{PROV_USED}> <{source_document.value}> .
+                }} UNION {{
+                    ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+                    ?activity <{PROV_USED}> ?cs .
+                }} UNION {{
+                    ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> .
+                    ?activity <{PROV_GENERATED}> ?cs .
+                }}
+                ?activity ?ap ?ao .
+            }}
+        }}
+    """)
+
+    # Remove all candidate statements associated with the document
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ ?cs ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                ?cs <{PROV_DERIVED_FROM}>+ <{source_document.value}> ;
+                    ?p ?o .
+            }}
+        }}
+    """)
+
+    # Remove the source document entity triples
+    sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ <{source_document.value}> ?p ?o }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{ <{source_document.value}> ?p ?o }}
+        }}
+    """)
+
+
 def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
@@ -570,6 +716,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
 
 def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
 
     # Load the candidate statement
 
@@ -588,6 +735,26 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     confidence_score = candidate_statement["confidence_score"]
     text_span_start = candidate_statement["text_span_start"]
     text_span_end = candidate_statement["text_span_end"]
+
+    # Remove persisted triple if already accepted
+    if candidate_statement["status"] == PACO_ACCEPTED:
+        current_data_triple = Triple(
+            NamedNode(old_subject),
+            NamedNode(old_predicate),
+            object_node,
+        )
+        current_data_triple_text = serialize(
+            [current_data_triple],
+            format=RdfFormat.N_TRIPLES,
+        ).decode("utf-8")
+
+        sparql_update(f"""
+            DELETE DATA {{
+                GRAPH <{accepted_graph}> {{
+                    {current_data_triple_text}
+                }}
+            }}
+            """)
 
     # Get the current timestamp in ISO 8601 format with UTC timezone
 
@@ -714,6 +881,7 @@ def edit_statement(
     edit: StatementEdit,
 ) -> str:
     graph = curation_graph(workspace_id)
+    accepted_graph = data_graph(workspace_id)
 
     # Check that either object_iri or object_value is provided, but not both
 
@@ -733,10 +901,32 @@ def edit_statement(
 
     old_subject = candidate_statement["subject"]
     old_predicate = candidate_statement["predicate"]
+    old_status = candidate_statement["status"]
     object_node = candidate_statement["object_node"]
     confidence_score = candidate_statement["confidence_score"]
     text_span_start = candidate_statement["text_span_start"]
     text_span_end = candidate_statement["text_span_end"]
+
+    # Remove persisted triple if accepted
+    if candidate_statement["status"] == PACO_ACCEPTED:
+        current_data_triple = Triple(
+            NamedNode(old_subject),
+            NamedNode(old_predicate),
+            object_node,
+        )
+
+        current_data_triple_text = serialize(
+            [current_data_triple],
+            format=RdfFormat.N_TRIPLES,
+        ).decode("utf-8")
+
+        sparql_update(f"""
+            DELETE DATA {{
+                GRAPH <{accepted_graph}> {{
+                    {current_data_triple_text}
+                }}
+            }}
+            """)
 
     new_subject = edit.subject or old_subject
     new_predicate = edit.predicate or old_predicate
@@ -754,7 +944,9 @@ def edit_statement(
 
     no_subject_change = edit.subject is None or edit.subject == old_subject
     no_predicate_change = edit.predicate is None or edit.predicate == old_predicate
-    no_object_change = edit.object_iri is None and edit.object_value is None
+    no_object_change = (
+        edit.object_iri is None and edit.object_value is None
+    ) or new_object == object_node
 
     if no_subject_change and no_predicate_change and no_object_change:
         raise ValueError("No changes detected in subject, predicate, or object")
@@ -840,7 +1032,7 @@ def edit_statement(
             Triple(new_statement, NamedNode(PACO_SUBJECT), NamedNode(new_subject)),
             Triple(new_statement, NamedNode(PACO_PREDICATE), NamedNode(new_predicate)),
             Triple(new_statement, NamedNode(PACO_OBJECT), new_object),
-            Triple(new_statement, NamedNode(PACO_STATUS), NamedNode(PACO_EDITED)),
+            Triple(new_statement, NamedNode(PACO_STATUS), Literal(old_status)),
             Triple(new_statement, NamedNode(PACO_CURRENT), Literal(True)),
             Triple(
                 new_statement,
@@ -947,8 +1139,7 @@ def reset_statement(
     )
 
     reset_statement_id = (
-        f"https://example.org/workspaces/"
-        f"{workspace_id}/candidate-statements/{uuid4()}"
+        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
     )
 
     rdf_type = NamedNode(RDF_TYPE)
@@ -1006,7 +1197,7 @@ def reset_statement(
         Triple(
             new_statement,
             NamedNode(PACO_STATUS),
-            NamedNode(PACO_RESET),
+            NamedNode(PACO_PENDING),
         ),
         Triple(
             new_statement,
@@ -1088,7 +1279,7 @@ def reset_statement(
         confidence=original_confidence_score,
         text_span_start=original_text_span_start,
         text_span_end=original_text_span_end,
-        curation_status=PACO_RESET,
+        curation_status=PACO_PENDING,
         origin=curator.value,
         created_at=created_at,
     )

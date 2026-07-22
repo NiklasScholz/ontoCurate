@@ -32,6 +32,7 @@ from app.store.client import (
     drop_workspace_graphs,
     export_graph,
 )
+from app.store.writer import upsert_curator
 
 router = APIRouter(
     prefix="/workspaces", tags=["workspaces"], dependencies=[Depends(get_current_user)]
@@ -80,6 +81,7 @@ async def create_workspace(
     )
     if not workspace_mem:
         raise BadRequestException("Failed to add user as workspace member")
+    upsert_curator(str(workspace.id), user.id, user.name, user.email, user.username)
     return WorkspaceResponse(id=workspace.id, name=workspace.name, role="owner")
 
 
@@ -199,6 +201,7 @@ async def add_workspace_member(
         )
 
     await workspace_repo.add_member(workspace_id, user.id, body.role)
+    upsert_curator(str(workspace_id), user.id, user.name, user.email, user.username)
     return user
 
 

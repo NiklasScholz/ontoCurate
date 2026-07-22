@@ -1,6 +1,11 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Panel from "../components/Panel";
-import { ArrowLeftIcon, FileIcon, TrashIcon } from "lucide-react";
+import {
+    ArrowLeftIcon,
+    FileIcon,
+    TrashIcon,
+    TriangleAlertIcon,
+} from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { client } from "../client";
 import NotFound from "./NotFound";
@@ -11,6 +16,8 @@ export default function UploadPage() {
     const wsId = searchParams.get("ws");
 
     const [files, setFiles] = useState<{ id: string; data: File }[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
 
     if (wsId === null) {
         return <NotFound />;
@@ -97,12 +104,21 @@ export default function UploadPage() {
                 )}
             </div>
 
+            {error && (
+                <p className="text-nord11 mt-2 flex items-center justify-center gap-2 text-sm">
+                    <TriangleAlertIcon size={14} />
+                    {error}
+                </p>
+            )}
+
             <div className="mt-4 flex justify-center">
                 <button
-                    disabled={files.length === 0}
-                    className={`h-7 rounded px-2 ${files.length === 0 ? "bg-nord4 text-nord3/50" : "bg-nord8"}`}
+                    disabled={files.length === 0 || submitting}
+                    className={`h-7 rounded px-2 ${files.length === 0 || submitting ? "bg-nord4 text-nord3/50" : "bg-nord8"}`}
                     onClick={async () => {
-                        await client.POST("/extraction/", {
+                        setError(null);
+                        setSubmitting(true);
+                        const { error } = await client.POST("/extraction/", {
                             params: { query: { workspace_id: wsId } },
                             body: {
                                 files: files.map(
@@ -119,10 +135,26 @@ export default function UploadPage() {
                                 return formData;
                             },
                         });
+                        setSubmitting(false);
+                        if (error) {
+                            const body = error as {
+                                detail?: string | { msg: string }[];
+                                error?: string;
+                            };
+                            const detail = Array.isArray(body.detail)
+                                ? body.detail.map((d) => d.msg).join(", ")
+                                : body.detail;
+                            setError(
+                                detail ??
+                                    body.error ??
+                                    "Failed to upload documents",
+                            );
+                            return;
+                        }
                         navigate(`/workspace?ws=${wsId}`);
                     }}
                 >
-                    Submit
+                    {submitting ? "Uploading…" : "Submit"}
                 </button>
             </div>
         </Panel>

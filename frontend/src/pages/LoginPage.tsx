@@ -6,6 +6,7 @@ import {
     TriangleAlertIcon,
 } from "lucide-react";
 import Root from "../components/Root";
+import HelpButton from "../components/HelpButton";
 import { client } from "../client";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
@@ -38,7 +39,7 @@ export default function LoginPage() {
               }
             : { login_name: formData.login_name, password: formData.password };
         const { error } = await client.POST(endpoint, { body: body as never });
-        if (error) {
+        if (error) {            
             const detail = (error as { detail?: string | { msg: string }[] })
                 .detail;
             if (Array.isArray(detail)) {
@@ -57,18 +58,22 @@ export default function LoginPage() {
     };
 
     return (
-        <Root className="min-h-screen">
-            <div
-                className="mx-auto flex w-full max-w-md flex-col rounded-2xl p-8 shadow-xl"
-                style={{ background: "#ffffff" }}
-            >
-                <div className="flex flex-row gap-3 pb-4">
-                    <h1
-                        className="my-auto text-3xl font-bold"
-                        style={{ color: "#4B5563" }}
+        <div className="flex h-screen flex-col">
+            <header className="bg-nord0 flex items-center justify-end px-4 py-2">
+                <HelpButton />
+            </header>
+            <main className="flex min-h-0 flex-1 flex-col">
+                <Root>
+                    <div
+                        className="mx-auto flex w-full max-w-md flex-col rounded-2xl p-8 shadow-xl"
+                        style={{ background: "#ffffff" }}
                     >
-                        OntoCurate - {isRegister ? "Register" : "Login"}
-                    </h1>
+                <div className="flex flex-row items-center justify-center pb-6">
+                    <img
+                        src="/logo_light.svg"
+                        alt="OntoCurate"
+                        className="h-24"
+                    />
                 </div>
 
                 <div className="flex flex-col gap-4">
@@ -195,11 +200,11 @@ export default function LoginPage() {
                                 );
                                 if (error) {
                                     setError(
-                                        (error as { detail?: string }).detail ??
-                                            "Google login failed",
-                                    );
-                                    return;
-                                }
+                                        (error as { detail?: string }).detail ??    
+                                        "Google login failed",
+                                        );
+                                        return;
+                            }
                                 await refreshUser();
                                 navigate("/workspaces");
                             }}
@@ -207,7 +212,9 @@ export default function LoginPage() {
                         />
                     </div>
                 </div>
-            </div>
-        </Root>
+                    </div>
+                </Root>
+            </main>
+        </div>
     );
 }

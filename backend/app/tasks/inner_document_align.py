@@ -61,17 +61,14 @@ def align_document_task(self, extract_result: tuple) -> str:
             async with AsyncSessionLocal() as session:
                 tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
 
-            if len(tasks) <= 1:
-                await update_status("done")
+            other_tasks = [t for t in tasks if str(t.document_id) != document_id]
+            all_others_finished = all(
+                t.status in {"waiting", "done", "failed"} for t in other_tasks
+            )
+            if all_others_finished:
+                await update_status("queued", task_name="Cross-Document Alignment")
             else:
-                other_tasks = [t for t in tasks if str(t.document_id) != document_id]
-                all_others_finished = all(
-                    t.status in {"waiting", "done", "failed"} for t in other_tasks
-                )
-                if all_others_finished:
-                    await update_status("queued", task_name="Cross-Document Alignment")
-                else:
-                    await update_status("waiting", task_name="Cross-Document Alignment")
+                await update_status("waiting", task_name="Cross-Document Alignment")
             logger.info("[%s] Alignment complete: document=%s", run_id, document_id)
         except Exception:
             await update_status("failed")

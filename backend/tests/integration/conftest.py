@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / "secrets.env")
+load_dotenv(Path(__file__).parent.parent.parent / "secrets.env")
 
 # Seperate to dev database to avoid dropping data accidentally during testing
 dev_db_url = os.environ.get(
@@ -20,7 +20,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.database import Base, get_session
+from app.core.limiter import limiter
 from app.main import app
+
+# disable rate limiting that requires redis
+limiter.enabled = False
 
 
 def _admin_db_url() -> str:
@@ -66,7 +70,9 @@ async def session(engine):
     async with engine.connect() as connection:
         transaction = await connection.begin()
         async_session = AsyncSession(
-            bind=connection, join_transaction_mode="create_savepoint"
+            bind=connection,
+            join_transaction_mode="create_savepoint",
+            expire_on_commit=False,
         )
 
         app.dependency_overrides[get_session] = lambda: async_session

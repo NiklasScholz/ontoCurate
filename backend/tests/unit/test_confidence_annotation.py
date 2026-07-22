@@ -8,7 +8,7 @@ import pytest
 from app.pipeline.confidence_annotation import annotate_confidence
 
 PROVENANCE_CONFIG_PATH = (
-    Path(__file__).parent.parent
+    Path(__file__).parent.parent.parent
     / "config"
     / "scholarySchema"
     / "provenance_config.yaml"

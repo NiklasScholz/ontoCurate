@@ -9,6 +9,9 @@ class LoginRequest(BaseModel):
     password: str
 
 
+ALLOWED_EMAIL_DOMAINS = {"rwth-aachen.de"}
+
+
 class RegisterRequest(BaseModel):
     username: str | None
     email: str
@@ -27,8 +30,11 @@ class RegisterRequest(BaseModel):
     @field_validator("email", mode="before")
     @classmethod
     def validate_email(cls, v):
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", v):
+        if v.count("@") != 1 or not re.fullmatch(r"[^@]+@[^@]+\.[^@]+", v):
             raise ValueError("Please enter a valid email address")
+        domain = v.split("@", 1)[1].lower()
+        if domain not in ALLOWED_EMAIL_DOMAINS:
+            raise ValueError("Registration is restricted to RWTH email addresses")
         return v
 
 

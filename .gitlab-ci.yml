@@ -18,6 +18,7 @@ backend-test:
   image: python:3.12-slim
   services:
     - postgres:16
+    - redis:7-alpine
     - name: ghcr.io/oxigraph/oxigraph:latest
       alias: oxigraph
       command: ["serve", "--bind", "0.0.0.0:7878"]
@@ -26,6 +27,7 @@ backend-test:
     POSTGRES_PASSWORD: onto
     POSTGRES_DB: onto
     DATABASE_URL: postgresql+asyncpg://onto:onto@postgres:5432/onto
+    REDIS_URL: redis://redis:6379
     OXIGRAPH_URL: http://oxigraph:7878
   before_script:
     - cd backend
