@@ -24,7 +24,14 @@ from app.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceResponse,
 )
-from app.store.client import curation_graph, drop_workspace_graphs, export_graph_ttl
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    data_graph,
+    drop_workspace_graphs,
+    export_graph,
+)
 from app.store.writer import upsert_curator
 
 router = APIRouter(
@@ -96,16 +103,38 @@ async def get_workspace(
 
 
 @router.get(
-    "/{workspace_id}/export/provenance.ttl",
+    "/{workspace_id}/export/provenance",
+    dependencies=[Depends(require_role("owner"))],
+    response_class=FileResponse,
+)
+async def export_provenance_graph(
+    workspace_id: str, format: ExportFormat = ExportFormat.turtle
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_graph(curation_graph(workspace_id), format)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
+    )
+
+
+@router.get(
+    "/{workspace_id}/export/data",
     dependencies=[Depends(require_role("owner", "editor"))],
     response_class=FileResponse,
 )
-async def export_provenance_graph(workspace_id: str):
-    ttl = export_graph_ttl(curation_graph(workspace_id))
+async def export_data_graph(
+    workspace_id: str, format: ExportFormat = ExportFormat.turtle
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_graph(data_graph(workspace_id), format)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": f'attachment; filename="provenance.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
     )
 
 

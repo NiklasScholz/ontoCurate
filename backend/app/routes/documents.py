@@ -19,7 +19,13 @@ from app.schemas.statement import (
     CurrentAndOriginalStatement,
     StatementResponseWithOriginal,
 )
-from app.store.client import curation_graph, sparql_select
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    sparql_select,
+)
+from app.store.queries import export_document_data, export_document_provenance
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
@@ -358,7 +364,64 @@ def order_statements(
     return records
 
 
-@router.get("/{document_id}/export/provenance.ttl")
-async def export_document_ttl(document_id: str, response_class=FileResponse):
-    # TODO
-    pass
+async def _get_document_or_403(
+    document_id: UUID,
+    current_user: User,
+    session: AsyncSession,
+    roles: tuple[str, ...] | None = None,
+):
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role or (roles is not None and role not in roles):
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+    return doc
+
+
+@router.get("/{document_id}/export/provenance", response_class=FileResponse)
+async def export_document_provenance(
+    document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(
+        document_id, current_user, session, roles=("owner",)
+    )
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(
+        str(doc.workspace_id), str(document_id)
+    ).value
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_document_provenance(graph, document_entity, format)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
+    )
+
+
+@router.get("/{document_id}/export/data", response_class=FileResponse)
+async def export_document_data(
+    document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(document_id, current_user, session)
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(
+        str(doc.workspace_id), str(document_id)
+    ).value
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_document_data(graph, document_entity, format)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
+    )
