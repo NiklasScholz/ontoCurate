@@ -15,6 +15,10 @@ from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.workspace import WorkspaceMemberRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
+from app.schemas.statement import (
+    CurrentAndOriginalStatement,
+    StatementResponseWithOriginal,
+)
 from app.store.client import (
     EXPORT_FORMAT_MEDIA_TYPES,
     ExportFormat,
@@ -22,10 +26,6 @@ from app.store.client import (
     sparql_select,
 )
 from app.store.queries import export_document_data, export_document_provenance
-from app.schemas.statement import (
-    CurrentAndOriginalStatement,
-    StatementResponseWithOriginal
-)
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,

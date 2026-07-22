@@ -1,9 +1,14 @@
-from app.store.client import ExportFormat, sparql_construct, sparql_select, curation_graph
 from rdflib import Graph, URIRef
 
 from app.pipeline.utils.turtle_utils import (
     load_entity_information,
     sparql_binding_to_term,
+)
+from app.store.client import (
+    ExportFormat,
+    curation_graph,
+    sparql_construct,
+    sparql_select,
 )
 from app.store.utils import *
 
