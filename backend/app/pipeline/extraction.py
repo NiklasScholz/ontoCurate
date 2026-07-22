@@ -5,6 +5,7 @@ Used by celery extraction.py
 
 import hashlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -16,6 +17,8 @@ import yaml
 from linkml.generators import PythonGenerator
 from linkml.utils.datautils import get_dumper, get_loader
 from linkml_runtime import SchemaView
+
+logger = logging.getLogger(__name__)
 
 
 def extract_document(
@@ -296,6 +299,7 @@ def clean_extraction(
 
 def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     """Converts cleaned YAML output to Turtle RDF file using linkML"""
+    logger.info(f"[yaml_to_turtle] YAML path: {yaml_path}")
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()
 
@@ -304,6 +308,7 @@ def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     py_target_class = python_module.__dict__[root_class_name]
 
     raw = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
+    logger.info(f"[yaml_to_turtle] Raw YAML: {raw}")
     extracted = raw.get("extracted_object")
     data = (
         extracted
@@ -323,8 +328,10 @@ def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     )
 
     yaml_str = yaml.dump(data, allow_unicode=True, sort_keys=False)
+    logger.info("[yaml_to_turtle] YAML string before preprocessing: %s", yaml_str)
     yaml_str = re.sub(r"(?m)^(\s*)- null\s*$\n?", "", yaml_str)
     yaml_str = re.sub(r"(?m)^(\s*)- \{\}\s*$\n?", "", yaml_str)
+    logger.info("[yaml_to_turtle] YAML output: %s", yaml_str)
     obj = get_loader("yaml").load(source=yaml_str, target_class=py_target_class)
     ttl = get_dumper("ttl").dumps(obj, schemaview=sv)
     Path(ttl_path).write_text(ttl, encoding="utf-8")

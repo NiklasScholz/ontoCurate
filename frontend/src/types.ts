@@ -12,6 +12,11 @@ export type DocumentDetail = Document & {
     markdown: string;
 };
 
+export type CurrentAndOriginalStatement = {
+    current: Statement;
+    original: Statement;
+};
+
 export type Statement = {
     id: string;
     subject: string;

@@ -190,7 +190,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/debug/seed-statement": {
+    "/debug/seed-statement/{workspace_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -200,7 +200,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Seed Statement For Testing */
-        post: operations["seed_statement_for_testing_debug_seed_statement_post"];
+        post: operations["seed_statement_for_testing_debug_seed_statement__workspace_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -570,11 +570,28 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reset Statement
-         * @description Rolls back a statement to its original version, and set it to neither accepted nor rejected.
+         * Reset Statement Endpoint
+         * @description Rolls back a statement to its original version, and set it to reset.
          *     Returns the new CandidateStatement.
          */
-        post: operations["reset_statement_statements__workspace_id__reset_post"];
+        post: operations["reset_statement_endpoint_statements__workspace_id__reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements/{workspace_id}/statements/{statement_id}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Current Statement Endpoint */
+        get: operations["get_current_statement_endpoint_statements__workspace_id__statements__statement_id__current_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -758,6 +775,11 @@ export interface components {
         Body_create_documents_extraction__post: {
             /** Files */
             files: string[];
+        };
+        /** CurrentAndOriginalStatement */
+        CurrentAndOriginalStatement: {
+            current: components["schemas"]["StatementResponse"];
+            original: components["schemas"]["StatementResponse"];
         };
         /** DocumentDetailResponse */
         DocumentDetailResponse: {
@@ -1318,11 +1340,13 @@ export interface operations {
             };
         };
     };
-    seed_statement_for_testing_debug_seed_statement_post: {
+    seed_statement_for_testing_debug_seed_statement__workspace_id__post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1334,6 +1358,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1508,7 +1541,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementResponse"][];
+                    "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
                 };
             };
             /** @description Validation Error */
@@ -1804,7 +1837,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementResponse"][];
+                    "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
                 };
             };
             /** @description Validation Error */
@@ -1954,7 +1987,7 @@ export interface operations {
             };
         };
     };
-    reset_statement_statements__workspace_id__reset_post: {
+    reset_statement_endpoint_statements__workspace_id__reset_post: {
         parameters: {
             query: {
                 statement_id: string;
@@ -1962,6 +1995,38 @@ export interface operations {
             header?: never;
             path: {
                 workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_statement_endpoint_statements__workspace_id__statements__statement_id__current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                statement_id: string;
             };
             cookie?: never;
         };
