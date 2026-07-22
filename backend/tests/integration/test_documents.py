@@ -202,10 +202,10 @@ class TestDocumentStatements:
         assert resp.status_code == 200
         statements = resp.json()
         assert len(statements) == 1
-        assert statements[0]["subject"] == "http://example.org/s"
-        assert statements[0]["predicate"] == "http://example.org/p"
-        assert statements[0]["object"] == "o"
-        assert statements[0]["curation_status"] == PACO_PENDING
+        assert statements[0]["current"]["subject"] == "http://example.org/s"
+        assert statements[0]["current"]["predicate"] == "http://example.org/p"
+        assert statements[0]["current"]["object"] == "o"
+        assert statements[0]["current"]["curation_status"] == PACO_PENDING
 
     async def test_non_member_cannot_get_document_statements(self, client):
         _, _, owner_token = await register_user(client, "owner")
