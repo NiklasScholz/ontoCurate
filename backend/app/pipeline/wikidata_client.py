@@ -3,6 +3,7 @@
 import logging
 import os
 import time
+from functools import lru_cache
 from typing import Optional
 
 import httpx
@@ -196,6 +197,46 @@ def fetch_wikidata_entity_details(wikidata_id: str) -> dict:
     }
 
 
+def claim_entity_ids(details: dict, property_id: str) -> list[str]:
+    """Extract Wikidata entity IDs from item-valued claims."""
+    ids = []
+
+    claims = details.get("properties", {}).get(property_id, [])
+
+    for claim in claims:
+        value = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
+
+        if isinstance(value, dict):
+            qid = value.get("id")
+            if qid:
+                ids.append(qid)
+
+    return ids
+
+
+def claim_string_values(details: dict, property_id: str) -> list[str]:
+    """Extract string values from Wikidata claims."""
+    values = []
+
+    claims = details.get("properties", {}).get(property_id, [])
+
+    for claim in claims:
+        value = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
+
+        if isinstance(value, str) and value.strip():
+            values.append(value.strip())
+
+    return values
+
+
+@lru_cache(maxsize=512)
+def fetch_english_label(wikidata_id: str) -> str:
+    """Fetch and cache the English label of a Wikidata item."""
+    details = fetch_wikidata_entity_details(wikidata_id)
+
+    return details.get("labels", {}).get("en", {}).get("value", "").strip()
+
+
 def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
     """
     Generate candidate Wikidata entities for alignment with a local entity.
@@ -277,6 +318,32 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
 
             if entity_type == "AcademicArticle":
                 candidate_literals["title"] = [result["label"]]
+
+            # For Person entities, extract givenName, familyName, and ORCID if available
+            if entity_type == "Person":
+                # Wikidata:
+                # P735 = given name
+                # P734 = family name
+                # P496 = ORCID
+
+                given_name_ids = claim_entity_ids(details, "P735")
+                family_name_ids = claim_entity_ids(details, "P734")
+
+                given_names = [fetch_english_label(qid) for qid in given_name_ids]
+                family_names = [fetch_english_label(qid) for qid in family_name_ids]
+
+                given_names = [value for value in given_names if value]
+                family_names = [value for value in family_names if value]
+
+                if given_names:
+                    candidate_literals["givenName"] = given_names
+
+                if family_names:
+                    candidate_literals["familyName"] = family_names
+
+                orcid_values = claim_string_values(details, "P496")
+                if orcid_values:
+                    candidate_literals["orcid"] = orcid_values
 
             candidate = {
                 "uri": result["uri"],
