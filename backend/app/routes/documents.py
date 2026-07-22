@@ -22,7 +22,7 @@ from app.store.client import (
     curation_graph,
     sparql_select,
 )
-from app.store.queries import export_document_data_ttl, export_document_provenance_ttl
+from app.store.queries import export_document_data, export_document_provenance
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
@@ -307,7 +307,7 @@ async def _get_document_or_403(
     return doc
 
 
-@router.get("/{document_id}/export/provenance.ttl", response_class=FileResponse)
+@router.get("/{document_id}/export/provenance", response_class=FileResponse)
 async def export_document_provenance(
     document_id: UUID,
     format: ExportFormat = ExportFormat.turtle,
@@ -322,7 +322,7 @@ async def export_document_provenance(
         str(doc.workspace_id), str(document_id)
     ).value
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
-    content = export_document_provenance_ttl(graph, document_entity, format)
+    content = export_document_provenance(graph, document_entity, format)
     return Response(
         content=content,
         media_type=media_type,
@@ -332,7 +332,7 @@ async def export_document_provenance(
     )
 
 
-@router.get("/{document_id}/export/data.ttl", response_class=FileResponse)
+@router.get("/{document_id}/export/data", response_class=FileResponse)
 async def export_document_data(
     document_id: UUID,
     format: ExportFormat = ExportFormat.turtle,
@@ -345,7 +345,7 @@ async def export_document_data(
         str(doc.workspace_id), str(document_id)
     ).value
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
-    content = export_document_data_ttl(graph, document_entity, format)
+    content = export_document_data(graph, document_entity, format)
     return Response(
         content=content,
         media_type=media_type,

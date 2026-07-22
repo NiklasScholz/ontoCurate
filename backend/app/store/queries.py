@@ -1,4 +1,4 @@
-from app.store.client import ExportFormat, sparql_construct_ttl, sparql_select
+from app.store.client import ExportFormat, sparql_construct, sparql_select
 from app.store.utils import *
 
 
@@ -50,13 +50,13 @@ def get_current_candidate_statement(
     return bindings[0]["currentStatement"]["value"]
 
 
-def export_document_data_ttl(
+def export_document_data(
     graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
 ) -> str:
     """Return the accepted (subject, predicate, object) triples derived from one
     document, serialized in the given format, reconstructed from the curation
     graph since the data graph itself carries no document linkage."""
-    return sparql_construct_ttl(
+    return sparql_construct(
         f"""
         CONSTRUCT {{ ?subject ?predicate ?object }}
         WHERE {{
@@ -78,7 +78,7 @@ def export_document_data_ttl(
     )
 
 
-def export_document_provenance_ttl(
+def export_document_provenance(
     graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
 ) -> str:
     """Return the full provenance history for one document, serialized in the
@@ -110,7 +110,7 @@ def export_document_provenance_ttl(
 
     values = " ".join(f"<{iri}>" for iri in subjects)
 
-    return sparql_construct_ttl(
+    return sparql_construct(
         f"""
         CONSTRUCT {{ ?s ?p ?o }}
         WHERE {{
