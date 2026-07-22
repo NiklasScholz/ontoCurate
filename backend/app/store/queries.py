@@ -1,4 +1,4 @@
-from app.store.client import sparql_construct_ttl, sparql_select
+from app.store.client import ExportFormat, sparql_construct_ttl, sparql_select
 from app.store.utils import *
 
 
@@ -50,11 +50,14 @@ def get_current_candidate_statement(
     return bindings[0]["currentStatement"]["value"]
 
 
-def export_document_data_ttl(graph: str, document_entity: str) -> str:
+def export_document_data_ttl(
+    graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
+) -> str:
     """Return the accepted (subject, predicate, object) triples derived from one
-    document as a Turtle string, reconstructed from the curation graph since the
-    data graph itself carries no document linkage."""
-    return sparql_construct_ttl(f"""
+    document, serialized in the given format, reconstructed from the curation
+    graph since the data graph itself carries no document linkage."""
+    return sparql_construct_ttl(
+        f"""
         CONSTRUCT {{ ?subject ?predicate ?object }}
         WHERE {{
             GRAPH <{graph}> {{
@@ -70,13 +73,18 @@ def export_document_data_ttl(graph: str, document_entity: str) -> str:
                 ?original <{PROV_DERIVED_FROM}> <{document_entity}> .
             }}
         }}
-        """)
+        """,
+        format,
+    )
 
 
-def export_document_provenance_ttl(graph: str, document_entity: str) -> str:
-    """Return the full provenance history for one document as a Turtle string:
-    every CandidateStatement version derived from it, the activities that
-    generated those versions, and the agents associated with those activities."""
+def export_document_provenance_ttl(
+    graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
+) -> str:
+    """Return the full provenance history for one document, serialized in the
+    given format: every CandidateStatement version derived from it, the
+    activities that generated those versions, and the agents associated with
+    those activities."""
     payload = sparql_select(f"""
         SELECT DISTINCT ?candidate ?activity ?agent
         WHERE {{
@@ -102,7 +110,8 @@ def export_document_provenance_ttl(graph: str, document_entity: str) -> str:
 
     values = " ".join(f"<{iri}>" for iri in subjects)
 
-    return sparql_construct_ttl(f"""
+    return sparql_construct_ttl(
+        f"""
         CONSTRUCT {{ ?s ?p ?o }}
         WHERE {{
             GRAPH <{graph}> {{
@@ -110,4 +119,6 @@ def export_document_provenance_ttl(graph: str, document_entity: str) -> str:
                 ?s ?p ?o .
             }}
         }}
-        """)
+        """,
+        format,
+    )

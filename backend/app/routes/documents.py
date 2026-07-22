@@ -16,7 +16,12 @@ from app.repositories.document import DocumentRepository
 from app.repositories.workspace import WorkspaceMemberRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import StatementResponse
-from app.store.client import curation_graph, sparql_select
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    sparql_select,
+)
 from app.store.queries import export_document_data_ttl, export_document_provenance_ttl
 from app.store.utils import (
     PACO_CANDIDATE,
@@ -305,6 +310,7 @@ async def _get_document_or_403(
 @router.get("/{document_id}/export/provenance.ttl", response_class=FileResponse)
 async def export_document_provenance(
     document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -315,17 +321,21 @@ async def export_document_provenance(
     document_entity = create_source_document_entity(
         str(doc.workspace_id), str(document_id)
     ).value
-    ttl = export_document_provenance_ttl(graph, document_entity)
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_document_provenance_ttl(graph, document_entity, format)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": 'attachment; filename="provenance.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
     )
 
 
 @router.get("/{document_id}/export/data.ttl", response_class=FileResponse)
 async def export_document_data(
     document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -334,9 +344,10 @@ async def export_document_data(
     document_entity = create_source_document_entity(
         str(doc.workspace_id), str(document_id)
     ).value
-    ttl = export_document_data_ttl(graph, document_entity)
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_document_data_ttl(graph, document_entity, format)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": 'attachment; filename="data.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
     )

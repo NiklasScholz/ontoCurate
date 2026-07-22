@@ -25,6 +25,8 @@ from app.schemas.workspace import (
     WorkspaceResponse,
 )
 from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
     curation_graph,
     data_graph,
     drop_workspace_graphs,
@@ -103,12 +105,17 @@ async def get_workspace(
     dependencies=[Depends(require_role("owner"))],
     response_class=FileResponse,
 )
-async def export_provenance_graph(workspace_id: str):
-    ttl = export_graph_ttl(curation_graph(workspace_id))
+async def export_provenance_graph(
+    workspace_id: str, format: ExportFormat = ExportFormat.turtle
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_graph_ttl(curation_graph(workspace_id), format)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": f'attachment; filename="provenance.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
     )
 
 
@@ -117,12 +124,15 @@ async def export_provenance_graph(workspace_id: str):
     dependencies=[Depends(require_role("owner", "editor"))],
     response_class=FileResponse,
 )
-async def export_data_graph(workspace_id: str):
-    ttl = export_graph_ttl(data_graph(workspace_id))
+async def export_data_graph(
+    workspace_id: str, format: ExportFormat = ExportFormat.turtle
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    content = export_graph_ttl(data_graph(workspace_id), format)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": f'attachment; filename="data.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
     )
 
 
