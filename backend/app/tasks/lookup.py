@@ -1,11 +1,21 @@
 import asyncio
 import logging
+from copy import deepcopy
 from pathlib import Path
 from uuid import UUID
 
 from app.core.database import TaskSessionLocal as AsyncSessionLocal
-from app.pipeline.entity_alignment import load_alignment_config
-from app.pipeline.metrics.similarity_metrics import combined_similarity
+from app.pipeline.entity_alignment import (
+    load_alignment_config,
+    precompute_embeddings,
+    resolve_type_config,
+)
+from app.pipeline.metrics.similarity_metrics import (
+    combined_similarity,
+    semantic_similarity,
+    structural_similarity,
+    syntactic_similarity,
+)
 from app.pipeline.utils.turtle_utils import load_entity_information
 from app.pipeline.wikidata_client import query_wikidata_for_entities
 from app.repositories.run import RunRepository
@@ -16,6 +26,38 @@ from app.worker import celery_app
 logger = logging.getLogger(__name__)
 
 TMP_BASE = Path("/tmp/ontocurate")
+
+
+def build_lookup_config(config: dict) -> dict:
+    """
+    Build the Wikidata lookup configuration by overlaying
+    wikidata_lookup settings onto the normal alignment configuration.
+
+    Entity types without lookup-specific overrides retain their
+    normal alignment settings.
+    """
+    lookup_config = deepcopy(config)
+    lookup_overrides = config.get("wikidata_lookup", {})
+
+    lookup_config["settings"] = {
+        **config.get("settings", {}),
+        **lookup_overrides.get("settings", {}),
+    }
+
+    entity_types = deepcopy(config.get("entity_types", {}))
+
+    for entity_type, override in lookup_overrides.get(
+        "entity_types",
+        {},
+    ).items():
+        entity_types[entity_type] = {
+            **entity_types.get(entity_type, {}),
+            **override,
+        }
+
+    lookup_config["entity_types"] = entity_types
+
+    return lookup_config
 
 
 @celery_app.task(bind=True, name="runs.lookup_wikidata")
@@ -97,6 +139,30 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             # Load alignment config for scoring
             config_path = workspace.alignment_config_path
             config = load_alignment_config(Path(config_path))
+            lookup_config = build_lookup_config(config)
+
+            # Build all local-Wikidata candidate pairs so semantic embeddings can be computed in one batch.
+            entities_by_uri = {entity["uri"]: entity for entity in entities}
+
+            candidate_pairs = [
+                (entities_by_uri[local_uri], candidate)
+                for local_uri, candidates in wikidata_candidates_map.items()
+                if local_uri in entities_by_uri
+                for candidate in candidates
+            ]
+
+            embedding_lookup = await asyncio.to_thread(
+                precompute_embeddings,
+                candidate_pairs,
+                lookup_config,
+            )
+
+            logger.info(
+                "[%s] Prepared %d Wikidata candidate pair(s) and %d embedding text(s)",
+                run_id,
+                len(candidate_pairs),
+                len(embedding_lookup),
+            )
 
             # Score local entities against Wikidata candidates
             alignments = []
@@ -114,13 +180,35 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
 
                 # Score each candidate
                 for candidate in wikidata_candidates:
-                    from app.pipeline.entity_alignment import resolve_type_config
 
-                    type_cfg = resolve_type_config(config, entity_type)
+                    type_cfg = resolve_type_config(lookup_config, entity_type)
+                    weights = type_cfg["weights"]
+
+                    syntactic_score = syntactic_similarity(
+                        local_entity,
+                        candidate,
+                        comparison_predicates=type_cfg["comparison_predicates"],
+                        expand_initials=type_cfg["expand_initials"],
+                        sparsity_penalty=type_cfg["sparsity_penalty"],
+                        sparsity_max_fields=type_cfg["sparsity_max_fields"],
+                    )
+
+                    semantic_score = semantic_similarity(
+                        local_entity,
+                        candidate,
+                        semantic_text_predicates=type_cfg["semantic_text_predicates"],
+                        embedding_lookup=embedding_lookup,
+                    )
+
+                    structural_score = structural_similarity(
+                        local_entity,
+                        candidate,
+                    )
+
                     score = combined_similarity(
                         local_entity,
                         candidate,
-                        weights=type_cfg["weights"],
+                        weights=weights,
                         comparison_predicates=type_cfg["comparison_predicates"],
                         expand_initials=type_cfg["expand_initials"],
                         threshold=type_cfg["threshold"],
@@ -128,7 +216,78 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                         sparsity_penalty=type_cfg["sparsity_penalty"],
                         sparsity_max_fields=type_cfg["sparsity_max_fields"],
                         hard_match_predicates=type_cfg["hard_match_predicates"],
+                        embedding_lookup=embedding_lookup,
                     )
+
+                    weighted_syntactic = weights.get("syntactic", 0.0) * syntactic_score
+                    weighted_semantic = weights.get("semantic", 0.0) * semantic_score
+                    weighted_structural = (
+                        weights.get("structural", 0.0) * structural_score
+                    )
+
+                    weighted_total = (
+                        weighted_syntactic + weighted_semantic + weighted_structural
+                    )
+
+                    logged_predicates = list(
+                        dict.fromkeys(
+                            type_cfg["comparison_predicates"]
+                            + type_cfg["semantic_text_predicates"]
+                        )
+                    )
+
+                    local_values = {
+                        predicate: local_entity.get("literals", {}).get(predicate, [])
+                        for predicate in logged_predicates
+                    }
+
+                    candidate_values = {
+                        predicate: candidate.get("literals", {}).get(predicate, [])
+                        for predicate in logged_predicates
+                    }
+
+                    logger.info(
+                        "[%s] Wikidata candidate score: "
+                        "local=%s local_values=%r "
+                        "candidate=%s qid=%s label=%r description=%r type=%s "
+                        "syntactic=%.3f*%.2f=%.3f "
+                        "semantic=%.3f*%.2f=%.3f "
+                        "structural=%.3f*%.2f=%.3f "
+                        "weighted_total=%.3f final_score=%.3f "
+                        "threshold=%.3f accepted=%s "
+                        "candidate_values=%r",
+                        run_id,
+                        local_uri,
+                        local_values,
+                        candidate["uri"],
+                        candidate.get("wikidata_id"),
+                        candidate.get("label"),
+                        candidate.get("description"),
+                        entity_type,
+                        syntactic_score,
+                        weights.get("syntactic", 0.0),
+                        weighted_syntactic,
+                        semantic_score,
+                        weights.get("semantic", 0.0),
+                        weighted_semantic,
+                        structural_score,
+                        weights.get("structural", 0.0),
+                        weighted_structural,
+                        weighted_total,
+                        score,
+                        type_cfg["threshold"],
+                        score >= type_cfg["threshold"],
+                        candidate_values,
+                    )
+
+                    if abs(weighted_total - score) > 1e-9:
+                        logger.info(
+                            "[%s] Candidate weighted total %.3f differs from final score %.3f; "
+                            "a hard-match predicate may have rejected the candidate",
+                            run_id,
+                            weighted_total,
+                            score,
+                        )
 
                     if score >= type_cfg["threshold"]:
                         alignments.append(
@@ -156,9 +315,6 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             # Write alignments to oxigraph
             triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
             write_alignment_results(triples, workspace_id, run_id, document_ids=None)
-
-            # append sameAs triples to merged.ttl if needed
-            write_same_as_triples(merged_ttl, triples, merged_ttl)
 
             await update_all("done", task_name="Wikidata Lookup")
             logger.info("[%s] Wikidata lookup complete", run_id)
