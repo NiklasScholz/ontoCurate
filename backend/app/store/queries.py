@@ -7,6 +7,7 @@ from app.pipeline.utils.turtle_utils import (
 from app.store.client import (
     ExportFormat,
     curation_graph,
+    serialize_export,
     sparql_construct,
     sparql_select,
 )
@@ -25,7 +26,7 @@ def get_prior_entities(
     exclude_filter = ""
     if exclude_document_ids:
         excluded_uris = ", ".join(
-            f"<{create_source_document_entity(workspace_id, doc_id).value}>"
+            f"<{create_source_document_entity(doc_id).value}>"
             for doc_id in exclude_document_ids
         )
         exclude_filter = f"FILTER (!BOUND(?doc) || ?doc NOT IN ({excluded_uris}))"
@@ -132,13 +133,16 @@ def get_current_candidate_statement(
 
 
 def export_document_data(
-    graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
+    graph: str,
+    document_entity: str,
+    format: ExportFormat = ExportFormat.turtle,
+    prefixes: dict[str, str] = BASE_PREFIXES,
 ) -> str:
     """Return the accepted (subject, predicate, object) triples derived from one
-    document, serialized in the given format, reconstructed from the curation
-    graph since the data graph itself carries no document linkage."""
-    return sparql_construct(
-        f"""
+    document, serialized in the given format with URIs abbreviated per
+    `prefixes`, reconstructed from the curation graph since the data graph
+    itself carries no document linkage."""
+    ttl = sparql_construct(f"""
         CONSTRUCT {{ ?subject ?predicate ?object }}
         WHERE {{
             GRAPH <{graph}> {{
@@ -154,13 +158,15 @@ def export_document_data(
                 ?original <{PROV_DERIVED_FROM}> <{document_entity}> .
             }}
         }}
-        """,
-        format,
-    )
+        """)
+    return serialize_export(ttl, format, prefixes)
 
 
 def export_document_provenance(
-    graph: str, document_entity: str, format: ExportFormat = ExportFormat.turtle
+    graph: str,
+    document_entity: str,
+    format: ExportFormat = ExportFormat.turtle,
+    prefixes: dict[str, str] = BASE_PREFIXES,
 ) -> str:
     """Return the full provenance history for one document, serialized in the
     given format: every CandidateStatement version derived from it, the
@@ -191,8 +197,7 @@ def export_document_provenance(
 
     values = " ".join(f"<{iri}>" for iri in subjects)
 
-    return sparql_construct(
-        f"""
+    ttl = sparql_construct(f"""
         CONSTRUCT {{ ?s ?p ?o }}
         WHERE {{
             GRAPH <{graph}> {{
@@ -200,6 +205,5 @@ def export_document_provenance(
                 ?s ?p ?o .
             }}
         }}
-        """,
-        format,
-    )
+        """)
+    return serialize_export(ttl, format, prefixes)

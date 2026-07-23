@@ -27,3 +27,8 @@ class MemberResponse(BaseModel):
     name: str | None
     picture: str | None
     role: str
+
+
+class WorkspaceQueryRequest(BaseModel):
+    query: str
+    graph: Literal["data", "curation"] = "data"

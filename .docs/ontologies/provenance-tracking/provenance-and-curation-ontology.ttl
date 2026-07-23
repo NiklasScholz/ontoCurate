@@ -1,4 +1,4 @@
-@prefix paco: <https://example.org/provenance-and-curation-ontology/> .
+@prefix paco: <https://ontocurate.app/provenance-and-curation-ontology/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix schema: <https://schema.org/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .

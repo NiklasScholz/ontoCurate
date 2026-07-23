@@ -21,7 +21,7 @@ def validate_iri(value: str, field_name: str) -> None:
 
 
 def curator_node(user_id: uuid.UUID) -> NamedNode:
-    return NamedNode(f"https://example.org/users/{user_id}")
+    return NamedNode(f"{USERS}{user_id}")
 
 
 def upsert_curator(
@@ -137,10 +137,8 @@ def build_candidate_statement_triples(
     )  # Currently only link to sql db entry, consider adding full document entity later
     workspace_key = workspace_id or "unknown-workspace"
 
-    source_document = create_source_document_entity(workspace_key, document_key)
-    extraction_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
-            document_key
-        }/activities/extraction")
+    source_document = create_source_document_entity(document_key)
+    extraction_activity = NamedNode(f"{EXTRACTION_ACTIVITIES}{uuid4()}")
 
     triples = [
         Triple(N_PACO_ONTOGPT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -172,11 +170,7 @@ def build_candidate_statement_triples(
         ).hexdigest()[
             :24
         ]  # Ensure URI uniqueness so all audits are logged independently
-        candidate = NamedNode(
-            f"https://example.org/workspaces/{workspace_key}/candidate-statements/{
-                fingerprint
-            }"
-        )
+        candidate = NamedNode(f"{CANDIDATE_STATEMENTS}{fingerprint}")
         candidate_triples = [
             Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
             Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
@@ -440,16 +434,13 @@ def write_alignment_results(
 
     if len(doc_ids) == 1:
         doc_key = doc_ids[0]
-        alignment_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
-                doc_key
-            }/activities/alignment")
+        alignment_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
     else:
         sorted_ids = sorted(doc_ids)
         doc_key = "|".join(sorted_ids) if doc_ids else "unknown"
-        pair_string = "/".join(sorted_ids) if doc_ids else "unknown"
-        alignment_activity = NamedNode(f"https://example.org/runs/{run_key}/documents/{
-                pair_string
-            }/activities/cross-document-alignment")
+        alignment_activity = NamedNode(
+            f"{CROSS_DOCUMENT_ALIGNMENT_ACTIVITIES}{uuid4()}"
+        )
 
     triples = [
         Triple(N_PACO_ENTITY_ALIGNMENT, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -468,11 +459,7 @@ def write_alignment_results(
         fingerprint = sha256(
             f"{workspace_id}|{run_key}|{doc_key}|{duplicate}|{canonical}".encode()
         ).hexdigest()[:24]
-        candidate = NamedNode(
-            f"https://example.org/workspaces/{workspace_id}/candidate-statements/{
-                fingerprint
-            }"
-        )
+        candidate = NamedNode(f"{CANDIDATE_STATEMENTS}{fingerprint}")
         triples.extend(
             [
                 Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
@@ -502,7 +489,7 @@ def write_alignment_results(
                 Triple(
                     candidate,
                     N_PROV_DERIVED_FROM,
-                    create_source_document_entity(workspace_id, d),
+                    create_source_document_entity(d),
                 )
             )
 
@@ -515,7 +502,7 @@ def delete_document_data(workspace_id: str, document_id: str) -> None:
     """Removes everything a document contributed to a workspace from oxigraph"""
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
-    source_document = create_source_document_entity(workspace_id, document_id)
+    source_document = create_source_document_entity(document_id)
 
     # remove data graph triples from the document
     sparql_update(f"""
@@ -603,12 +590,8 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = accepted_at
 
-    accepting_activity_id = (
-        f"https://example.org/workspaces/{workspace_id}/activities/accept/{uuid4()}"
-    )
-    accepted_statement_id = (
-        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
-    )
+    accepting_activity_id = f"{ACCEPT_ACTIVITIES}{uuid4()}"
+    accepted_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
     # Mark the old statement as not current
 
     set_to_not_current(stmt_id, graph)
@@ -627,7 +610,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     prov_activity = NamedNode(PROV_ACTIVITY)
     prov_agent = NamedNode(PROV_AGENT)
 
-    curator = NamedNode(f"https://example.org/users/{triggered_by}")
+    curator = curator_node(triggered_by)
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = []
@@ -761,13 +744,9 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     rejected_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = rejected_at
 
-    rejecting_activity_id = (
-        f"https://example.org/workspaces/{workspace_id}/activities/reject/{uuid4()}"
-    )
+    rejecting_activity_id = f"{REJECT_ACTIVITIES}{uuid4()}"
 
-    rejected_statement_id = (
-        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
-    )
+    rejected_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
 
     # Mark the old statement as not current
 
@@ -803,7 +782,7 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     prov_activity = NamedNode(PROV_ACTIVITY)
     prov_agent = NamedNode(PROV_AGENT)
 
-    curator = NamedNode(f"https://example.org/users/{triggered_by}")
+    curator = curator_node(triggered_by)
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = []
@@ -967,13 +946,9 @@ def edit_statement(
     edited_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = edited_at
 
-    editing_activity_id = (
-        f"https://example.org/workspaces/{workspace_id}/activities/edit/{uuid4()}"
-    )
+    editing_activity_id = f"{EDIT_ACTIVITIES}{uuid4()}"
 
-    edited_statement_id = (
-        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
-    )
+    edited_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
 
     # Mark the old statement as not current
 
@@ -1009,7 +984,7 @@ def edit_statement(
     prov_activity = NamedNode(PROV_ACTIVITY)
     prov_agent = NamedNode(PROV_AGENT)
 
-    curator = NamedNode(f"https://example.org/users/{triggered_by}")
+    curator = curator_node(triggered_by)
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = []
@@ -1134,13 +1109,9 @@ def reset_statement(
     reset_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = reset_at
 
-    resetting_activity_id = (
-        f"https://example.org/workspaces/{workspace_id}/activities/reset/{uuid4()}"
-    )
+    resetting_activity_id = f"{RESET_ACTIVITIES}{uuid4()}"
 
-    reset_statement_id = (
-        f"https://example.org/workspaces/{workspace_id}/candidate-statements/{uuid4()}"
-    )
+    reset_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
 
     rdf_type = NamedNode(RDF_TYPE)
 
@@ -1154,7 +1125,7 @@ def reset_statement(
     prov_activity = NamedNode(PROV_ACTIVITY)
     prov_agent = NamedNode(PROV_AGENT)
 
-    curator = NamedNode(f"https://example.org/users/{triggered_by}")
+    curator = curator_node(triggered_by)
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = [
