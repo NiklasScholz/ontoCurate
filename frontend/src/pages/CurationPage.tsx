@@ -215,20 +215,7 @@ export default function CurationPage() {
                             {doc ? (
                                 <MarkdownView
                                     text={doc.markdown}
-                                    span={
-                                        selected === undefined ||
-                                        statements[selected].current
-                                            .text_span_start === null ||
-                                        statements[selected].current
-                                            .text_span_end === null
-                                            ? undefined
-                                            : {
-                                                  start: statements[selected]
-                                                      .current.text_span_start,
-                                                  end: statements[selected]
-                                                      .current.text_span_end,
-                                              }
-                                    }
+                                    spans={[]}
                                 />
                             ) : (
                                 <Spinner />
@@ -285,6 +272,7 @@ export default function CurationPage() {
                         statement={statements[selected]}
                         workspaceId={wsId}
                         markdown={doc?.markdown}
+                        docId={docId}
                     />
                 </Popup>
             )}

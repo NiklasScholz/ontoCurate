@@ -29,3 +29,13 @@ export type Statement = {
     text_span_start: number | null;
     text_span_end: number | null;
 };
+
+export type TextSpan = {
+    start: number;
+    end: number;
+};
+
+export type RelatedSpans = {
+    subject_spans: TextSpan[];
+    object_spans: TextSpan[];
+};

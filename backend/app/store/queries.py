@@ -4,6 +4,7 @@ from app.pipeline.utils.turtle_utils import (
     load_entity_information,
     sparql_binding_to_term,
 )
+from app.schemas.statement import TextSpan
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import *
 
@@ -88,6 +89,44 @@ def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
         frozenset({b["duplicateSubject"]["value"], b["duplicateTarget"]["value"]})
         for b in bindings
     }
+
+
+def get_related_spans(
+    workspace_id: str,
+    document_id: str,
+    subject: str,
+    object: str | None,
+) -> tuple[list[TextSpan], list[TextSpan]]:
+    """Returns the text spans of every current, literal-valued CandidateStatement
+    in {document_id} whose subject is {subject} or {object}, split into two lists.
+    We use this to display relevant info to the curator when looking at triples.
+    """
+    graph = curation_graph(workspace_id)
+    document_entity = create_source_document_entity(workspace_id, document_id).value
+
+    def spans_for(entity: str) -> list[TextSpan]:
+        payload = sparql_select(f"""
+            SELECT ?start ?end WHERE {{
+                GRAPH <{graph}> {{
+                    ?cs <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                    ?cs <{PACO_CURRENT}> true .
+                    ?cs <{PACO_SUBJECT}> <{entity}> .
+                    ?cs <{PACO_TEXT_SPAN_START}> ?start .
+                    ?cs <{PACO_TEXT_SPAN_END}> ?end .
+                    ?cs <{PROV_DERIVED_FROM}>* ?os .
+                    ?os <{PROV_GENERATED_BY}> ?e .
+                    ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                    ?e <{PROV_USED}> <{document_entity}> .
+                }}
+            }}
+        """)
+        bindings = payload.get("results", {}).get("bindings", [])
+        return [
+            TextSpan(start=int(b["start"]["value"]), end=int(b["end"]["value"]))
+            for b in bindings
+        ]
+
+    return spans_for(subject), (spans_for(object) if object is not None else [])
 
 
 def get_current_candidate_statement(

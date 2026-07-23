@@ -304,6 +304,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/related-spans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Related Spans Endpoint
+         * @description Returns the text spans of every current, literal-valued statement in this
+         *     document about `subject` or `object` - i.e. the known textual attributes
+         *     of both entities in a relation, so a relation without its own span can
+         *     still be shown in context. `object` is omitted when it's a literal value
+         *     rather than an entity (a datatype-property statement's own object), in
+         *     which case object_spans is empty.
+         */
+        get: operations["get_related_spans_endpoint_documents__document_id__related_spans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/export/provenance.ttl": {
         parameters: {
             query?: never;
@@ -911,6 +936,13 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** RelatedSpansResponse */
+        RelatedSpansResponse: {
+            /** Subject Spans */
+            subject_spans: components["schemas"]["TextSpan"][];
+            /** Object Spans */
+            object_spans: components["schemas"]["TextSpan"][];
+        };
         /** RunDetailResponse */
         RunDetailResponse: {
             /**
@@ -987,6 +1019,13 @@ export interface components {
             text_span_start: number | null;
             /** Text Span End */
             text_span_end: number | null;
+        };
+        /** TextSpan */
+        TextSpan: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
         };
         /** UserResponse */
         UserResponse: {
@@ -1542,6 +1581,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_related_spans_endpoint_documents__document_id__related_spans_get: {
+        parameters: {
+            query: {
+                subject: string;
+                object?: string | null;
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedSpansResponse"];
                 };
             };
             /** @description Validation Error */
