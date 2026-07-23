@@ -4,23 +4,10 @@ import logging
 import os
 import time
 from functools import lru_cache
-from typing import Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
-
-# Mapping of our entity types to Wikidata entity classes (QIDs)
-ENTITY_TYPE_TO_WIKIDATA_CLASS = {
-    "Person": "Q5",  # human
-    "Organization": "Q43229",  # organization
-    "Conference": "Q2055880",  # conference
-    "Workshop": "Q26106281",  # workshop
-    "Journal": "Q5633421",  # academic journal
-    "Proceedings": "Q1143604",  # academic publication
-    "Series": "Q277759",  # book series
-    "AcademicArticle": "Q13442814",  # scholarly article
-}
 
 # Wikidata API endpoints
 WIKIDATA_SEARCH_API = "https://www.wikidata.org/w/api.php"
@@ -49,7 +36,6 @@ def create_wikimedia_client() -> httpx.Client:
 
 def search_wikidata(
     query: str,
-    entity_type: Optional[str] = None,
     limit: int = 5,
 ) -> list[dict]:
     """
@@ -57,7 +43,6 @@ def search_wikidata(
 
     Args:
         query: Search query string (e.g., name of person, organization)
-        entity_type: Our entity type (e.g., "Person", "Organization") for type filtering
         limit: Maximum number of results to return
 
     Returns:
@@ -102,11 +87,6 @@ def search_wikidata(
                 return []
 
             search_items = data.get("search", [])
-            logger.info(
-                "Wikidata search returned %d result(s) for query %r",
-                len(search_items),
-                query,
-            )
 
     except httpx.HTTPStatusError as exc:
         logger.error(
@@ -237,143 +217,130 @@ def fetch_english_label(wikidata_id: str) -> str:
     return details.get("labels", {}).get("en", {}).get("value", "").strip()
 
 
-def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
-    """
-    Generate candidate Wikidata entities for alignment with a local entity.
+def _build_search_queries(
+    entity: dict,
+    entity_type: str | None,
+) -> list[str]:
+    """Build unique Wikidata search queries for a local entity."""
+    literals = entity.get("literals", {})
+    queries: list[str] = []
 
-    Args:
-        entity: Local entity dict with keys:
-            - types: list of entity types (e.g., ["Person"])
-            - literals: dict of predicate -> list of string values
-        limit: Max candidates per query
-
-    Returns:
-        List of Wikidata candidates formatted similarly to local entities:
-        {
-            "uri": "http://www.wikidata.org/entity/Q123",
-            "wikidata_id": "Q123",
-            "label": "...",
-            "description": "...",
-            "literals": {  # extracted from Wikidata properties
-                "name": ["..."],
-                "familyName": ["..."],
-                ...
-            }
-        }
-    """
-    candidates = []
-
-    # Use primary name/title for search
-    entity_type = entity["types"][0] if entity.get("types") else None
-
-    search_queries = []
-
-    # Priority: familyName + givenName for Person, name for others
     if entity_type == "Person":
-        family_names = entity.get("literals", {}).get("familyName", [])
-        given_names = entity.get("literals", {}).get("givenName", [])
-        names = entity.get("literals", {}).get("name", [])
+        given_names = literals.get("givenName", [])
+        family_names = literals.get("familyName", [])
+        names = literals.get("name", [])
 
-        if family_names and given_names:
-            search_queries.append(f"{given_names[0]} {family_names[0]}")
+        if given_names and family_names:
+            queries.append(f"{given_names[0]} {family_names[0]}")
         elif family_names:
-            search_queries.append(family_names[0])
-        if names:
-            search_queries.extend(names[:2])  # Try primary names too
-    else:
-        # For organizations, conferences, etc., use name/title
-        names = entity.get("literals", {}).get("name", [])
-        if not names:
-            names = entity.get("literals", {}).get("title", [])
-        search_queries.extend(names[:2])
+            queries.append(family_names[0])
 
-    # Deduplicate search_queries
-    search_queries = list(
-        dict.fromkeys(
-            query.strip() for query in search_queries if query and query.strip()
-        )
+        queries.extend(names[:2])
+    else:
+        names = literals.get("name") or literals.get("title", [])
+        queries.extend(names[:2])
+
+    return list(
+        dict.fromkeys(query.strip() for query in queries if query and query.strip())
     )
 
-    # Execute searches
+
+def _build_candidate_literals(
+    result: dict,
+    details: dict,
+    entity_type: str | None,
+) -> dict[str, list[str]]:
+    """Build the literals used to compare a Wikidata candidate."""
+    label = result.get("label", "")
+
+    literals: dict[str, list[str]] = {
+        "name": [label],
+    }
+
+    if entity_type == "AcademicArticle":
+        literals["title"] = [label]
+
+    if entity_type == "Person":
+        given_name_ids = claim_entity_ids(details, "P735")
+        family_name_ids = claim_entity_ids(details, "P734")
+
+        given_names = [fetch_english_label(qid) for qid in given_name_ids]
+        family_names = [fetch_english_label(qid) for qid in family_name_ids]
+
+        given_names = [value for value in given_names if value]
+        family_names = [value for value in family_names if value]
+
+        if given_names:
+            literals["givenName"] = given_names
+
+        if family_names:
+            literals["familyName"] = family_names
+
+        orcids = claim_string_values(details, "P496")
+
+        if orcids:
+            literals["orcid"] = orcids
+
+    aliases = details.get("aliases", {}).get("en", [])
+    alias_values = [
+        alias.get("value", "") for alias in aliases if alias.get("value", "").strip()
+    ]
+
+    literals["name"].extend(alias_values)
+
+    if entity_type == "AcademicArticle":
+        literals["title"].extend(alias_values)
+
+    return literals
+
+
+def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
+    """Generate Wikidata candidates for a local entity."""
+    entity_types = entity.get("types", [])
+    entity_type = entity_types[0] if entity_types else None
+
+    candidates: list[dict] = []
+    seen_uris: set[str] = set()
+
+    search_queries = _build_search_queries(
+        entity,
+        entity_type,
+    )
+
     for query in search_queries:
-        if not query or not query.strip():
-            continue
+        search_results = search_wikidata(
+            query,
+            limit=limit,
+        )
 
-        logger.info(f"Querying Wikidata: '{query}' (type: {entity_type})")
+        for result in search_results:
+            candidate_uri = result["uri"]
 
-        wikidata_results = search_wikidata(query, entity_type=entity_type, limit=limit)
-
-        for result in wikidata_results:
-            # Avoid duplicates
-            if any(c["uri"] == result["uri"] for c in candidates):
+            if candidate_uri in seen_uris:
                 continue
 
-            # Fetch full details
+            seen_uris.add(candidate_uri)
+
             details = fetch_wikidata_entity_details(result["wikidata_id"])
 
-            # Extract literals from Wikidata properties
-            candidate_literals = {
-                "name": [result["label"]],
-            }
-
-            if entity_type == "AcademicArticle":
-                candidate_literals["title"] = [result["label"]]
-
-            # For Person entities, extract givenName, familyName, and ORCID if available
-            if entity_type == "Person":
-                # Wikidata:
-                # P735 = given name
-                # P734 = family name
-                # P496 = ORCID
-
-                given_name_ids = claim_entity_ids(details, "P735")
-                family_name_ids = claim_entity_ids(details, "P734")
-
-                given_names = [fetch_english_label(qid) for qid in given_name_ids]
-                family_names = [fetch_english_label(qid) for qid in family_name_ids]
-
-                given_names = [value for value in given_names if value]
-                family_names = [value for value in family_names if value]
-
-                if given_names:
-                    candidate_literals["givenName"] = given_names
-
-                if family_names:
-                    candidate_literals["familyName"] = family_names
-
-                orcid_values = claim_string_values(details, "P496")
-                if orcid_values:
-                    candidate_literals["orcid"] = orcid_values
-
             candidate = {
-                "uri": result["uri"],
+                "uri": candidate_uri,
                 "wikidata_id": result["wikidata_id"],
                 "label": result["label"],
                 "description": result["description"],
-                "literals": candidate_literals,
-                "types": entity["types"],
+                "literals": _build_candidate_literals(
+                    result,
+                    details,
+                    entity_type,
+                ),
+                "types": entity_types,
                 "source": "wikidata",
                 "relations_out": {},
                 "relations_in": {},
             }
 
-            # Add aliases as alternative names
-            if details.get("aliases"):
-                aliases = details["aliases"].get("en", [])
-                alias_values = [
-                    alias.get("value", "")
-                    for alias in aliases
-                    if alias.get("value", "").strip()
-                ]
-
-                candidate["literals"]["name"].extend(alias_values)
-
-                if entity_type == "AcademicArticle":
-                    candidate["literals"]["title"].extend(alias_values)
-
             candidates.append(candidate)
 
-        # Rate limiting: small delay between searches
         time.sleep(0.1)
 
     return candidates[:limit]
@@ -382,35 +349,27 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
 def query_wikidata_for_entities(
     entities: list[dict], limit: int = 5
 ) -> dict[str, list[dict]]:
-    """
-    Query Wikidata for candidates for each local entity.
-
-    Args:
-        entities: List of local entity dicts
-        limit: Max candidates per entity
-
-    Returns:
-        Dict mapping entity URI -> list of Wikidata candidates
-    """
+    """Return Wikidata candidates grouped by local entity URI."""
     results = {}
 
     for entity in entities:
         uri = entity.get("uri")
-        if not uri:
+
+        if not uri or not entity.get("literals"):
             continue
 
-        # Skip if entity is too sparse (e.g., only has types, no name)
-        if not entity.get("literals"):
-            logger.debug(f"Skipping sparse entity {uri}")
-            continue
-
-        logger.info(f"Generating Wikidata candidates for {uri}")
-        candidates = generate_wikidata_candidates(entity, limit=limit)
+        candidates = generate_wikidata_candidates(
+            entity,
+            limit=limit,
+        )
 
         if candidates:
             results[uri] = candidates
-            logger.info(f"Found {len(candidates)} Wikidata candidate(s) for {uri}")
-        else:
-            logger.info(f"No Wikidata candidates found for {uri}")
+
+    logger.info(
+        "Generated Wikidata candidates for %d of %d local entities",
+        len(results),
+        len(entities),
+    )
 
     return results
