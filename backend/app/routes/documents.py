@@ -13,7 +13,7 @@ from app.core.exceptions import (
 from app.deps import get_current_user
 from app.models.user import User
 from app.repositories.document import DocumentRepository
-from app.repositories.workspace import WorkspaceMemberRepository
+from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
@@ -25,7 +25,10 @@ from app.store.client import (
     curation_graph,
     sparql_select,
 )
-from app.store.queries import export_document_data, export_document_provenance
+from app.store.queries import export_document_data as query_export_document_data
+from app.store.queries import (
+    export_document_provenance as query_export_document_provenance,
+)
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
@@ -44,6 +47,7 @@ from app.store.utils import (
     PROV_GENERATED_BY,
     PROV_USED,
     RDF_TYPE,
+    build_prefix_map,
     create_source_document_entity,
 )
 from app.store.writer import delete_document_data
@@ -116,9 +120,7 @@ async def get_triple_count(
 
     graph = curation_graph(str(workspace_id))
 
-    document_entity = create_source_document_entity(
-        str(workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
 
     payload = sparql_select(f"""
         SELECT (COUNT(*) AS ?count) WHERE {{
@@ -244,9 +246,7 @@ async def get_document_statements(
 
     graph = curation_graph(str(workspace_id))
 
-    document_entity = create_source_document_entity(
-        str(workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
 
     payload = sparql_select(f"""
         SELECT ?s ?p ?o ?os WHERE {{
@@ -392,11 +392,11 @@ async def export_document_provenance(
         document_id, current_user, session, roles=("owner",)
     )
     graph = curation_graph(str(doc.workspace_id))
-    document_entity = create_source_document_entity(
-        str(doc.workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
-    content = export_document_provenance(graph, document_entity, format)
+    workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = query_export_document_provenance(graph, document_entity, format, prefixes)
     return Response(
         content=content,
         media_type=media_type,
@@ -415,11 +415,11 @@ async def export_document_data(
 ):
     doc = await _get_document_or_403(document_id, current_user, session)
     graph = curation_graph(str(doc.workspace_id))
-    document_entity = create_source_document_entity(
-        str(doc.workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
-    content = export_document_data(graph, document_entity, format)
+    workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = query_export_document_data(graph, document_entity, format, prefixes)
     return Response(
         content=content,
         media_type=media_type,

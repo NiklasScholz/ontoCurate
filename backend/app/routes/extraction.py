@@ -237,7 +237,7 @@ async def get_run_alignments(
         raise NotFoundException(f"Run {run_id} not found")
 
     graph = curation_graph(str(run.workspace_id))
-    paco = "https://example.org/provenance-and-curation-ontology/"
+    paco = PACO
     owl_same_as = "http://www.w3.org/2002/07/owl#sameAs"
 
     payload = sparql_select(f"""
