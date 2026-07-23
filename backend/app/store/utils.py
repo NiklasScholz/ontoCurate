@@ -201,6 +201,14 @@ BASE_PREFIXES: dict[str, str] = {
     DOCUMENTS: "doc",
     USERS: "user",
 }
+# Prefixes that only appear in the curation graph
+CURATION_ONLY_PREFIXES = set(BASE_PREFIXES.values()) - {
+    "schema",
+    "rdf",
+    "rdfs",
+    "owl",
+    "xsd",
+}
 
 
 def build_prefix_map(schema_path: str | None) -> dict[str, str]:

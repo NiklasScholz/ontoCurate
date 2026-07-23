@@ -1,15 +1,11 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon } from "lucide-react";
 import { client, getErrorMessage } from "../client";
 import Spinner from "../components/Spinner";
 import Panel from "../components/Panel";
 import NotFound from "./NotFound";
 import type { Graph, QueryResult } from "../types";
-
-// paco/prov prefixes are only available in the curation graph for our onboarded use cases
-// If data is supposed to be extracted using prov ontology, this needs to be adapted 
-const CURATION_ONLY_PREFIXES = new Set(["paco", "prov"]);
 
 export default function QueryPage() {
     const [searchParams] = useSearchParams();
@@ -18,10 +14,16 @@ export default function QueryPage() {
     const [ws, setWs] = useState<
         { id: string; name: string; role: string } | undefined
     >(undefined);
-    const [prefixes, setPrefixes] = useState<
+    const [graph, setGraph] = useState<Graph>("data");
+
+  
+    const [dataPrefixes, setDataPrefixes] = useState<
         Record<string, string> | undefined
     >(undefined);
-    const [graph, setGraph] = useState<Graph>("data");
+    const [curationPrefixes, setCurationPrefixes] = useState<
+        Record<string, string> | undefined
+    >(undefined);
+    const prefixes = graph === "data" ? dataPrefixes : curationPrefixes;
     
     // Kept seperate so switching between graphs for owner does not overwrite prior queries they want to continue using
     const [dataQuery, setDataQuery] = useState("");
@@ -53,23 +55,38 @@ export default function QueryPage() {
         if (wsId === null) return;
         client
             .GET("/workspaces/{workspace_id}/prefixes", {
-                params: { path: { workspace_id: wsId } },
+                params: { path: { workspace_id: wsId }, query: { graph: "data" } },
             })
-            .then((res) => setPrefixes(res.data));
+            .then((res) => setDataPrefixes(res.data));
     }, [wsId]);
+
+    useEffect(() => {
+        if (wsId === null || ws?.role !== "owner") return;
+        client
+            .GET("/workspaces/{workspace_id}/prefixes", {
+                params: {
+                    path: { workspace_id: wsId },
+                    query: { graph: "curation" },
+                },
+            })
+            .then((res) => setCurationPrefixes(res.data));
+    }, [wsId, ws?.role]);
 
     const defaultQuery = prefixes
         ? `${Object.entries(prefixes)
-              .filter(
-                  ([prefix]) =>
-                      graph === "curation" ||
-                      !CURATION_ONLY_PREFIXES.has(prefix),
-              )
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([prefix, uri]) => `PREFIX ${prefix}: <${uri}>`)
               .join("\n")}\n\nSELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 50`
         : "";
     const displayedQuery = queryEdited ? query : defaultQuery;
+
+    // Scroll down to bottom of textarea where default query is displayed, so users don't have to scroll past all the defined prefixes.
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+        }
+    }, [defaultQuery]);
 
     const runQuery = async (queryText: string = displayedQuery) => {
         if (!wsId) return;
@@ -137,6 +154,7 @@ export default function QueryPage() {
             </div>
 
             <textarea
+                ref={textareaRef}
                 className="border-nord4 h-64 rounded border p-2 font-mono text-sm"
                 value={displayedQuery}
                 onChange={(e) => {

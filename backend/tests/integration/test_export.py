@@ -101,18 +101,39 @@ class TestWorkspaceExport:
 
 
 class TestWorkspacePrefixes:
-    async def test_returns_prefixes(self, client, tmp_path):
+    async def test_returns_prefixes_for_curation_graph(self, client, tmp_path):
         workspace_id, _, owner_token = await setup_workspace_with_statement(
             client, tmp_path
         )
         as_user(client, owner_token)
-        resp = await client.get(f"/workspaces/{workspace_id}/prefixes")
+        resp = await client.get(
+            f"/workspaces/{workspace_id}/prefixes", params={"graph": "curation"}
+        )
         assert resp.status_code == 200
         prefixes = resp.json()
         assert prefixes["paco"] == PACO
         assert "schema" in prefixes
         assert "smo" in prefixes
         assert "linkml" not in prefixes
+
+    async def test_data_graph_excludes_curation_only_prefixes(self, client, tmp_path):
+        workspace_id, _, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        resp = await client.get(
+            f"/workspaces/{workspace_id}/prefixes", params={"graph": "data"}
+        )
+        assert resp.status_code == 200
+        prefixes = resp.json()
+        # accepted triples only ever contain plain ?s ?p ?o (see accept_statement
+        # in writer.py) - none of the platform's bookkeeping prefixes apply.
+        assert "paco" not in prefixes
+        assert "accept" not in prefixes
+        assert "alignment" not in prefixes
+        assert "linkml" not in prefixes
+        assert "schema" in prefixes
+        assert "smo" in prefixes
 
 
 class TestDocumentExport:

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from uuid import UUID
 
 import httpx
@@ -38,6 +39,7 @@ from app.store.client import (
     sparql_select,
 )
 from app.store.utils import (
+    CURATION_ONLY_PREFIXES,
     build_prefix_map,
     extract_query_prefixes,
     format_sparql_response,
@@ -119,16 +121,19 @@ async def get_workspace(
 )
 async def get_workspace_prefixes(
     workspace_id: UUID,
+    graph: Literal["data", "curation"] = "data",
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
-    """Returns the prefix map of the workspace (including fixed and schema-specific prefixes).
-    Used to fill in prefixes for query view."""
+    """Returns the prefix map of the workspace (including fixed and schema-specific
+    prefixes), scoped to the given graph. Used to fill in prefixes for query view."""
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
     return {
         prefix: namespace
         for namespace, prefix in prefixes.items()
-        if prefix != "linkml"  # linkml prefixes are not relevant in current use cases
+        # linkml is not useful in our use cases
+        if prefix != "linkml"
+        and (graph == "curation" or prefix not in CURATION_ONLY_PREFIXES)
     }
 
 

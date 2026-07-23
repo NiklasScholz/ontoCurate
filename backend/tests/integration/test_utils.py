@@ -119,30 +119,30 @@ def activity_count(workspace_id: str, activity_class: str) -> int:
     return sparql_count(sparql)
 
 
-def add_statements(
+def add_statement(
     tmp_path: Path,
     workspace_id: str,
-    triples: list[tuple[str, str, str]],
+    subject: str,
+    predicate: str,
+    object_value: str,
     document_id: str = "doc-1",
     run_id: str = "run-1",
     confidence: float = 0.9,
-) -> dict[str, str]:
-    """Add one candidate statement per (subject, predicate, object_value) triple
-    and return {predicate: statement_id}. Attaches confidence annotation as well"""
-    ttl_text = "\n".join(f'<{s}> <{p}> "{o}" .' for s, p, o in triples)
+) -> str:
+    """Adds a single candidate statement and returns its statement id."""
+    ttl_text = f'<{subject}> <{predicate}> "{object_value}" .'
     provenance = {
         "annotations": [
             {
-                "subject": s,
-                "predicate": pred_local_name(p),
-                "value": o,
+                "subject": subject,
+                "predicate": pred_local_name(predicate),
+                "value": object_value,
                 "span_start": 0,
-                "span_end": len(o),
-                "span_text": o,
+                "span_end": len(object_value),
+                "span_text": object_value,
                 "confidence": confidence,
                 "triple_type": "literal",
             }
-            for s, p, o in triples
         ]
     }
     add_candidate_statements(
@@ -153,29 +153,7 @@ def add_statements(
         document_id=document_id,
         run_id=run_id,
     )
-    return {
-        predicate: find_candidate_id(workspace_id, predicate)
-        for _, predicate, _ in triples
-    }
-
-
-def add_statement(
-    tmp_path: Path,
-    workspace_id: str,
-    subject: str,
-    predicate: str,
-    object_value: str,
-    document_id: str = "doc-1",
-    run_id: str = "run-1",
-) -> str:
-    """Adds a single candidate statement and returns its statement id."""
-    return add_statements(
-        tmp_path,
-        workspace_id,
-        [(subject, predicate, object_value)],
-        document_id=document_id,
-        run_id=run_id,
-    )[predicate]
+    return find_candidate_id(workspace_id, predicate)
 
 
 async def setup_workspace_with_statement(

@@ -656,7 +656,9 @@ export interface paths {
     };
     "/workspaces/{workspace_id}/prefixes": {
         parameters: {
-            query?: never;
+            query?: {
+                graph?: "data" | "curation";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2318,7 +2320,9 @@ export interface operations {
     };
     get_workspace_prefixes_workspaces__workspace_id__prefixes_get: {
         parameters: {
-            query?: never;
+            query?: {
+                graph?: "data" | "curation";
+            };
             header?: never;
             path: {
                 workspace_id: string;
