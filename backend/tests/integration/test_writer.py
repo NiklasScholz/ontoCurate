@@ -11,7 +11,7 @@ from test_utils import (
 
 from app.schemas.statement import StatementEdit
 from app.store.client import curation_graph, data_graph, sparql_select
-from app.store.utils import PACO_REJECTED, create_source_document_entity
+from app.store.utils import PACO, PACO_REJECTED, create_source_document_entity
 from app.store.writer import (
     accept_statement,
     delete_document_data,
@@ -49,7 +49,7 @@ def test_write_candidate_statements_from_ttl(tmp_path):
     add_candidate_statements(tmp_path, workspace_id, TTL_TEXT)
 
     sparql = f"""
-        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        PREFIX paco: <{PACO}>
         PREFIX prov: <http://www.w3.org/ns/prov#>
         SELECT ?s ?subject ?predicate ?object ?generatedBy WHERE {{
         GRAPH <{curation_graph(workspace_id)}> {{
@@ -74,7 +74,7 @@ def test_write_candidate_statements_with_provenance(tmp_path):
     workspace_id = gen_workspace_id()
     add_candidate_statements(tmp_path, workspace_id, TTL_TEXT, PROVENANCE)
     sparql = f"""
-        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        PREFIX paco: <{PACO}>
         SELECT ?confidence ?spanText ?spanStart ?spanEnd WHERE {{
         GRAPH <{curation_graph(workspace_id)}> {{
             ?s a paco:CandidateStatement ;
@@ -135,7 +135,7 @@ def test_accept_statement_preserves_object_datatype(tmp_path):
 
 def count_candidate_statements_derived_from(workspace_id: str, document_id: str) -> int:
     """Count candidate statements that have a prov:wasDerivedFrom link to the given document."""
-    source_document = create_source_document_entity(workspace_id, document_id).value
+    source_document = create_source_document_entity(document_id).value
     sparql = f"""
 PREFIX prov: <http://www.w3.org/ns/prov#>
 SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
@@ -150,7 +150,7 @@ SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
 def count_candidate_statement_chain(workspace_id: str, document_id: str) -> int:
     """Count every revision derived (transitively) from the document, i.e. the
     full edit/reject/accept/reset chain, not just the statement it produced first."""
-    source_document = create_source_document_entity(workspace_id, document_id).value
+    source_document = create_source_document_entity(document_id).value
     sparql = f"""
 PREFIX prov: <http://www.w3.org/ns/prov#>
 SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
@@ -164,7 +164,7 @@ SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
 
 def count_source_document_triples(workspace_id: str, document_id: str) -> int:
     """Count triples in the curation graph for the given document (entity)"""
-    source_document = create_source_document_entity(workspace_id, document_id).value
+    source_document = create_source_document_entity(document_id).value
     sparql = f"""
         SELECT (COUNT(*) AS ?count) WHERE {{
         GRAPH <{curation_graph(workspace_id)}> {{
@@ -206,7 +206,7 @@ class TestDeleteDocumentData:
         assert sparql_count(data_sparql) == 0
 
         candidate_sparql = f"""
-            PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+            PREFIX paco: <{PACO}>
             SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{curation_graph(workspace_id)}> {{
                 ?cs a paco:CandidateStatement .
@@ -270,7 +270,7 @@ SELECT (COUNT(*) AS ?count) WHERE {{
         )
 
         same_as_sparql = f"""
-            PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+            PREFIX paco: <{PACO}>
             PREFIX owl: <http://www.w3.org/2002/07/owl#>
             SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{curation_graph(workspace_id)}> {{

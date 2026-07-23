@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from app.store.client import curation_graph, sparql_select
+from app.store.utils import PACO
 from app.store.writer import pred_local_name, write_candidate_statements_from_ttl
 
 
@@ -79,7 +80,7 @@ def find_candidate_id(
     subject_triple = f"?s paco:subject <{subject}> .\n    " if subject else ""
     object_triple = f'?s paco:object "{object_value}" .\n    ' if object_value else ""
     sparql = f"""
-        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        PREFIX paco: <{PACO}>
         SELECT ?s WHERE {{
         GRAPH <{curation_graph(workspace_id)}> {{
             ?s a paco:CandidateStatement ;
@@ -108,7 +109,7 @@ def sparql_count(query: str) -> int:
 
 def activity_count(workspace_id: str, activity_class: str) -> int:
     sparql = f"""
-        PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+        PREFIX paco: <{PACO}>
         SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{curation_graph(workspace_id)}> {{
                 ?a a paco:{activity_class} .

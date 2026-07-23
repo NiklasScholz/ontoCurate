@@ -10,7 +10,7 @@ from test_utils import (
 )
 
 from app.store.client import curation_graph
-from app.store.utils import PACO_PENDING
+from app.store.utils import PACO, PACO_PENDING
 
 TTL_TEXT = """
 @prefix ex: <http://example.org/> .
@@ -103,7 +103,7 @@ class TestDocumentDelete:
         )
 
         count_sparql = f"""
-            PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+            PREFIX paco: <{PACO}>
             SELECT (COUNT(*) AS ?count) WHERE {{
                 GRAPH <{curation_graph(workspace_id)}> {{
                     ?cs a paco:CandidateStatement .
