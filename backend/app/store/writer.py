@@ -364,6 +364,137 @@ def write_alignment_results(
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
+def write_lookup_results(
+    lookups: list[tuple[str, str, float]],
+    workspace_id: str,
+    run_id: str | None = None,
+    document_ids: list[str] | None = None,
+) -> None:
+    """
+    Writes owl:sameAs CandidateStatements for proposed Wikidata lookup tuples.
+
+    Each lookup tuple contains:
+
+        (
+            local_entity_uri,
+            wikidata_entity_uri,
+            confidence_score,
+        )
+
+    The generated statements remain pending until a curator accepts
+    or rejects them.
+    """
+    if not lookups:
+        return
+
+    run_key = run_id or "unknown-run"
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # Remove duplicates so provenance links are not written multiple times.
+    doc_ids = sorted(set(document_ids or []))
+    document_key = "|".join(doc_ids) if doc_ids else "unknown-documents"
+
+    if len(doc_ids) == 1:
+        lookup_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/documents/"
+            f"{doc_ids[0]}/activities/wikidata-lookup"
+        )
+    else:
+        lookup_activity = NamedNode(
+            f"https://example.org/runs/{run_key}/activities/wikidata-lookup"
+        )
+
+    triples = [
+        Triple(N_PACO_WIKIDATA_LOOKUP, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
+        Triple(N_PACO_WIKIDATA_LOOKUP, N_SCHEMA_NAME, Literal("wikidata-lookup")),
+        Triple(lookup_activity, N_RDF_TYPE, N_PACO_LOOKUP_ACTIVITY),
+        Triple(lookup_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
+        Triple(lookup_activity, N_PROV_ASSOCIATED_WITH, N_PACO_WIKIDATA_LOOKUP),
+        Triple(
+            lookup_activity,
+            N_PACO_CREATED_AT,
+            Literal(now, datatype=N_XSD_DATETIME),
+        ),
+    ]
+
+    # Record the documents used by the lookup activity.
+    for document_id in doc_ids:
+        source_document = create_source_document_entity(
+            workspace_id,
+            document_id,
+        )
+
+        triples.append(
+            Triple(
+                lookup_activity,
+                N_PROV_USED,
+                source_document,
+            )
+        )
+
+    for local_uri, wikidata_uri, score in lookups:
+        fingerprint = sha256(
+            (
+                f"{workspace_id}|"
+                f"{run_key}|"
+                f"{document_key}|"
+                f"{local_uri}|"
+                f"{wikidata_uri}"
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+
+        candidate = NamedNode(
+            f"https://example.org/workspaces/{workspace_id}/"
+            f"candidate-statements/{fingerprint}"
+        )
+
+        triples.extend(
+            [
+                Triple(candidate, N_RDF_TYPE, N_PACO_CANDIDATE),
+                Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
+                Triple(candidate, N_PACO_SUBJECT, NamedNode(local_uri)),
+                Triple(candidate, N_PACO_PREDICATE, N_OWL_SAME_AS),
+                Triple(candidate, N_PACO_OBJECT, NamedNode(wikidata_uri)),
+                Triple(candidate, N_PACO_ORIGIN, N_PACO_WIKIDATA_LOOKUP),
+                Triple(candidate, N_PACO_STATUS, N_PACO_PENDING),
+                Triple(
+                    candidate,
+                    N_PACO_CONFIDENCE,
+                    Literal(
+                        str(round(score, 6)),
+                        datatype=N_XSD_FLOAT,
+                    ),
+                ),
+                Triple(
+                    candidate,
+                    N_PACO_CREATED_AT,
+                    Literal(
+                        now,
+                        datatype=N_XSD_DATETIME,
+                    ),
+                ),
+                Triple(candidate, N_PACO_CURRENT, Literal(True)),
+                Triple(candidate, N_PROV_GENERATED_BY, lookup_activity),
+                Triple(lookup_activity, N_PROV_GENERATED, candidate),
+            ]
+        )
+
+        for document_id in doc_ids:
+            triples.append(
+                Triple(
+                    candidate,
+                    N_PROV_DERIVED_FROM,
+                    create_source_document_entity(
+                        workspace_id,
+                        document_id,
+                    ),
+                )
+            )
+
+    graph = curation_graph(workspace_id)
+    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
+    sparql_update(f"INSERT DATA {{GRAPH <{graph}> {{{triples_text}}} }}")
+
 
 def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
     graph = curation_graph(workspace_id)

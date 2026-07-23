@@ -20,7 +20,7 @@ from app.pipeline.utils.turtle_utils import load_entity_information
 from app.pipeline.wikidata_client import query_wikidata_for_entities
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
-from app.store.writer import write_alignment_results
+from app.store.writer import write_lookup_results
 from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -84,6 +84,11 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
 
         await update_all("aligning", task_name="Wikidata Lookup")
         try:
+            async with AsyncSessionLocal() as session:
+                tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
+
+            document_ids = [str(task.document_id) for task in tasks]
+
             # Load workspace config
             async with AsyncSessionLocal() as session:
                 workspace = await WorkspaceRepository(session).get_by_id(
@@ -294,7 +299,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                             (local_uri, candidate["uri"], score, None, "wikidata")
                         )
                         logger.info(
-                            "[%s] Wikidata alignment: %s -> %s (score: %.3f)",
+                            "[%s] Wikidata lookup result(s): %s -> %s (score: %.3f)",
                             run_id,
                             local_uri,
                             candidate["uri"],
@@ -302,19 +307,19 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                         )
 
             if not alignments:
-                logger.info("[%s] No Wikidata alignments above threshold", run_id)
+                logger.info("[%s] No Wikidata lookup result(s) above threshold", run_id)
                 await update_all("done", task_name="Wikidata Lookup")
                 return
 
             logger.info(
-                "[%s] Writing %d Wikidata alignment(s) to oxigraph",
+                "[%s] Writing %d Wikidata lookup result(s) to oxigraph",
                 run_id,
                 len(alignments),
             )
 
             # Write alignments to oxigraph
-            triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
-            write_alignment_results(triples, workspace_id, run_id, document_ids=None)
+            lookup_results = [(local_uri, wikidata_uri, score) for local_uri, wikidata_uri, score, *_ in alignments]
+            write_lookup_results(lookup_results, workspace_id, run_id, document_ids=document_ids)
 
             await update_all("done", task_name="Wikidata Lookup")
             logger.info("[%s] Wikidata lookup complete", run_id)
