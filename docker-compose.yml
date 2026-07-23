@@ -5,7 +5,7 @@ services:
       - ./backend:/app
       - oxigraph_data:/data/oxigraph
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://onto:onto@postgres:5432/onto
       - REDIS_URL=redis://redis:6379
@@ -43,7 +43,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     command: npm run dev -- --host
 
   postgres:
@@ -58,7 +58,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   oxigraph:
     image: ghcr.io/oxigraph/oxigraph:latest
@@ -66,7 +66,7 @@ services:
       - oxigraph_data:/data
       - ./infra/oxigraph/config.toml:/config.toml:ro
     ports:
-      - "7878:7878"
+      - "127.0.0.1:7878:7878"
     command: serve --location /data --bind 0.0.0.0:7878
 
 volumes:

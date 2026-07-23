@@ -29,3 +29,13 @@ export type Statement = {
     text_span_start: number | null;
     text_span_end: number | null;
 };
+
+export type Graph = "data" | "curation";
+
+export type BindingValue = { value: string; type: string };
+
+export type QueryResult = {
+    variables: string[];
+    rows: Record<string, BindingValue | null>[];
+    boolean?: boolean | null;
+};

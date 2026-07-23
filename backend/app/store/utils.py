@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -221,6 +222,14 @@ def build_prefix_map(schema_path: str | None) -> dict[str, str]:
     # Longest namespace first so a more specific match always wins over a
     # shorter one it happens to start with.
     return dict(sorted(merged.items(), key=lambda item: -len(item[0])))
+
+
+def extract_query_prefixes(query: str) -> dict[str, str]:
+    """Parses the PREFIX declarations a client wrote into their own SPARQL
+    query text, returning {namespace: prefix}. This is merged over the workspacep prefix map
+    to ensure users receive results respective to their prefix declarations."""
+    prefix_regex = re.compile(r"PREFIX\s+([a-zA-Z][\w-]*):\s*<([^>]*)>", re.IGNORECASE)
+    return {namespace: prefix for prefix, namespace in prefix_regex.findall(query)}
 
 
 def shorten_uri(uri: str, prefixes: dict[str, str] = BASE_PREFIXES) -> str:

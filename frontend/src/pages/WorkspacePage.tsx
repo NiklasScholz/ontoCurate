@@ -294,13 +294,16 @@ export default function WorkspacePage() {
                     />
                     <div className="relative">Deduplication</div>
                 </Link>
-                <button className="bg-nord8 relative h-24 w-32 rounded px-2">
+                <Link
+                    to={`/query?ws=${wsId}`}
+                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                >
                     <SearchIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                         size={48}
                     />
                     <div className="relative">Queries</div>
-                </button>
+                </Link>
                 <button className="bg-nord8 relative h-24 w-32 rounded px-2">
                     <ShareIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
