@@ -56,6 +56,19 @@ def load_config(
     )
 
 
+def _utf16_offset_table(text: str) -> list[int]:
+    """Returns a table mapping every Python string index to the corresponding UTF-16 code unit index.
+    Needed for alignment between backend and frontend.
+    """
+    table = [0] * (len(text) + 1)
+    offset = 0
+    for i, ch in enumerate(text):
+        table[i] = offset
+        offset += 2 if ord(ch) > 0xFFFF else 1
+    table[len(text)] = offset  # Include end-of-string index so it is
+    return table
+
+
 # Entry Point
 def annotate_confidence(
     source_path: Path,
@@ -172,6 +185,15 @@ def annotate_confidence(
             min_penalty_factor,
             doc_length=len(source),
         )
+
+    # Python string index only counts unicode code points, while javascript on the frontend indexes by UTF-16 code units
+    # We need to align these span annotations to javascript indexing, so frontend display agrees with the span offsets we provide.
+    utf16_offset = _utf16_offset_table(source)
+    for ann in annotations:
+        if "span_start" in ann:
+            ann["span_start"] = utf16_offset[ann["span_start"]]
+        if "span_end" in ann:
+            ann["span_end"] = utf16_offset[ann["span_end"]]
 
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = ttl_path.stem.replace("_extraction", "")

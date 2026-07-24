@@ -220,3 +220,102 @@ class TestDocumentStatements:
         as_user(client, owner_token)
         resp = await client.get(f"/documents/{uuid.uuid4()}/statements")
         assert resp.status_code == 404
+
+
+RELATED_SPANS_TTL = """
+@prefix ex: <http://example.org/> .
+ex:entityA ex:name "Alice" .
+ex:entityA ex:email "alice@example.com" .
+ex:entityB ex:name "Bob" .
+ex:entityA ex:relatedTo ex:entityB .
+"""
+
+RELATED_SPANS_PROVENANCE = {
+    "annotations": [
+        {
+            "subject": "http://example.org/entityA",
+            "predicate": "name",
+            "value": "Alice",
+            "span_start": 0,
+            "span_end": 5,
+            "span_text": "Alice",
+            "confidence": 0.9,
+            "triple_type": "literal",
+        },
+        {
+            "subject": "http://example.org/entityA",
+            "predicate": "email",
+            "value": "alice@example.com",
+            "span_start": 10,
+            "span_end": 28,
+            "span_text": "alice@example.com",
+            "confidence": 0.9,
+            "triple_type": "literal",
+        },
+        {
+            "subject": "http://example.org/entityB",
+            "predicate": "name",
+            "value": "Bob",
+            "span_start": 40,
+            "span_end": 43,
+            "span_text": "Bob",
+            "confidence": 0.9,
+            "triple_type": "literal",
+        },
+    ]
+}
+
+
+class TestDocumentRelatedSpans:
+    async def test_returns_spans_by_entity(self, client, tmp_path):
+        _, _, owner_token = await register_user(client, "owner")
+        workspace_id, document_id = await create_workspace_with_document(
+            client, owner_token
+        )
+        add_candidate_statements(
+            tmp_path,
+            workspace_id,
+            RELATED_SPANS_TTL,
+            RELATED_SPANS_PROVENANCE,
+            document_id=document_id,
+        )
+        as_user(client, owner_token)
+
+        resp = await client.get(
+            f"/documents/{document_id}/related-spans",
+            params={
+                "subject": "http://example.org/entityA",
+                "object": "http://example.org/entityB",
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert sorted((s["start"], s["end"]) for s in body["subject_spans"]) == [
+            (0, 5),
+            (10, 28),
+        ]
+        assert [(s["start"], s["end"]) for s in body["object_spans"]] == [(40, 43)]
+
+    async def test_non_member_cannot_get_related_spans(self, client, tmp_path):
+        _, _, owner_token = await register_user(client, "owner")
+        _, _, non_member_token = await register_user(client, "non_member")
+        workspace_id, document_id = await create_workspace_with_document(
+            client, owner_token
+        )
+        add_candidate_statements(
+            tmp_path,
+            workspace_id,
+            RELATED_SPANS_TTL,
+            RELATED_SPANS_PROVENANCE,
+            document_id=document_id,
+        )
+        as_user(client, non_member_token)
+        resp = await client.get(
+            f"/documents/{document_id}/related-spans",
+            params={
+                "subject": "http://example.org/entityA",
+                "object": "http://example.org/entityB",
+            },
+        )
+        assert resp.status_code == 403

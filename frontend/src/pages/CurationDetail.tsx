@@ -9,9 +9,73 @@ import {
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
-import type { CurrentAndOriginalStatement } from "../types.ts";
-import MarkdownView from "../components/MarkdownView.tsx";
+import type { CurrentAndOriginalStatement, Statement } from "../types.ts";
+import MarkdownView, { type HighlightSpan } from "../components/MarkdownView.tsx";
 import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology.ts";
+
+function useRelatedSpans(
+    docId: string | null,
+    statement: Statement | undefined,
+): HighlightSpan[] {
+    const [spans, setSpans] = useState<HighlightSpan[]>([]);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSpans([]);
+
+        if (docId === null || statement === undefined) {
+            return;
+        }
+
+        const isLiteral =
+            statement.text_span_start !== null && statement.text_span_end !== null;
+        const ownSpan = isLiteral
+            ? {
+                  start: statement.text_span_start as number,
+                  end: statement.text_span_end as number,
+                  role: "object" as const,
+              }
+            : null;
+        if (ownSpan) {
+            setSpans([ownSpan]);
+        }
+
+        let cancelled = false;
+        client
+            .GET("/documents/{document_id}/related-spans", {
+                params: {
+                    path: { document_id: docId },
+                    query: {
+                        subject: statement.subject,
+                        // we handle the literal case on the frontend, no need to query
+                        object: isLiteral ? undefined : statement.object,
+                    },
+                },
+            })
+            .then((res) => {
+                if (cancelled || res.data === undefined) return;
+                setSpans([
+                    ...(ownSpan ? [ownSpan] : []),
+                    ...res.data.subject_spans
+                        .filter((s) => !(ownSpan && s.start === ownSpan.start && s.end === ownSpan.end))
+                        .map((s) => ({
+                            ...s,
+                            role: "subject" as const,
+                        })),
+                    ...res.data.object_spans.map((s) => ({
+                        ...s,
+                        role: "object" as const,
+                    })),
+                ]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [docId, statement]);
+
+    return spans;
+}
 
 type Neighborhood = {
     incoming: { predicate: string; subject: string }[];
@@ -249,15 +313,19 @@ function TextField({
     current,
     original,
     onChange,
+    edgeClassName = "border-transparent",
 }: {
     current: string;
     original: string;
     onChange: (newValue: string) => void;
+    edgeClassName?: string;
 }) {
     const [value, setValue] = useState<string>(current);
 
     return (
-        <div className="bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t p-2">
+        <div
+            className={`bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t border-t-4 p-2 ${edgeClassName}`}
+        >
             <div className="h-full font-mono text-sm wrap-anywhere">
                 <textarea
                     className="h-full w-full"
@@ -290,6 +358,7 @@ export default function CurationDetail({
     index,
     total,
     statement,
+    docId,
 }: {
     onClose: () => void;
     onPrevious: () => void;
@@ -300,7 +369,10 @@ export default function CurationDetail({
     index: number;
     total: number;
     statement: CurrentAndOriginalStatement;
+    docId: string | null;
 }) {
+    const relatedSpans = useRelatedSpans(docId, statement.current);
+
     return (
         <div
             className={`bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl ${statement.current.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.current.curation_status === PACO_REJECTED && "tint-rejected"}`}
@@ -335,26 +407,8 @@ export default function CurationDetail({
             </div>
 
             {markdown !== undefined && (
-                <div
-                    className={`h-60 ${
-                        statement.current.text_span_start === null ||
-                        statement.current.text_span_end === null
-                            ? "opacity-50"
-                            : ""
-                    }`}
-                >
-                    <MarkdownView
-                        text={markdown}
-                        span={
-                            statement.current.text_span_start === null ||
-                            statement.current.text_span_end === null
-                                ? undefined
-                                : {
-                                      start: statement.current.text_span_start,
-                                      end: statement.current.text_span_end,
-                                  }
-                        }
-                    />
+                <div className="h-60">
+                    <MarkdownView text={markdown} spans={relatedSpans} />
                 </div>
             )}
 
@@ -417,6 +471,7 @@ export default function CurationDetail({
                         key={statement.current.subject}
                         current={statement.current.subject}
                         original={statement.original.subject}
+                        edgeClassName="border-nord15"
                         onChange={(newValue: string) => {
                             client
                                 .PATCH("/statements/{workspace_id}/edit", {
@@ -453,6 +508,7 @@ export default function CurationDetail({
                         key={statement.current.object}
                         current={statement.current.object}
                         original={statement.original.object}
+                        edgeClassName="border-nord13"
                         onChange={(newValue: string) => {
                             client
                                 .PATCH("/statements/{workspace_id}/edit", {

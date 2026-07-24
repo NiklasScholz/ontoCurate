@@ -18,6 +18,10 @@ datatype_properties:
     - Person
     - Organization
     - AcademicArticle
+    - Issue
+    - Proceedings
+    - Conference
+    - Workshop
 
   # Predicates for which fuzzy fallback is disabled — only exact/case-insensitive/normalized
   # matches are accepted. If the value is not found verbatim it is left unannotated (conf=None)

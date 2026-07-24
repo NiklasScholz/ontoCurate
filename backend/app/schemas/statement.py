@@ -47,3 +47,13 @@ class EntityNeighborhoodResponse(BaseModel):
 
 class StatementIdResponse(BaseModel):
     id: str
+
+
+class TextSpan(BaseModel):
+    start: int
+    end: int
+
+
+class RelatedSpansResponse(BaseModel):
+    subject_spans: list[TextSpan]
+    object_spans: list[TextSpan]

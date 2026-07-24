@@ -30,6 +30,16 @@ export type Statement = {
     text_span_end: number | null;
 };
 
+export type TextSpan = {
+    start: number;
+    end: number;
+};
+
+export type RelatedSpans = {
+    subject_spans: TextSpan[];
+    object_spans: TextSpan[];
+};
+
 export type Graph = "data" | "curation";
 
 export type BindingValue = { value: string; type: string };

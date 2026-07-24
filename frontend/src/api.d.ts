@@ -304,6 +304,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/related-spans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Related Spans Endpoint
+         * @description Returns the text spans of every literal associated with given entities in the given document.
+         */
+        get: operations["get_related_spans_endpoint_documents__document_id__related_spans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/export/provenance": {
         parameters: {
             query?: never;
@@ -656,18 +676,15 @@ export interface paths {
     };
     "/workspaces/{workspace_id}/prefixes": {
         parameters: {
-            query?: {
-                graph?: "data" | "curation";
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         /**
          * Get Workspace Prefixes
-         * @description Returns this workspace's known prefix map as {prefix: namespace},
-         *     merging the platform's fixed prefixes with the ones declared in the
-         *     workspace's own extraction schema.
+         * @description Returns the prefix map of the workspace (including fixed and schema-specific
+         *     prefixes), scoped to the given graph. Used to fill in prefixes for query view.
          */
         get: operations["get_workspace_prefixes_workspaces__workspace_id__prefixes_get"];
         put?: never;
@@ -1024,6 +1041,13 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** RelatedSpansResponse */
+        RelatedSpansResponse: {
+            /** Subject Spans */
+            subject_spans: components["schemas"]["TextSpan"][];
+            /** Object Spans */
+            object_spans: components["schemas"]["TextSpan"][];
+        };
         /** RunDetailResponse */
         RunDetailResponse: {
             /**
@@ -1100,6 +1124,13 @@ export interface components {
             text_span_start: number | null;
             /** Text Span End */
             text_span_end: number | null;
+        };
+        /** TextSpan */
+        TextSpan: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
         };
         /** UserResponse */
         UserResponse: {
@@ -1666,6 +1697,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_related_spans_endpoint_documents__document_id__related_spans_get: {
+        parameters: {
+            query: {
+                subject: string;
+                object?: string | null;
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedSpansResponse"];
                 };
             };
             /** @description Validation Error */

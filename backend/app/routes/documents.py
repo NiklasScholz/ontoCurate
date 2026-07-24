@@ -17,6 +17,7 @@ from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepos
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
+    RelatedSpansResponse,
     StatementResponseWithOriginal,
 )
 from app.store.client import (
@@ -29,6 +30,7 @@ from app.store.queries import export_document_data as query_export_document_data
 from app.store.queries import (
     export_document_provenance as query_export_document_provenance,
 )
+from app.store.queries import get_related_spans
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
@@ -289,6 +291,36 @@ async def get_document_statements(
     return zip_current_originals(
         order_statements(rows), order_statements(originals_rows)
     )
+
+
+@router.get(
+    "/{document_id}/related-spans",
+    response_model=RelatedSpansResponse,
+)
+async def get_related_spans_endpoint(
+    document_id: UUID,
+    subject: str,
+    object: str | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Returns the text spans of every literal associated with given entities in the given document.
+    """
+    document = await DocumentRepository(session).get_by_id(document_id)
+    if document is None:
+        raise NotFoundException(f"Document {document_id} not found")
+    workspace_id = document.workspace_id
+    role = await WorkspaceMemberRepository(session).get_role(
+        workspace_id, current_user.id
+    )
+    if not role:
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+
+    subject_spans, object_spans = get_related_spans(
+        str(workspace_id), str(document_id), subject, object
+    )
+    return RelatedSpansResponse(subject_spans=subject_spans, object_spans=object_spans)
 
 
 def zip_current_originals(
