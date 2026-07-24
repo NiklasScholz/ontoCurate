@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { client } from "../client";
 import Spinner from "../components/Spinner";
 import { Link, useSearchParams } from "react-router-dom";
@@ -11,61 +11,158 @@ import Popup from "../components/Popup";
 import CurationDetail from "./CurationDetail";
 import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology";
 
+function ConfidenceBar({ percentage }: { percentage: number }) {
+    return (
+        <div className="h-full p-0.5 text-sm">
+            <div className="relative h-full">
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        width: `${100 * percentage}%`,
+                        backgroundColor: `color-mix(in srgb, var(--color-nord14) ${100 * Math.pow(percentage, 4)}%, var(--color-nord11))`,
+                    }}
+                ></div>
+                <div className="absolute inset-0 text-center">
+                    {formatPercentage(percentage)}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function formatPercentage(percentage: number) {
+    return (100 * percentage).toFixed(2) + "%";
+}
+
 function StatementsView({
     statements,
     page,
     setPage,
     setSelected,
+    workspaceId,
+    onChange,
 }: {
     statements: CurrentAndOriginalStatement[];
     page: number;
     setPage: React.Dispatch<React.SetStateAction<number>>;
     setSelected: React.Dispatch<React.SetStateAction<number | undefined>>;
+    workspaceId: string;
+    onChange: (index: number) => void;
 }) {
+    const [threshold, setThreshold] = useState<number>(0);
+
+    const filteredStatements = useMemo(() => {
+        return statements === undefined
+            ? []
+            : statements
+                  .map((stm, i) => {
+                      return { stm, i };
+                  })
+                  .filter(
+                      ({ stm }) => stm.current.confidence >= threshold / 100,
+                  );
+    }, [statements, threshold]);
+
     return statements ? (
         <div className="flex min-h-0 flex-col gap-3">
-            <div className="flex flex-col overflow-scroll">
-                {statements
-                    .map((stm, i) => {
-                        return { stm, i };
-                    })
-                    .filter(({ i }) => i >= page * 100 && i < (page + 1) * 100)
-                    .map(({ stm, i }) => {
-                        return (
-                            <button
-                                key={stm.original.id}
-                                className="even:bg-nord4"
-                                onClick={() => setSelected(i)}
-                            >
-                                <div
-                                    className={
-                                        stm.current.curation_status ===
-                                        PACO_ACCEPTED
-                                            ? "bg-nord14/50"
-                                            : stm.current.curation_status ===
-                                                PACO_REJECTED
-                                              ? "bg-nord11/50"
-                                              : ""
-                                    }
+            <div className="flex items-center gap-3">
+                <div>Threshold</div>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    defaultValue={threshold}
+                    onChange={(e) =>
+                        setThreshold(Number.parseInt(e.target.value))
+                    }
+                />
+                <div>{threshold}%</div>
+                <button
+                    className="bg-nord8 rounded px-2 py-1"
+                    onClick={() => {
+                        for (const { stm, i } of filteredStatements) {
+                            client
+                                .POST("/statements/{workspace_id}/accept", {
+                                    params: {
+                                        path: { workspace_id: workspaceId },
+                                        query: { statement_id: stm.current.id },
+                                    },
+                                })
+                                .then(() => onChange(i));
+                        }
+                    }}
+                >
+                    Bulk accept {filteredStatements.length} triples
+                </button>
+            </div>
+            <div className="flex min-h-0 flex-col">
+                <div className="bg-nord3 text-nord6 grid grid-cols-[30px_1fr_1fr_1fr_1fr] gap-5 font-bold">
+                    <div className="overflow-hidden text-right text-nowrap text-ellipsis">
+                        #
+                    </div>
+                    <div className="overflow-hidden text-nowrap text-ellipsis">
+                        Subject
+                    </div>
+                    <div className="overflow-hidden text-nowrap text-ellipsis">
+                        Predicate
+                    </div>
+                    <div className="overflow-hidden text-nowrap text-ellipsis">
+                        Object
+                    </div>
+                    <div className="overflow-hidden text-nowrap text-ellipsis">
+                        Confidence
+                    </div>
+                </div>
+                <div className="flex flex-col overflow-scroll">
+                    {filteredStatements
+                        .filter(
+                            (_, i) => i >= page * 100 && i < (page + 1) * 100,
+                        )
+                        .map(({ stm, i }) => {
+                            return (
+                                <button
+                                    key={stm.original.id}
+                                    className="even:bg-nord4 text-left"
+                                    onClick={() => setSelected(i)}
                                 >
-                                    <div className="grid grid-cols-[30px_1fr_1fr_1fr] gap-5">
-                                        <div className="overflow-hidden text-right text-nowrap text-ellipsis">
-                                            {i + 1}
-                                        </div>
-                                        <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.current.subject}
-                                        </div>
-                                        <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.current.predicate}
-                                        </div>
-                                        <div className="overflow-hidden text-nowrap text-ellipsis">
-                                            {stm.current.object}
+                                    <div
+                                        className={
+                                            stm.current.curation_status ===
+                                            PACO_ACCEPTED
+                                                ? "bg-nord14/50"
+                                                : stm.current
+                                                        .curation_status ===
+                                                    PACO_REJECTED
+                                                  ? "bg-nord11/50"
+                                                  : ""
+                                        }
+                                    >
+                                        <div className="grid grid-cols-[30px_1fr_1fr_1fr_1fr] gap-5">
+                                            <div className="overflow-hidden text-right text-nowrap text-ellipsis">
+                                                {i + 1}
+                                            </div>
+                                            <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                {stm.current.subject}
+                                            </div>
+                                            <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                {stm.current.predicate}
+                                            </div>
+                                            <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                {stm.current.object}
+                                            </div>
+                                            <div className="overflow-hidden text-nowrap text-ellipsis">
+                                                <ConfidenceBar
+                                                    percentage={
+                                                        stm.current.confidence
+                                                    }
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </button>
-                        );
-                    })}
+                                </button>
+                            );
+                        })}
+                </div>
             </div>
             <div className="flex justify-center gap-2">
                 <button
@@ -150,7 +247,6 @@ export default function CurationPage() {
                 .then((statements) => {
                     if (statements.data !== null) {
                         setStatements(statements.data);
-                        console.log(statements.data);
                     }
                     setPage(0);
                 });
@@ -163,6 +259,33 @@ export default function CurationPage() {
 
     if (wsId === null) {
         return <NotFound />;
+    }
+
+    function reloadStatement(i: number) {
+        client
+            .GET(
+                "/statements/{workspace_id}/statements/{statement_id}/current",
+                {
+                    params: {
+                        path: {
+                            workspace_id: wsId,
+                            statement_id: statements[i].current.id,
+                        },
+                    },
+                },
+            )
+            .then((newStatement) => {
+                setStatements((prev) =>
+                    prev.map((stm, j) =>
+                        i === j
+                            ? {
+                                  original: prev[i].original,
+                                  current: newStatement.data,
+                              }
+                            : stm,
+                    ),
+                );
+            });
     }
 
     return (
@@ -191,7 +314,7 @@ export default function CurationPage() {
                         } else {
                             return (
                                 <button
-                                    className={`rounded p-2 ${t.value === tab ? "bg-nord8" : "bg-nord4"}`}
+                                    className={`rounded px-2 py-1 ${t.value === tab ? "bg-nord8" : "bg-nord4"}`}
                                     key={t.value}
                                     onClick={() => setTab(t.value)}
                                 >
@@ -208,6 +331,8 @@ export default function CurationPage() {
                         page={page}
                         setPage={setPage}
                         setSelected={setSelected}
+                        workspaceId={wsId}
+                        onChange={(i) => reloadStatement(i)}
                     />
                 )) ||
                     (tab === "document" && docId !== null && (
@@ -250,36 +375,7 @@ export default function CurationPage() {
                         onClose={() => setSelected(undefined)}
                         onNext={() => setSelected(selected + 1)}
                         onPrevious={() => setSelected(selected - 1)}
-                        onChange={(i) => {
-                            client
-                                .GET(
-                                    "/statements/{workspace_id}/statements/{statement_id}/current",
-                                    {
-                                        params: {
-                                            path: {
-                                                workspace_id: wsId,
-                                                statement_id:
-                                                    statements[i].current.id,
-                                            },
-                                        },
-                                    },
-                                )
-                                .then((newStatement) => {
-                                    setStatements(
-                                        statements.map((stm, j) =>
-                                            i === j
-                                                ? {
-                                                      original:
-                                                          statements[i]
-                                                              .original,
-                                                      current:
-                                                          newStatement.data,
-                                                  }
-                                                : stm,
-                                        ),
-                                    );
-                                });
-                        }}
+                        onChange={(i) => reloadStatement(i)}
                         index={selected}
                         total={statements.length}
                         statement={statements[selected]}
