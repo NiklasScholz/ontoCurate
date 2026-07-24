@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { client } from "../client";
+import { apiUrl, client } from "../client";
 import { useEffect, useState } from "react";
 import {
     ArrowLeftIcon,
@@ -130,6 +130,32 @@ export default function WorkspacePage() {
         fetchMembers(ws.id);
     }, [ws]);
 
+    const handleDeleteDocument = async (doc: Document) => {
+        if (
+            !window.confirm(
+                `Delete "${doc.filename}"? This cannot be undone.`,
+            )
+        ) {
+            return;
+        }
+        const { error } = await client.DELETE("/documents/{document_id}", {
+            params: { path: { document_id: doc.id } },
+        });
+        if (error) {
+            window.alert(
+                (error as { detail?: string }).detail ??
+                    "Failed to delete document",
+            );
+            return;
+        }
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+        setDocStatus((prev) => {
+            const next = { ...prev };
+            delete next[doc.id];
+            return next;
+        });
+    };
+
     if (wsId === null) {
         return <NotFound />;
     }
@@ -155,14 +181,47 @@ export default function WorkspacePage() {
                     No documents have been uploaded yet.
                 </div>
             ) : (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 gap-y-2">
                     <div>Document</div>
-                    <div>Extracted triples</div>
-                    <div>Pending review</div>
+                    <div>Uploaded</div>
+                    {docs.some((d) => docStatus[d.id] === "done") ? (
+                        <>
+                            <div>Extracted triples</div>
+                            <div>Pending review</div>
+                        </>
+                    ) : (
+                        <>
+                            <div></div>
+                            <div></div>
+                        </>
+                    )}
                     <div></div>
                     {docs.map((d) => (
                         <div key={d.id} className="contents">
-                            <div>{d.filename}</div>
+                            <div>
+                                {d.file_type === "pdf" ? (
+                                    <a
+                                        className="underline"
+                                        href={apiUrl(`/documents/${d.id}/pdf`)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        {d.filename}
+                                    </a>
+                                ) : d.file_type === "markdown" ? (
+                                    <a
+                                        className="underline"
+                                        href={apiUrl(`/documents/${d.id}/markdown`)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        {d.filename}
+                                    </a>
+                                ) : (
+                                    d.filename
+                                )}
+                            </div>
+                            <div>{new Date(d.created_at).toLocaleString()}</div>
                             {docStatus[d.id] === "done" ? (
                                 <>
                                     <div>{d.extracted_triples}</div>
@@ -182,6 +241,8 @@ export default function WorkspacePage() {
                             <div className="flex gap-2">
                                 <button
                                     className="bg-nord8 h-7 rounded px-2"
+                                    title="Edit"
+                                    aria-label="Edit"
                                     onClick={() => {
                                         navigate(
                                             `/curation?ws=${wsId}&doc=${d.id}`,
@@ -192,24 +253,17 @@ export default function WorkspacePage() {
                                 </button>
                                 <button
                                     className="bg-nord8 h-7 rounded px-2"
+                                    title="Share"
+                                    aria-label="Share"
                                     onClick={() => {}}
                                 >
                                     <ShareIcon size={16} />
                                 </button>
                                 <button
                                     className="bg-nord11 h-7 rounded px-2"
-                                    onClick={() => {
-                                        client.DELETE(
-                                            "/documents/{document_id}",
-                                            {
-                                                params: {
-                                                    path: {
-                                                        document_id: d.id,
-                                                    },
-                                                },
-                                            },
-                                        );
-                                    }}
+                                    title="Delete"
+                                    aria-label="Delete"
+                                    onClick={() => handleDeleteDocument(d)}
                                 >
                                     <TrashIcon size={16} />
                                 </button>

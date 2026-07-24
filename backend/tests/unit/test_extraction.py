@@ -20,7 +20,7 @@ from app.pipeline.extraction import (
 )
 
 SCHEMA_PATH = (
-    Path(__file__).parent.parent
+    Path(__file__).parent.parent.parent
     / "config"
     / "scholarySchema"
     / "extraction_schema.yaml"

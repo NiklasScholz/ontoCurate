@@ -1,8 +1,11 @@
+from pathlib import Path
+
+import yaml
 from pyoxigraph import NamedNode
 
-PACO = "https://example.org/provenance-and-curation-ontology/"
+PACO = "https://ontocurate.app/provenance-and-curation-ontology/"
 PROV = "http://www.w3.org/ns/prov#"
-SCHEMA = "https://schema.org/"
+SCHEMA = "http://schema.org/"
 RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 RDFS = "http://www.w3.org/2000/01/rdf-schema#"
 OWL = "http://www.w3.org/2002/07/owl#"
@@ -26,13 +29,13 @@ PACO_EDITING_ACTIVITY = f"{PACO}EditingActivity"
 PACO_ACCEPTING_ACTIVITY = f"{PACO}AcceptingActivity"
 PACO_REJECTING_ACTIVITY = f"{PACO}RejectingActivity"
 PACO_CREATION_ACTIVITY = f"{PACO}CreationActivity"
+PACO_RESETTING_ACTIVITY = f"{PACO}ResettingActivity"
 PACO_CURATION_STATUS = f"{PACO}CurationStatus"
 PACO_ALIGNMENT_ACTIVITY = f"{PACO}AlignmentActivity"
 PACO_LOOKUP_ACTIVITY = f"{PACO}LookupActivity"
 
 # PACO status individuals
 PACO_PENDING = f"{PACO}pending"
-PACO_EDITED = f"{PACO}edited"
 PACO_ACCEPTED = f"{PACO}accepted"
 PACO_REJECTED = f"{PACO}rejected"
 
@@ -58,8 +61,11 @@ PACO_EXTRACTED_AT = f"{PACO}extractedAt"
 PACO_EDITED_AT = f"{PACO}editedAt"
 PACO_ACCEPTED_AT = f"{PACO}acceptedAt"
 PACO_REJECTED_AT = f"{PACO}rejectedAt"
+PACO_RESET_AT = f"{PACO}resetAt"
 PACO_MANUALLY_CREATED_AT = f"{PACO}manuallyCreatedAt"
 PACO_CURRENT = f"{PACO}isCurrentVersion"
+PACO_USERNAME = f"{PACO}username"
+PACO_DELETED = f"{PACO}isDeleted"
 
 # PROV classes
 PROV_ACTIVITY = f"{PROV}Activity"
@@ -75,6 +81,7 @@ PROV_DERIVED_FROM = f"{PROV}wasDerivedFrom"
 PROV_GENERATED = f"{PROV}generated"
 # Schema.org properties
 SCHEMA_NAME = f"{SCHEMA}name"
+SCHEMA_EMAIL = f"{SCHEMA}email"
 
 # OWL properties
 OWL_SAME_AS = f"{OWL}sameAs"
@@ -120,7 +127,11 @@ N_PACO_CONFIDENCE = NamedNode(PACO_CONFIDENCE)
 N_PACO_CREATED_AT = NamedNode(PACO_CREATED_AT)
 N_PACO_EXTRACTED_AT = NamedNode(PACO_EXTRACTED_AT)
 N_PACO_ACCEPTED_AT = NamedNode(PACO_ACCEPTED_AT)
+N_PACO_RESET_AT = NamedNode(PACO_RESET_AT)
+N_PACO_MANUALLY_CREATED_AT = NamedNode(PACO_MANUALLY_CREATED_AT)
 N_PACO_CURRENT = NamedNode(PACO_CURRENT)
+N_PACO_USERNAME = NamedNode(PACO_USERNAME)
+N_PACO_DELETED = NamedNode(PACO_DELETED)
 
 # PROV classes
 N_PROV_ACTIVITY = NamedNode(PROV_ACTIVITY)
@@ -137,13 +148,117 @@ N_PROV_GENERATED = NamedNode(PROV_GENERATED)
 
 # Schema.org
 N_SCHEMA_NAME = NamedNode(SCHEMA_NAME)
+N_SCHEMA_EMAIL = NamedNode(SCHEMA_EMAIL)
 
 # OWL
 N_OWL_SAME_AS = NamedNode(OWL_SAME_AS)
 
 
-def create_source_document_entity(workspace_id: str, document_key: str) -> NamedNode:
+def create_source_document_entity(document_key: str) -> NamedNode:
     """Return a PROV Entity NamedNode representing a source document."""
-    return NamedNode(
-        f"https://example.org/workspaces/{workspace_id}/documents/{document_key}"
-    )
+    return NamedNode(f"{DOCUMENTS}{document_key}")
+
+
+# Instance-IRI roots. Workspace-agnostic (workspace scoping lives in the named
+# graph, not the IRI) since the ontocurate.app rename, so -- unlike before --
+# a single static prefix can cover every workspace's candidate statements,
+# activities, documents, and users. Activities are split per verb rather than
+# one flat "activities/" root: a CURIE's local part can't contain further
+# slashes, and every activity IRI has a verb segment before its uuid
+# (".../activities/accept/{uuid}"), so a flat root could never actually
+# abbreviate any of them -- splitting is what makes abbreviation possible at
+# all, and the prefix doubles as a hint of the activity's type.
+CANDIDATE_STATEMENTS = "https://ontocurate.app/candidate-statements/"
+ACCEPT_ACTIVITIES = "https://ontocurate.app/activities/accept/"
+REJECT_ACTIVITIES = "https://ontocurate.app/activities/reject/"
+EDIT_ACTIVITIES = "https://ontocurate.app/activities/edit/"
+RESET_ACTIVITIES = "https://ontocurate.app/activities/reset/"
+EXTRACTION_ACTIVITIES = "https://ontocurate.app/activities/extraction/"
+ALIGNMENT_ACTIVITIES = "https://ontocurate.app/activities/alignment/"
+CROSS_DOCUMENT_ALIGNMENT_ACTIVITIES = (
+    "https://ontocurate.app/activities/cross-document-alignment/"
+)
+DOCUMENTS = "https://ontocurate.app/documents/"
+USERS = "https://ontocurate.app/users/"
+
+# Base namespace -> prefix for the platform's own vocabulary and instance
+# IRIs. Domain ontologies (schema.org, dcterms, a workspace's own extraction
+# schema, ...) come from that workspace's LinkML schema instead -- see
+# build_prefix_map.
+BASE_PREFIXES: dict[str, str] = {
+    PACO: "paco",
+    PROV: "prov",
+    SCHEMA: "schema",
+    RDF: "rdf",
+    RDFS: "rdfs",
+    OWL: "owl",
+    XSD: "xsd",
+    CANDIDATE_STATEMENTS: "stmt",
+    ACCEPT_ACTIVITIES: "accept",
+    REJECT_ACTIVITIES: "reject",
+    EDIT_ACTIVITIES: "edit",
+    RESET_ACTIVITIES: "reset",
+    EXTRACTION_ACTIVITIES: "extraction",
+    ALIGNMENT_ACTIVITIES: "alignment",
+    CROSS_DOCUMENT_ALIGNMENT_ACTIVITIES: "cross-document-alignment",
+    DOCUMENTS: "doc",
+    USERS: "user",
+}
+
+
+def build_prefix_map(schema_path: str | None) -> dict[str, str]:
+    """Merge BASE_PREFIXES with the prefixes declared in a workspace's LinkML
+    extraction schema (its `prefixes:` block), so CURIE-shortening also covers
+    that workspace's own domain ontology and whatever vocabularies it reuses
+    (schema.org, dcterms, foaf, ...). Falls back to BASE_PREFIXES alone if the
+    schema can't be read. The platform's own namespaces always win a collision.
+    """
+    merged = dict(BASE_PREFIXES)
+    if schema_path:
+        try:
+            raw = yaml.safe_load(Path(schema_path).read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            raw = {}
+        for prefix, namespace in (raw.get("prefixes") or {}).items():
+            merged.setdefault(namespace, prefix)
+
+    # Longest namespace first so a more specific match always wins over a
+    # shorter one it happens to start with.
+    return dict(sorted(merged.items(), key=lambda item: -len(item[0])))
+
+
+def shorten_uri(uri: str, prefixes: dict[str, str] = BASE_PREFIXES) -> str:
+    """Abbreviate a URI to a prefix:localName CURIE if its namespace is known,
+    otherwise return it unchanged."""
+    for namespace, prefix in prefixes.items():
+        if uri.startswith(namespace):
+            return f"{prefix}:{uri[len(namespace):]}"
+    return uri
+
+
+def shorten_sparql_results(
+    payload: dict, prefixes: dict[str, str] = BASE_PREFIXES
+) -> dict:
+    """Replace URI-typed binding values, and literal datatypes, in a SPARQL
+    results JSON payload with prefixed CURIEs where possible. Mutates and
+    returns the given payload."""
+    for binding in payload.get("results", {}).get("bindings", []):
+        for value in binding.values():
+            if value.get("type") == "uri":
+                value["value"] = shorten_uri(value["value"], prefixes)
+            elif "datatype" in value:
+                value["datatype"] = shorten_uri(value["datatype"], prefixes)
+    return payload
+
+
+def format_sparql_response(payload: dict) -> dict | bool:
+    """Reshape a SPARQL results JSON payload into a minimal response: a bare
+    boolean for ASK, or {"variables": [...], "rows": [...]} for SELECT --
+    dropping the SPARQL protocol's "head"/"results" envelope, which callers
+    of this API have no use for."""
+    if "boolean" in payload:
+        return payload["boolean"]
+    return {
+        "variables": payload.get("head", {}).get("vars", []),
+        "rows": payload.get("results", {}).get("bindings", []),
+    }

@@ -50,3 +50,30 @@
 		background-position: 56px 0;
 	}
 }
+
+.tint-accepted,
+.tint-rejected {
+	position: relative;
+}
+
+.tint-accepted::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: color-mix(in srgb, var(--color-nord14) 30%, transparent);
+	pointer-events: none;
+}
+
+.tint-rejected::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: color-mix(in srgb, var(--color-nord11) 30%, transparent);
+	pointer-events: none;
+}

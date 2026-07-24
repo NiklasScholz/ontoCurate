@@ -1,14 +1,15 @@
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
 from app.deps import get_current_user, require_role
-from app.routes.documents import order_statements
+from app.routes.documents import order_statements, zip_current_originals
 from app.schemas.statement import (
+    CurrentAndOriginalStatement,
     EntityNeighborhoodResponse,
     IncomingEdge,
     OutgoingEdge,
-    StatementResponse,
 )
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
@@ -19,6 +20,7 @@ from app.store.utils import (
     PACO_OBJECT,
     PACO_PREDICATE,
     PACO_SUBJECT,
+    PROV_DERIVED_FROM,
     PROV_GENERATED_BY,
     RDF_TYPE,
 )
@@ -30,7 +32,7 @@ router = APIRouter(
 
 @router.get(
     "/{workspace_id}/deduplication",
-    response_model=list[StatementResponse],
+    response_model=list[CurrentAndOriginalStatement],
     dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def get_deduplication(workspace_id: UUID):
@@ -60,11 +62,30 @@ async def get_deduplication(workspace_id: UUID):
 """)
 
     rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"])
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
-    return order_statements(rows)
+    originals_payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+    """)
+
+    originals_rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        for b in originals_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return zip_current_originals(
+        order_statements(rows), order_statements(originals_rows)
+    )
 
 
 @router.get(
@@ -74,9 +95,22 @@ async def get_deduplication(workspace_id: UUID):
 )
 async def get_neighborhood(workspace_id: UUID, entity_id: str):
     """
-    Gets the local neighborhood of a statement.
+    Gets the local neighborhood of a given entity.
     """
+    # invalid characters for iri/uri
+    iriref_invalid = re.compile(r'[\x00-\x20<>"{}|^`\\]')
+
+    def is_iri(value: str) -> bool:
+        """Returns true if given value is a valid IRI/URI, false otherwise."""
+        return bool(
+            re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", value)
+        ) and not iriref_invalid.search(value)
+
     graph = curation_graph(str(workspace_id))
+
+    # literal objects should not return any neighborhood, as they are no entities and are solely derived for the subject entity
+    if not is_iri(entity_id):
+        return EntityNeighborhoodResponse(incoming=[], outgoing=[])
 
     incoming_payload = sparql_select(f"""
         SELECT ?s ?p WHERE {{

@@ -3,12 +3,13 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from pydantic import BaseModel, WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.limiter import limiter
 from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.document import DocumentRepository
@@ -96,13 +97,14 @@ async def get_runs(workspace_id: UUID, session: AsyncSession = Depends(get_sessi
 @router.post(
     "/", status_code=202, dependencies=[Depends(require_role("owner", "editor"))]
 )
+@limiter.limit("5/hour")
 async def create_documents(
+    request: Request,
     files: list[UploadFileType] = File(...),
     workspace_id: UUID = Query(...),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    triggered_by = current_user.id
     run_repo = RunRepository(session)
     doc_repo = DocumentRepository(session)
     workspace_repo = WorkspaceRepository(session)
@@ -111,10 +113,6 @@ async def create_documents(
         raise NotFoundException(f"Workspace {workspace_id} not found")
     model = "gpt-oss-120b"
 
-    run = await run_repo.create(
-        workspace_id=workspace_id, triggered_by=triggered_by, model=model
-    )
-    documents = []
     # Create hashes to ensure files have not been uploaded yet
     file_payloads = []
     for file in files:
@@ -239,7 +237,7 @@ async def get_run_alignments(
         raise NotFoundException(f"Run {run_id} not found")
 
     graph = curation_graph(str(run.workspace_id))
-    paco = "https://example.org/provenance-and-curation-ontology/"
+    paco = PACO
     owl_same_as = "http://www.w3.org/2002/07/owl#sameAs"
 
     payload = sparql_select(f"""

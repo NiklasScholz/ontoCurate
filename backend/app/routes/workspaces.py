@@ -1,7 +1,8 @@
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.core.database import get_session
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     NotFoundException,
 )
 from app.deps import get_current_user, require_role
@@ -22,9 +24,24 @@ from app.schemas.workspace import (
     AddMemberRequest,
     MemberResponse,
     WorkspaceCreate,
+    WorkspaceQueryRequest,
     WorkspaceResponse,
 )
-from app.store.client import curation_graph, drop_workspace_graphs, export_graph_ttl
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    data_graph,
+    drop_workspace_graphs,
+    export_graph,
+    sparql_select,
+)
+from app.store.utils import (
+    build_prefix_map,
+    format_sparql_response,
+    shorten_sparql_results,
+)
+from app.store.writer import upsert_curator
 
 router = APIRouter(
     prefix="/workspaces", tags=["workspaces"], dependencies=[Depends(get_current_user)]
@@ -73,6 +90,7 @@ async def create_workspace(
     )
     if not workspace_mem:
         raise BadRequestException("Failed to add user as workspace member")
+    upsert_curator(str(workspace.id), user.id, user.name, user.email, user.username)
     return WorkspaceResponse(id=workspace.id, name=workspace.name, role="owner")
 
 
@@ -94,17 +112,91 @@ async def get_workspace(
 
 
 @router.get(
-    "/{workspace_id}/export/provenance.ttl",
+    "/{workspace_id}/export/provenance",
+    dependencies=[Depends(require_role("owner"))],
+    response_class=FileResponse,
+)
+async def export_provenance_graph(
+    workspace_id: str,
+    format: ExportFormat = ExportFormat.turtle,
+    session: AsyncSession = Depends(get_session),
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = export_graph(curation_graph(workspace_id), format, prefixes)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
+    )
+
+
+@router.get(
+    "/{workspace_id}/export/data",
     dependencies=[Depends(require_role("owner", "editor"))],
     response_class=FileResponse,
 )
-async def export_provenance_graph(workspace_id: str):
-    ttl = export_graph_ttl(curation_graph(workspace_id))
+async def export_data_graph(
+    workspace_id: str,
+    format: ExportFormat = ExportFormat.turtle,
+    session: AsyncSession = Depends(get_session),
+):
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = export_graph(data_graph(workspace_id), format, prefixes)
     return Response(
-        content=ttl,
-        media_type="text/turtle",
-        headers={"Content-Disposition": f'attachment; filename="provenance.ttl"'},
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
     )
+
+
+@router.post(
+    "/{workspace_id}/query",
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
+async def query_workspace_graph(
+    workspace_id: UUID,
+    body: WorkspaceQueryRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Runs a user-supplied SPARQL SELECT/ASK query against one of the workspace's
+    graphs. Owners may query either the data or curation graph; editors are
+    always restricted to the data graph regardless of what they request.
+
+    The query's dataset is pinned to that single graph at the Oxigraph protocol
+    level, so an explicit GRAPH clause in the submitted query cannot be used to
+    read triples outside of it.
+    """
+    role = await WorkspaceMemberRepository(session).get_role(
+        workspace_id, current_user.id
+    )
+    if role is None:
+        raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
+
+    graph = body.graph if role == "owner" else "data"
+    graph_iri = (
+        curation_graph(str(workspace_id))
+        if graph == "curation"
+        else data_graph(str(workspace_id))
+    )
+
+    try:
+        payload = sparql_select(body.query, restrict_to_graph=graph_iri)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Query timed out") from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=422, detail=exc.response.text) from exc
+
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    return format_sparql_response(shorten_sparql_results(payload, prefixes))
 
 
 @router.delete(
@@ -170,6 +262,7 @@ async def add_workspace_member(
         )
 
     await workspace_repo.add_member(workspace_id, user.id, body.role)
+    upsert_curator(str(workspace_id), user.id, user.name, user.email, user.username)
     return user
 
 

@@ -5,6 +5,7 @@ Used by celery extraction.py
 
 import hashlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -17,6 +18,8 @@ from linkml.generators import PythonGenerator
 from linkml.utils.datautils import get_dumper, get_loader
 from linkml_runtime import SchemaView
 
+logger = logging.getLogger(__name__)
+
 
 def extract_document(
     input_path: Path,
@@ -26,6 +29,7 @@ def extract_document(
     api_base: str,
     api_key: str,
     max_text_length: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> tuple[Path, Path]:
     """
     Stage 1: Call `ontogpt extract` as a subprocess, clean the YAML output,
@@ -40,6 +44,7 @@ def extract_document(
     - api_base: Base URL for KI Connect NRW API (e.g. "https://chat.kiconnect.nrw/api/v1")
     - api_key: API key for KI Connect NRW
     - max_text_length: Optional max text length to pass to ontoGPT for internal chunking
+    - max_output_tokens: Optional max completion tokens per LLM call (see ontogpt_patches/llm_client.py)
     Returns:
         (yaml_path, ttl_path)
     """
@@ -60,6 +65,7 @@ def extract_document(
         api_base=api_base,
         api_key=api_key,
         max_text_length=max_text_length,
+        max_output_tokens=max_output_tokens,
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     yaml_to_turtle(yaml_out, ttl_out, schema_path)
@@ -75,14 +81,17 @@ def extract_onto(
     api_base: str | None = None,
     api_key: str | None = None,
     output_format: str = "yaml",
-    verbose: bool = False,
+    verbose: bool = True,
     max_text_length: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> None:
     env = os.environ.copy()
     if api_base:
         env["OPENAI_API_BASE"] = api_base
     if api_key:
         env["OPENAI_API_KEY"] = api_key
+    if max_output_tokens is not None:
+        env["ONTOGPT_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
     base_url = env.get("OPENAI_API_BASE", "")
 
     cmd = ["ontogpt"]
@@ -107,19 +116,9 @@ def extract_onto(
     ]
     if max_text_length is not None:
         cmd += ["--max-text-length", str(max_text_length)]
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    result = subprocess.run(cmd, env=env, text=True)
     if result.returncode != 0:
-        import logging
-
-        logging.getLogger(__name__).error(
-            "ontogpt failed (exit %d)\nstdout: %s\nstderr: %s",
-            result.returncode,
-            result.stdout,
-            result.stderr,
-        )
-        raise subprocess.CalledProcessError(
-            result.returncode, cmd, output=result.stdout, stderr=result.stderr
-        )
+        raise subprocess.CalledProcessError(result.returncode, cmd)
 
 
 def uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
@@ -300,6 +299,7 @@ def clean_extraction(
 
 def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     """Converts cleaned YAML output to Turtle RDF file using linkML"""
+    logger.info(f"[yaml_to_turtle] YAML path: {yaml_path}")
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()
 
@@ -308,6 +308,7 @@ def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     py_target_class = python_module.__dict__[root_class_name]
 
     raw = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
+    logger.info(f"[yaml_to_turtle] Raw YAML: {raw}")
     extracted = raw.get("extracted_object")
     data = (
         extracted
@@ -327,8 +328,10 @@ def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     )
 
     yaml_str = yaml.dump(data, allow_unicode=True, sort_keys=False)
+    logger.info("[yaml_to_turtle] YAML string before preprocessing: %s", yaml_str)
     yaml_str = re.sub(r"(?m)^(\s*)- null\s*$\n?", "", yaml_str)
     yaml_str = re.sub(r"(?m)^(\s*)- \{\}\s*$\n?", "", yaml_str)
+    logger.info("[yaml_to_turtle] YAML output: %s", yaml_str)
     obj = get_loader("yaml").load(source=yaml_str, target_class=py_target_class)
     ttl = get_dumper("ttl").dumps(obj, schemaview=sv)
     Path(ttl_path).write_text(ttl, encoding="utf-8")

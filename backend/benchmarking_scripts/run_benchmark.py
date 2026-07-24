@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from rdflib import Graph
 
+from app.core.config import settings
 from app.pipeline.confidence_annotation import annotate_confidence
 from app.pipeline.convert import pdf_to_markdown
 from app.pipeline.utils.turtle_utils import build_type_index, local_name
@@ -115,22 +116,27 @@ def main():
     )
     parser.add_argument("--model", default="gpt-oss-120b", help="LLM model name")
     parser.add_argument(
+        "--schema-name",
+        default="scholarySchema",
+        help="Name of schema subfolder under config/ (defaults to scholarySchema)",
+    )
+    parser.add_argument(
         "--schema",
         default=None,
         type=Path,
-        help="Path to LinkML schema YAML (defaults to scholarly_schema.yaml)",
+        help="Path to LinkML schema YAML (defaults to config/<schema-name>/extraction_schema.yaml)",
     )
     parser.add_argument(
         "--alignment-config",
         default=None,
         type=Path,
-        help="Path to alignment config YAML (defaults to alignment_config.yaml)",
+        help="Path to alignment config YAML (defaults to config/<schema-name>/alignment_config.yaml)",
     )
     parser.add_argument(
         "--provenance-config",
         default=None,
         type=Path,
-        help="Path to provenance config YAML (defaults to provenance_config.yaml next to schema)",
+        help="Path to provenance config YAML (defaults to config/<schema-name>/provenance_config.yaml)",
     )
     parser.add_argument(
         "--skip-extraction",
@@ -148,12 +154,26 @@ def main():
         default=2,
         help="Number of documents to extract in parallel (default: 2, recommended max: 2)",
     )
+    parser.add_argument(
+        "--max-text-length",
+        type=int,
+        default=settings.max_text_length,
+        help="Optional max text length to pass to ontoGPT for internal chunking "
+        "(defaults to MAX_TEXT_LENGTH from secrets.env)",
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=settings.max_output_tokens,
+        help="Optional max completion tokens per LLM call "
+        "(defaults to MAX_OUTPUT_TOKENS from secrets.env)",
+    )
     args = parser.parse_args()
 
     backend_root = Path(__file__).parent.parent
-    config_dir = backend_root / "config" / "schemas"
+    config_dir = backend_root / "config" / args.schema_name
 
-    default_schema = config_dir / "scholarly_schema.yaml"
+    default_schema = config_dir / "extraction_schema.yaml"
     schema_path = args.schema or default_schema
     if not schema_path.exists():
         print(f"Schema not found: {schema_path}", file=sys.stderr)
@@ -273,6 +293,8 @@ def main():
             api_key=api_key,
             provenance_config_path=provenance_config_path,
             max_workers=args.max_workers,
+            max_text_length=args.max_text_length,
+            max_output_tokens=args.max_output_tokens,
         )
 
         write_csv(
