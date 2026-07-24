@@ -39,3 +39,13 @@ export type RelatedSpans = {
     subject_spans: TextSpan[];
     object_spans: TextSpan[];
 };
+
+export type Graph = "data" | "curation";
+
+export type BindingValue = { value: string; type: string };
+
+export type QueryResult = {
+    variables: string[];
+    rows: Record<string, BindingValue | null>[];
+    boolean?: boolean | null;
+};

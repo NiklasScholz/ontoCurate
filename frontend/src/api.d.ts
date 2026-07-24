@@ -313,12 +313,7 @@ export interface paths {
         };
         /**
          * Get Related Spans Endpoint
-         * @description Returns the text spans of every current, literal-valued statement in this
-         *     document about `subject` or `object` - i.e. the known textual attributes
-         *     of both entities in a relation, so a relation without its own span can
-         *     still be shown in context. `object` is omitted when it's a literal value
-         *     rather than an entity (a datatype-property statement's own object), in
-         *     which case object_spans is empty.
+         * @description Returns the text spans of every literal associated with given entities in the given document.
          */
         get: operations["get_related_spans_endpoint_documents__document_id__related_spans_get"];
         put?: never;
@@ -329,15 +324,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/documents/{document_id}/export/provenance.ttl": {
+    "/documents/{document_id}/export/provenance": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Export Document Ttl */
-        get: operations["export_document_ttl_documents__document_id__export_provenance_ttl_get"];
+        /** Export Document Provenance */
+        get: operations["export_document_provenance_documents__document_id__export_provenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/export/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Document Data */
+        get: operations["export_document_data_documents__document_id__export_data_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -514,7 +526,7 @@ export interface paths {
         };
         /**
          * Get Neighborhood
-         * @description Gets the local neighborhood of a statement.
+         * @description Gets the local neighborhood of a given entity.
          */
         get: operations["get_neighborhood_graph__workspace_id__neighborhood_get"];
         put?: never;
@@ -662,7 +674,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/export/provenance.ttl": {
+    "/workspaces/{workspace_id}/prefixes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workspace Prefixes
+         * @description Returns the prefix map of the workspace (including fixed and schema-specific
+         *     prefixes), scoped to the given graph. Used to fill in prefixes for query view.
+         */
+        get: operations["get_workspace_prefixes_workspaces__workspace_id__prefixes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/export/provenance": {
         parameters: {
             query?: never;
             header?: never;
@@ -670,9 +703,52 @@ export interface paths {
             cookie?: never;
         };
         /** Export Provenance Graph */
-        get: operations["export_provenance_graph_workspaces__workspace_id__export_provenance_ttl_get"];
+        get: operations["export_provenance_graph_workspaces__workspace_id__export_provenance_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/export/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Data Graph */
+        get: operations["export_data_graph_workspaces__workspace_id__export_data_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Query Workspace Graph
+         * @description Runs a user-supplied SPARQL SELECT/ASK query against one of the workspace's
+         *     graphs. Owners may query either the data or curation graph; editors are
+         *     always restricted to the data graph regardless of what they request.
+         *
+         *     The query's dataset is pinned to that single graph at the Oxigraph protocol
+         *     level, so an explicit GRAPH clause in the submitted query cannot be used to
+         *     read triples outside of it.
+         */
+        post: operations["query_workspace_graph_workspaces__workspace_id__query_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -861,6 +937,11 @@ export interface components {
             /** Outgoing */
             outgoing: components["schemas"]["OutgoingEdge"][];
         };
+        /**
+         * ExportFormat
+         * @enum {string}
+         */
+        ExportFormat: "turtle" | "json-ld";
         /** GetRunsResponse */
         GetRunsResponse: {
             /**
@@ -926,6 +1007,30 @@ export interface components {
             predicate: string;
             /** Object */
             object: string;
+        };
+        /** QueryBindingValue */
+        QueryBindingValue: {
+            /** Value */
+            value: string;
+            /** Type */
+            type: string;
+        };
+        /** QueryResultResponse */
+        QueryResultResponse: {
+            /**
+             * Variables
+             * @default []
+             */
+            variables: string[];
+            /**
+             * Rows
+             * @default []
+             */
+            rows: {
+                [key: string]: components["schemas"]["QueryBindingValue"] | null;
+            }[];
+            /** Boolean */
+            boolean?: boolean | null;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -1065,6 +1170,17 @@ export interface components {
              * @default scholarlySchema
              */
             schema_name: string;
+        };
+        /** WorkspaceQueryRequest */
+        WorkspaceQueryRequest: {
+            /** Query */
+            query: string;
+            /**
+             * Graph
+             * @default data
+             * @enum {string}
+             */
+            graph: "data" | "curation";
         };
         /** WorkspaceResponse */
         WorkspaceResponse: {
@@ -1628,10 +1744,10 @@ export interface operations {
             };
         };
     };
-    export_document_ttl_documents__document_id__export_provenance_ttl_get: {
+    export_document_provenance_documents__document_id__export_provenance_get: {
         parameters: {
             query?: {
-                response_class?: unknown;
+                format?: components["schemas"]["ExportFormat"];
             };
             header?: never;
             path: {
@@ -1646,9 +1762,38 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": unknown;
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_document_data_documents__document_id__export_data_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -2238,9 +2383,46 @@ export interface operations {
             };
         };
     };
-    export_provenance_graph_workspaces__workspace_id__export_provenance_ttl_get: {
+    get_workspace_prefixes_workspaces__workspace_id__prefixes_get: {
         parameters: {
-            query?: never;
+            query?: {
+                graph?: "data" | "curation";
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_provenance_graph_workspaces__workspace_id__export_provenance_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["ExportFormat"];
+            };
             header?: never;
             path: {
                 workspace_id: string;
@@ -2255,6 +2437,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_data_graph_workspaces__workspace_id__export_data_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_workspace_graph_workspaces__workspace_id__query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueryResultResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
