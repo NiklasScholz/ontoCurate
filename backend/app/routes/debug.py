@@ -10,6 +10,21 @@ from app.models.workspace import Workspace
 from app.repositories.run import RunRepository
 from app.repositories.workspace import WorkspaceRepository
 from app.store.client import curation_graph, sparql_select, sparql_update
+from app.store.utils import (
+    PACO_CANDIDATE,
+    PACO_CONFIDENCE,
+    PACO_CREATED_AT,
+    PACO_CURRENT,
+    PACO_OBJECT,
+    PACO_ORIGIN,
+    PACO_PENDING,
+    PACO_PREDICATE,
+    PACO_SOURCE_DOCUMENT,
+    PACO_STATUS,
+    PACO_SUBJECT,
+    PROV_DERIVED_FROM,
+    create_source_document_entity,
+)
 from app.tasks.test import ping_task, slow_task
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -121,30 +136,25 @@ async def seed_statement_for_testing(
 
     graph = curation_graph(str(workspace.id))
 
-    statement_id = (
-        f"https://example.org/workspaces/"
-        f"{workspace_id}/candidate-statements/test-paper-author"
-    )
+    statement_id = "https://ontocurate.app/candidate-statements/test-paper-author"
 
-    source_document_id = (
-        f"https://example.org/workspaces/" f"{workspace_id}/source-documents/test-paper"
-    )
+    source_document_id = create_source_document_entity("test-paper").value
 
     sparql_update(f"""
     INSERT DATA {{
         GRAPH <{graph}> {{
-            <{source_document_id}> a <https://example.org/provenance-and-curation-ontology/SourceDocument> .
-            <{statement_id}> a <https://example.org/provenance-and-curation-ontology/CandidateStatement> .
+            <{source_document_id}> a <{PACO_SOURCE_DOCUMENT}> .
+            <{statement_id}> a <{PACO_CANDIDATE}> .
             <{statement_id}> a <http://www.w3.org/ns/prov#Entity> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/subject> <https://example.org/entities/Paper_X> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/predicate> <https://schema.org/author> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/object> <https://example.org/entities/Author_Y> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/curationStatus> <https://example.org/provenance-and-curation-ontology/pending> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/isCurrentVersion> true .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/confidence> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
-            <{statement_id}> <http://www.w3.org/ns/prov#wasDerivedFrom> <{source_document_id}> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/origin> <https://example.org/origins/test-origin> .
-            <{statement_id}> <https://example.org/provenance-and-curation-ontology/createdAt> "2023-10-01T12:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+            <{statement_id}> <{PACO_SUBJECT}> <https://ontocurate.app/entities/Paper_X> .
+            <{statement_id}> <{PACO_PREDICATE}> <https://schema.org/author> .
+            <{statement_id}> <{PACO_OBJECT}> <https://ontocurate.app/entities/Author_Y> .
+            <{statement_id}> <{PACO_STATUS}> <{PACO_PENDING}> .
+            <{statement_id}> <{PACO_CURRENT}> true .
+            <{statement_id}> <{PACO_CONFIDENCE}> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+            <{statement_id}> <{PROV_DERIVED_FROM}> <{source_document_id}> .
+            <{statement_id}> <{PACO_ORIGIN}> <https://ontocurate.app/origins/test-origin> .
+            <{statement_id}> <{PACO_CREATED_AT}> "2023-10-01T12:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
         }}
     }}
     """)

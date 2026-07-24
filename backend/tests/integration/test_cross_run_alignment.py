@@ -5,6 +5,7 @@ from test_utils import add_candidate_statements, gen_workspace_id, sparql_count
 from app.pipeline.entity_alignment import run_cross_document_alignment
 from app.store.client import curation_graph
 from app.store.queries import get_existing_alignment_pairs
+from app.store.utils import PACO
 from app.store.writer import write_alignment_results
 
 ALIGNMENT_CONFIG_PATH = (
@@ -95,7 +96,7 @@ class TestCrossRunAlignment:
         )
         # check that only one same as triple is there
         sparql = f"""
-            PREFIX paco: <https://example.org/provenance-and-curation-ontology/>
+            PREFIX paco: <{PACO}>
             PREFIX owl: <http://www.w3.org/2002/07/owl#>
             SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{curation_graph(workspace_id)}> {{

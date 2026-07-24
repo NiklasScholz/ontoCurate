@@ -5,7 +5,13 @@ from app.pipeline.utils.turtle_utils import (
     sparql_binding_to_term,
 )
 from app.schemas.statement import TextSpan
-from app.store.client import curation_graph, sparql_select
+from app.store.client import (
+    ExportFormat,
+    curation_graph,
+    serialize_export,
+    sparql_construct,
+    sparql_select,
+)
 from app.store.utils import *
 
 
@@ -21,7 +27,7 @@ def get_prior_entities(
     exclude_filter = ""
     if exclude_document_ids:
         excluded_uris = ", ".join(
-            f"<{create_source_document_entity(workspace_id, doc_id).value}>"
+            f"<{create_source_document_entity(doc_id).value}>"
             for doc_id in exclude_document_ids
         )
         exclude_filter = f"FILTER (!BOUND(?doc) || ?doc NOT IN ({excluded_uris}))"
@@ -163,3 +169,80 @@ def get_current_candidate_statement(
         )
 
     return bindings[0]["currentStatement"]["value"]
+
+
+def export_document_data(
+    graph: str,
+    document_entity: str,
+    format: ExportFormat = ExportFormat.turtle,
+    prefixes: dict[str, str] = BASE_PREFIXES,
+) -> str:
+    """Return the accepted (subject, predicate, object) triples derived from one
+    document, serialized in the given format with URIs abbreviated per
+    `prefixes`, reconstructed from the curation graph since the data graph
+    itself carries no document linkage."""
+    ttl = sparql_construct(f"""
+        CONSTRUCT {{ ?subject ?predicate ?object }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                ?candidate
+                    <{RDF_TYPE}> <{PACO_CANDIDATE}> ;
+                    <{PACO_CURRENT}> true ;
+                    <{PACO_STATUS}> <{PACO_ACCEPTED}> ;
+                    <{PACO_SUBJECT}> ?subject ;
+                    <{PACO_PREDICATE}> ?predicate ;
+                    <{PACO_OBJECT}> ?object ;
+                    <{PROV_DERIVED_FROM}>* ?original .
+
+                ?original <{PROV_DERIVED_FROM}> <{document_entity}> .
+            }}
+        }}
+        """)
+    return serialize_export(ttl, format, prefixes)
+
+
+def export_document_provenance(
+    graph: str,
+    document_entity: str,
+    format: ExportFormat = ExportFormat.turtle,
+    prefixes: dict[str, str] = BASE_PREFIXES,
+) -> str:
+    """Return the full provenance history for one document, serialized in the
+    given format: every CandidateStatement version derived from it, the
+    activities that generated those versions, and the agents associated with
+    those activities."""
+    payload = sparql_select(f"""
+        SELECT DISTINCT ?candidate ?activity ?agent
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{document_entity}> (^<{PROV_DERIVED_FROM}>)* ?candidate .
+                ?candidate <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+
+                OPTIONAL {{
+                    ?candidate <{PROV_GENERATED_BY}> ?activity .
+                    OPTIONAL {{ ?activity <{PROV_ASSOCIATED_WITH}> ?agent }}
+                }}
+            }}
+        }}
+        """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    subjects = {document_entity}
+    for binding in bindings:
+        for key in ("candidate", "activity", "agent"):
+            if key in binding:
+                subjects.add(binding[key]["value"])
+
+    values = " ".join(f"<{iri}>" for iri in subjects)
+
+    ttl = sparql_construct(f"""
+        CONSTRUCT {{ ?s ?p ?o }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                VALUES ?s {{ {values} }}
+                ?s ?p ?o .
+            }}
+        }}
+        """)
+    return serialize_export(ttl, format, prefixes)

@@ -13,14 +13,23 @@ from app.core.exceptions import (
 from app.deps import get_current_user
 from app.models.user import User
 from app.repositories.document import DocumentRepository
-from app.repositories.workspace import WorkspaceMemberRepository
+from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
 from app.schemas.document import DocumentDetailResponse, DocumentResponse
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
     RelatedSpansResponse,
     StatementResponseWithOriginal,
 )
-from app.store.client import curation_graph, sparql_select
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    sparql_select,
+)
+from app.store.queries import export_document_data as query_export_document_data
+from app.store.queries import (
+    export_document_provenance as query_export_document_provenance,
+)
 from app.store.queries import get_related_spans
 from app.store.utils import (
     PACO_CANDIDATE,
@@ -40,6 +49,7 @@ from app.store.utils import (
     PROV_GENERATED_BY,
     PROV_USED,
     RDF_TYPE,
+    build_prefix_map,
     create_source_document_entity,
 )
 from app.store.writer import delete_document_data
@@ -112,9 +122,7 @@ async def get_triple_count(
 
     graph = curation_graph(str(workspace_id))
 
-    document_entity = create_source_document_entity(
-        str(workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
 
     payload = sparql_select(f"""
         SELECT (COUNT(*) AS ?count) WHERE {{
@@ -240,9 +248,7 @@ async def get_document_statements(
 
     graph = curation_graph(str(workspace_id))
 
-    document_entity = create_source_document_entity(
-        str(workspace_id), str(document_id)
-    ).value
+    document_entity = create_source_document_entity(str(document_id)).value
 
     payload = sparql_select(f"""
         SELECT ?s ?p ?o ?os WHERE {{
@@ -390,7 +396,64 @@ def order_statements(
     return records
 
 
-@router.get("/{document_id}/export/provenance.ttl")
-async def export_document_ttl(document_id: str, response_class=FileResponse):
-    # TODO
-    pass
+async def _get_document_or_403(
+    document_id: UUID,
+    current_user: User,
+    session: AsyncSession,
+    roles: tuple[str, ...] | None = None,
+):
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if not doc:
+        raise NotFoundException(f"Document {document_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        doc.workspace_id, current_user.id
+    )
+    if not role or (roles is not None and role not in roles):
+        raise ForbiddenException(f"You do not have access to document {document_id}")
+    return doc
+
+
+@router.get("/{document_id}/export/provenance", response_class=FileResponse)
+async def export_document_provenance(
+    document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(
+        document_id, current_user, session, roles=("owner",)
+    )
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(str(document_id)).value
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = query_export_document_provenance(graph, document_entity, format, prefixes)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+        },
+    )
+
+
+@router.get("/{document_id}/export/data", response_class=FileResponse)
+async def export_document_data(
+    document_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _get_document_or_403(document_id, current_user, session)
+    graph = curation_graph(str(doc.workspace_id))
+    document_entity = create_source_document_entity(str(document_id)).value
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = query_export_document_data(graph, document_entity, format, prefixes)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
+    )
