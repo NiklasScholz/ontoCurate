@@ -16,6 +16,7 @@ from app.store.utils import (
     PACO_ALIGNMENT_ACTIVITY,
     PACO_CANDIDATE,
     PACO_CURRENT,
+    PACO_LOOKUP_ACTIVITY,
     PACO_OBJECT,
     PACO_PREDICATE,
     PACO_SUBJECT,
@@ -49,7 +50,14 @@ async def get_deduplication(workspace_id: UUID):
                 ?s <{PACO_CURRENT}> true .
                 ?s <{PROV_DERIVED_FROM}>* ?os .
                 ?os <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
+                ?e <{RDF_TYPE}> ?activity .
+
+                VALUES ?activity_type {{
+                <{PACO_ALIGNMENT_ACTIVITY}>
+                <{PACO_LOOKUP_ACTIVITY}>
+            }}
+
+            ?e <{RDF_TYPE}> ?activity_type .
             }}
         }}
         ORDER BY ?s ?p ?o
@@ -66,7 +74,14 @@ async def get_deduplication(workspace_id: UUID):
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
+                ?e <{RDF_TYPE}> ?activity .
+
+                VALUES ?activity_type {{
+                <{PACO_ALIGNMENT_ACTIVITY}>
+                <{PACO_LOOKUP_ACTIVITY}>
+            }}
+
+            ?e <{RDF_TYPE}> ?activity_type .
             }}
         }}
         ORDER BY ?s ?p ?o
