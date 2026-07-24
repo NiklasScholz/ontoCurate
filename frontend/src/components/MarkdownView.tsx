@@ -91,10 +91,17 @@ function remarkHighlightSpan(spans: HighlightSpan[]) {
                         segEnd - nodeStart,
                     );
 
-                    // Take earliest span on overlap
-                    const covering = overlapping.find(
-                        (s) => s.start <= segStart && s.end >= segEnd,
-                    );
+                    // Object role gets higher priority than subject role on overlap otherwise first match wins.
+                    const covering =
+                        overlapping.find(
+                            (s) =>
+                                s.role === "object" &&
+                                s.start <= segStart &&
+                                s.end >= segEnd,
+                        ) ??
+                        overlapping.find(
+                            (s) => s.start <= segStart && s.end >= segEnd,
+                        );
 
                     if (!covering) {
                         replacement.push({ type: node.type, value });
