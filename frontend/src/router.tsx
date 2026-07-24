@@ -7,6 +7,7 @@ import CurationPage from "./pages/CurationPage";
 import UploadPage from "./pages/UploadPage";
 import AppLayout from "./components/AppLayout";
 import WorkspaceCreationPage from "./pages/WorkspaceCreationPage";
+import QueryPage from "./pages/QueryPage";
 
 export const router = createBrowserRouter([
     {
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
             { path: "/workspace", element: <WorkspacePage /> },
             { path: "/upload", element: <UploadPage /> },
             { path: "/curation", element: <CurationPage /> },
+            { path: "/query", element: <QueryPage /> },
         ],
     },
     { path: "*", element: <NotFound /> },

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from uuid import UUID
 
 import httpx
@@ -19,6 +20,7 @@ from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
 from app.repositories.user import UserRepository
 from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
+from app.schemas.query import QueryResultResponse
 from app.schemas.user import UserResponse
 from app.schemas.workspace import (
     AddMemberRequest,
@@ -37,7 +39,9 @@ from app.store.client import (
     sparql_select,
 )
 from app.store.utils import (
+    CURATION_ONLY_PREFIXES,
     build_prefix_map,
+    extract_query_prefixes,
     format_sparql_response,
     shorten_sparql_results,
 )
@@ -112,6 +116,28 @@ async def get_workspace(
 
 
 @router.get(
+    "/{workspace_id}/prefixes",
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
+async def get_workspace_prefixes(
+    workspace_id: UUID,
+    graph: Literal["data", "curation"] = "data",
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    """Returns the prefix map of the workspace (including fixed and schema-specific
+    prefixes), scoped to the given graph. Used to fill in prefixes for query view."""
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    return {
+        prefix: namespace
+        for namespace, prefix in prefixes.items()
+        # linkml is not useful in our use cases
+        if prefix != "linkml"
+        and (graph == "curation" or prefix not in CURATION_ONLY_PREFIXES)
+    }
+
+
+@router.get(
     "/{workspace_id}/export/provenance",
     dependencies=[Depends(require_role("owner"))],
     response_class=FileResponse,
@@ -157,6 +183,7 @@ async def export_data_graph(
 
 @router.post(
     "/{workspace_id}/query",
+    response_model=QueryResultResponse,
     dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def query_workspace_graph(
@@ -196,7 +223,12 @@ async def query_workspace_graph(
 
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
-    return format_sparql_response(shorten_sparql_results(payload, prefixes))
+    prefixes = {**prefixes, **extract_query_prefixes(body.query)}
+    prefixes = dict(sorted(prefixes.items(), key=lambda item: -len(item[0])))
+    formatted = format_sparql_response(shorten_sparql_results(payload, prefixes))
+    if isinstance(formatted, bool):
+        return QueryResultResponse(boolean=formatted)
+    return QueryResultResponse(**formatted)
 
 
 @router.delete(
