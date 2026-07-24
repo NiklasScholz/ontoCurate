@@ -43,23 +43,25 @@ async def get_deduplication(workspace_id: UUID):
     graph = curation_graph(str(workspace_id))
 
     payload = sparql_select(f"""
-    SELECT ?s ?p ?o WHERE {{
-        GRAPH <{graph}> {{
-            ?s ?p ?o .
-            ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
-            ?s <{PACO_CURRENT}> true .
-            ?s <{PROV_GENERATED_BY}> ?activity .
+        SELECT ?s ?p ?o ?os WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> ?activity .
 
-            VALUES ?activity_type {{
+                VALUES ?activity_type {{
                 <{PACO_ALIGNMENT_ACTIVITY}>
                 <{PACO_LOOKUP_ACTIVITY}>
             }}
 
-            ?activity <{RDF_TYPE}> ?activity_type .
+            ?e <{RDF_TYPE}> ?activity_type .
+            }}
         }}
-    }}
-    ORDER BY ?s ?p ?o
-""")
+        ORDER BY ?s ?p ?o
+    """)
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
@@ -72,7 +74,14 @@ async def get_deduplication(workspace_id: UUID):
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_ALIGNMENT_ACTIVITY}> .
+                ?e <{RDF_TYPE}> ?activity .
+
+                VALUES ?activity_type {{
+                <{PACO_ALIGNMENT_ACTIVITY}>
+                <{PACO_LOOKUP_ACTIVITY}>
+            }}
+
+            ?e <{RDF_TYPE}> ?activity_type .
             }}
         }}
         ORDER BY ?s ?p ?o
