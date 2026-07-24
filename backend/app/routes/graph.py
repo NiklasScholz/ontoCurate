@@ -14,9 +14,9 @@ from app.schemas.statement import (
 from app.store.client import curation_graph, sparql_select
 from app.store.utils import (
     PACO_ALIGNMENT_ACTIVITY,
-    PACO_LOOKUP_ACTIVITY,
     PACO_CANDIDATE,
     PACO_CURRENT,
+    PACO_LOOKUP_ACTIVITY,
     PACO_OBJECT,
     PACO_PREDICATE,
     PACO_SUBJECT,
