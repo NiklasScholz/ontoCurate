@@ -1,11 +1,12 @@
 """Wikidata entity lookup and query module."""
 
 import logging
-import os
 import time
 from functools import lru_cache
 
 import httpx
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,20 +14,17 @@ logger = logging.getLogger(__name__)
 WIKIDATA_SEARCH_API = "https://www.wikidata.org/w/api.php"
 WIKIDATA_ENTITY_API = "https://www.wikidata.org/wiki/Special:EntityData"
 
-WIKIMEDIA_USER_AGENT = os.getenv("WIKIMEDIA_USER_AGENT")
-
-if not WIKIMEDIA_USER_AGENT:
-    raise RuntimeError(
-        "WIKIMEDIA_USER_AGENT must be configured with an application name, "
-        "version, and contact information."
-    )
-
 
 def create_wikimedia_client() -> httpx.Client:
     """Create an HTTP client compliant with Wikimedia's User-Agent policy."""
+    if not settings.wikimedia_user_agent:
+        raise RuntimeError(
+            "WIKIMEDIA_USER_AGENT must be configured with an application name, "
+            "version, and contact information."
+        )
     return httpx.Client(
         headers={
-            "User-Agent": WIKIMEDIA_USER_AGENT,
+            "User-Agent": settings.wikimedia_user_agent,
             "Accept": "application/json",
         },
         timeout=httpx.Timeout(10.0),

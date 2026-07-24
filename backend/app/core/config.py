@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     embedding_model: str = "qwen3-embedding-8b"
     max_text_length: int | None = None
     max_output_tokens: int | None = None
+    wikimedia_user_agent: str = ""
 
     model_config = ConfigDict(env_file="secrets.env")
     debug: bool = True
