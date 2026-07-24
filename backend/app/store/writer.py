@@ -528,14 +528,10 @@ def write_lookup_results(
     document_key = "|".join(doc_ids) if doc_ids else "unknown-documents"
 
     if len(doc_ids) == 1:
-        lookup_activity = NamedNode(
-            f"https://example.org/runs/{run_key}/documents/"
-            f"{doc_ids[0]}/activities/wikidata-lookup"
-        )
+            doc_key = doc_ids[0]
+            lookup_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
     else:
-        lookup_activity = NamedNode(
-            f"https://example.org/runs/{run_key}/activities/wikidata-lookup"
-        )
+        lookup_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
 
     triples = [
         Triple(N_PACO_WIKIDATA_LOOKUP, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
@@ -552,10 +548,7 @@ def write_lookup_results(
 
     # Record the documents used by the lookup activity.
     for document_id in doc_ids:
-        source_document = create_source_document_entity(
-            workspace_id,
-            document_id,
-        )
+        source_document = create_source_document_entity(document_id)
 
         triples.append(
             Triple(
@@ -576,10 +569,7 @@ def write_lookup_results(
             ).encode("utf-8")
         ).hexdigest()[:24]
 
-        candidate = NamedNode(
-            f"https://example.org/workspaces/{workspace_id}/"
-            f"candidate-statements/{fingerprint}"
-        )
+        candidate = NamedNode(f"{CANDIDATE_STATEMENTS}{fingerprint}")
 
         triples.extend(
             [
@@ -617,10 +607,7 @@ def write_lookup_results(
                 Triple(
                     candidate,
                     N_PROV_DERIVED_FROM,
-                    create_source_document_entity(
-                        workspace_id,
-                        document_id,
-                    ),
+                    create_source_document_entity(document_id),
                 )
             )
 

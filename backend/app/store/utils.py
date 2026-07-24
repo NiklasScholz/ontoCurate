@@ -178,6 +178,7 @@ ALIGNMENT_ACTIVITIES = "https://ontocurate.app/activities/alignment/"
 CROSS_DOCUMENT_ALIGNMENT_ACTIVITIES = (
     "https://ontocurate.app/activities/cross-document-alignment/"
 )
+LOOKUP_ACTIVITIES = "https://ontocurate.app/activities/lookup/"
 DOCUMENTS = "https://ontocurate.app/documents/"
 USERS = "https://ontocurate.app/users/"
 
@@ -201,6 +202,7 @@ BASE_PREFIXES: dict[str, str] = {
     EXTRACTION_ACTIVITIES: "extraction",
     ALIGNMENT_ACTIVITIES: "alignment",
     CROSS_DOCUMENT_ALIGNMENT_ACTIVITIES: "cross-document-alignment",
+    LOOKUP_ACTIVITIES: "lookup",
     DOCUMENTS: "doc",
     USERS: "user",
 }
