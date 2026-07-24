@@ -497,6 +497,7 @@ def write_alignment_results(
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
 
+
 def write_lookup_results(
     lookups: list[tuple[str, str, float]],
     workspace_id: str,
@@ -528,10 +529,10 @@ def write_lookup_results(
     document_key = "|".join(doc_ids) if doc_ids else "unknown-documents"
 
     if len(doc_ids) == 1:
-            doc_key = doc_ids[0]
-            lookup_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
+        doc_key = doc_ids[0]
+        lookup_activity = NamedNode(f"{LOOKUP_ACTIVITIES}{uuid4()}")
     else:
-        lookup_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
+        lookup_activity = NamedNode(f"{LOOKUP_ACTIVITIES}{uuid4()}")
 
     triples = [
         Triple(N_PACO_WIKIDATA_LOOKUP, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
