@@ -108,7 +108,7 @@ def get_related_spans(
     We use this to display relevant info to the curator when looking at triples.
     """
     graph = curation_graph(workspace_id)
-    document_entity = create_source_document_entity(workspace_id, document_id).value
+    document_entity = create_source_document_entity(document_id).value
 
     def spans_for(entity: str) -> list[TextSpan]:
         payload = sparql_select(f"""
