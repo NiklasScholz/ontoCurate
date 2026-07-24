@@ -31,11 +31,6 @@ def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id:
         get_document_chain(doc["document_id"], doc["file_type"], run_id)
         for doc in documents
     )
-    if len(documents) < 2:
-        # For single-document runs, still run Wikidata lookup after the
-        # per-document group so inner-document alignment results are checked
-        # against Wikidata even when there is only one document.
-        return chain(doc_group, lookup_wikidata_task.si(workspace_id, run_id))
 
     # Chain cross-document alignment followed by Wikidata lookup
     cross_doc_and_lookup = chain(
