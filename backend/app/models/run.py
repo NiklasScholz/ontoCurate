@@ -40,6 +40,6 @@ class RunTask(Base):
         ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
     )
-    status: Mapped[str] = mapped_column(String, nullable=False, default="queued")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="Queued")
     task_name: Mapped[str] = mapped_column(String, nullable=False)
     celery_task_id: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -8,14 +8,19 @@ from pydantic import BaseModel, WithJsonSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.core.limiter import limiter
 from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.run import RunRepository
-from app.repositories.workspace import WorkspaceRepository
-from app.tasks import build_pipeline
+from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
+from app.store.writer import delete_document_data
+from app.tasks import build_pipeline, build_retry_pipeline
 
 router = APIRouter(
     prefix="/extraction", tags=["extraction"], dependencies=[Depends(get_current_user)]
@@ -102,3 +107,47 @@ async def create_documents(
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
     build_pipeline(documents, model, str(run.id), str(workspace_id)).delay()
     return {"run_id": run.id, "status": "queued"}
+
+
+@router.post(
+    "/{run_id}/documents/{document_id}/retry",
+    status_code=202,
+)
+async def retry_document(
+    run_id: UUID,
+    document_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    run_repo = RunRepository(session)
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        raise NotFoundException(f"Run {run_id} not found")
+    role = await WorkspaceMemberRepository(session).get_role(
+        run.workspace_id, current_user.id
+    )
+    if role not in ("owner", "editor"):
+        raise ForbiddenException(
+            "You do not have permission to resubmit this document for extraction."
+        )
+
+    task = await run_repo.get_task(run.id, document_id)
+    if task is None:
+        raise NotFoundException(f"Document {document_id} not found in run {run.id}")
+    if task.status != "Failed":
+        raise BadRequestException(f"Document {document_id} is not in a failed state")
+
+    doc = await DocumentRepository(session).get_by_id(document_id)
+    if doc is None:
+        raise NotFoundException(f"Document {document_id} not found")
+
+    # remove all triples associated with this document (i.e. extraction triples if failed during alignment for example)
+    delete_document_data(str(run.workspace_id), str(document_id))
+
+    task_name = "Markdown Conversion" if doc.file_type == "pdf" else "Extracting"
+    await run_repo.reset_document_for_retry(run.id, document_id, task_name)
+
+    build_retry_pipeline(
+        str(document_id), doc.file_type, str(run.id), str(run.workspace_id)
+    ).delay()
+    return {"status": "queued"}

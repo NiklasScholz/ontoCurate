@@ -24,29 +24,41 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
     Extracts RDF triples from a document using OntoGPT
     - Reads document source content from database
     - Calls app.pipeline.extraction.extract_document
-    - Chains annotate_and_align_document_task for per-document post-processing
-    - Updates task status to "extracting"
+    - Chains align_document_task for per-document post-processing
+    - Updates task status to "Extracting"
     """
     logger.info("[%s] Extracting: document=%s", run_id, document_id)
 
     tmp_dir = TMP_BASE / self.request.id
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    async def process() -> tuple[Path, str]:
+    skipped = (None, document_id, run_id, None, None, None, None)
+
+    async def process() -> tuple[Path, str, str, str] | None:
         run_uuid = UUID(run_id)
         document_uuid = UUID(document_id)
 
-        async with AsyncSessionLocal() as session:
-            await RunRepository(session).update_document_status(
-                run_uuid,
-                document_uuid,
-                "extracting",
-                celery_task_id=self.request.id,
-                task_name="Extracting",
-            )
-
         try:
             async with AsyncSessionLocal() as session:
+                existing = await RunRepository(session).get_task(
+                    run_uuid, document_uuid
+                )
+                if existing is not None and existing.status == "Failed":
+                    logger.info(
+                        "[%s] Skipping extraction, upstream stage failed: document=%s",
+                        run_id,
+                        document_id,
+                    )
+                    return None
+
+                await RunRepository(session).update_document_status(
+                    run_uuid,
+                    document_uuid,
+                    "Extracting",
+                    celery_task_id=self.request.id,
+                    task_name="Extracting",
+                )
+
                 doc = await DocumentRepository(session).get_by_id(document_uuid)
                 if doc is None:
                     raise ValueError(f"Document {document_id} not found")
@@ -56,7 +68,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 run = await RunRepository(session).get_by_id(run_uuid)
 
             schema_path = workspace.schema_path
-            model = (run.model if run and run.model else None) or settings.default_model
+            model = (run.model if run else None) or settings.default_model
 
             md_file = tmp_dir / f"{Path(doc.filename).stem}.md"
             md_file.write_text(doc.source_content, encoding="utf-8")
@@ -92,7 +104,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 await RunRepository(session).update_document_status(
                     run_uuid,
                     document_uuid,
-                    "queued",
+                    "Queued",
                     task_name="Inner Document Alignment",
                 )
 
@@ -102,13 +114,16 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
         except Exception:
             async with AsyncSessionLocal() as session:
                 await RunRepository(session).update_document_status(
-                    run_uuid, document_uuid, "failed"
+                    run_uuid, document_uuid, "Failed"
                 )
             logger.exception("[%s] Extraction failed: document=%s", run_id, document_id)
-            raise
+            return None
 
-    ttl_path, provenance_path, workspace_id, model = asyncio.run(process())
+    result = asyncio.run(process())
+    if result is None:
+        return skipped
 
+    ttl_path, provenance_path, workspace_id, model = result
     return (
         model,
         document_id,

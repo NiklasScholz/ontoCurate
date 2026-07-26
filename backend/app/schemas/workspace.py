@@ -18,6 +18,7 @@ class WorkspaceResponse(BaseModel):
     id: UUID
     name: str
     role: str
+    schema_repo_path: str
     model_config = {"from_attributes": True}
 
 

@@ -6,6 +6,7 @@ import {
     EditIcon,
     FilePlusIcon,
     MergeIcon,
+    RefreshCwIcon,
     SearchIcon,
     ShareIcon,
     TrashIcon,
@@ -20,6 +21,25 @@ import {
 } from "../components/InviteMembersPanel";
 import InviteMembersSection from "../components/InviteMembersPanel";
 
+// Shorter names so that it fits into the colum without extra line
+const SHORT_TASK_NAME: Record<string, string> = {
+    "Markdown Conversion": "Conversion",
+    "Inner Document Alignment": "Alignment",
+    "Cross-Document Alignment": "Alignment",
+    "Wikidata Lookup": "Lookup",
+};
+
+function formatDocStatus(
+    status: string | undefined,
+    taskName: string | undefined,
+): string {
+    if (!status) return "";
+    if (taskName) {
+        return `${status}: ${SHORT_TASK_NAME[taskName] ?? taskName}`;
+    }
+    return status;
+}
+
 export default function WorkspacePage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -29,10 +49,13 @@ export default function WorkspacePage() {
     >(undefined);
 
     const [docs, setDocs] = useState<Document[]>(undefined);
-    const [docStatus, setDocStatus] = useState<{ [id: string]: string }>({});
+    const [docRunInfo, setDocRunInfo] = useState<{
+        [id: string]: { status: string; taskName: string; runId: string };
+    }>({});
     const [members, setMembers] = useState<ExistingMember[]>([]);
     const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
     const [inviteError, setInviteError] = useState<string | null>(null);
+    const [docActionError, setDocActionError] = useState<string | null>(null);
 
     const fetchMembers = (id: string) => {
         client
@@ -100,26 +123,32 @@ export default function WorkspacePage() {
             .then((res) => setWs(res.data));
     }, [wsId]);
 
+    function updateDocStatus() {
+        if (wsId === null) return;
+        client
+            .GET("/extraction/{workspace_id}", {
+                params: { path: { workspace_id: wsId } },
+            })
+            .then((res) => {
+                if (!res.data) return;
+                const infoMap = {};
+                for (const entry of res.data) {
+                    infoMap[entry.document_id] = {
+                        status: entry.status,
+                        taskName: entry.task_name,
+                        runId: entry.run_id,
+                    };
+                }
+                setDocRunInfo(infoMap);
+                client
+                    .GET("/documents/", {
+                        params: { query: { workspace_id: wsId } },
+                    })
+                    .then((res) => setDocs(res.data));
+            });
+    }
+
     useEffect(() => {
-        function updateDocStatus() {
-            client
-                .GET("/extraction/{workspace_id}", {
-                    params: { path: { workspace_id: wsId } },
-                })
-                .then((res) => {
-                    if (!res.data) return;
-                    const statusMap = {};
-                    for (const entry of res.data) {
-                        statusMap[entry.document_id] = entry.status;
-                    }
-                    setDocStatus(statusMap);
-                    client
-                        .GET("/documents/", {
-                            params: { query: { workspace_id: wsId } },
-                        })
-                        .then((res) => setDocs(res.data));
-                });
-        }
         updateDocStatus();
         const interval = setInterval(updateDocStatus, 10000);
         return () => clearInterval(interval);
@@ -142,18 +171,39 @@ export default function WorkspacePage() {
             params: { path: { document_id: doc.id } },
         });
         if (error) {
-            window.alert(
+            setDocActionError(
                 (error as { detail?: string }).detail ??
                     "Failed to delete document",
             );
             return;
         }
+        setDocActionError(null);
         setDocs((prev) => prev.filter((d) => d.id !== doc.id));
-        setDocStatus((prev) => {
+        setDocRunInfo((prev) => {
             const next = { ...prev };
             delete next[doc.id];
             return next;
         });
+    };
+
+    const handleRetryDocument = async (doc: Document) => {
+        const runId = docRunInfo[doc.id]?.runId;
+        if (!runId) return;
+        const { error } = await client.POST(
+            "/extraction/{run_id}/documents/{document_id}/retry",
+            {
+                params: { path: { run_id: runId, document_id: doc.id } },
+            },
+        );
+        if (error) {
+            setDocActionError(
+                (error as { detail?: string }).detail ??
+                    "Failed to retry document",
+            );
+            return;
+        }
+        setDocActionError(null);
+        updateDocStatus();
     };
 
     if (wsId === null) {
@@ -161,7 +211,7 @@ export default function WorkspacePage() {
     }
 
     return (
-        <Panel className="flex w-160 flex-col gap-2">
+        <Panel className="flex w-200 flex-col gap-2">
             <div className="relative mb-4">
                 <Link
                     to="/workspaces"
@@ -174,6 +224,12 @@ export default function WorkspacePage() {
                 </h1>
             </div>
 
+            {docActionError && (
+                <p className="text-nord11 text-center text-sm">
+                    {docActionError}
+                </p>
+            )}
+
             {docs === undefined ? (
                 <Spinner />
             ) : docs.length === 0 ? (
@@ -181,10 +237,10 @@ export default function WorkspacePage() {
                     No documents have been uploaded yet.
                 </div>
             ) : (
-                <div className="grid max-h-[40vh] grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 gap-y-2 overflow-y-auto">
+                <div className="grid max-h-[40vh] grid-cols-[auto_auto_auto_auto_auto] items-center gap-x-6 gap-y-2 overflow-y-auto">
                     <div>Document</div>
                     <div>Uploaded</div>
-                    {docs.some((d) => docStatus[d.id] === "done") ? (
+                    {docs.some((d) => docRunInfo[d.id]?.status === "Done") ? (
                         <>
                             <div>Extracted triples</div>
                             <div>Pending review</div>
@@ -222,7 +278,7 @@ export default function WorkspacePage() {
                                 )}
                             </div>
                             <div>{new Date(d.created_at).toLocaleString()}</div>
-                            {docStatus[d.id] === "done" ? (
+                            {docRunInfo[d.id]?.status === "Done" ? (
                                 <>
                                     <div>{d.extracted_triples}</div>
                                     <div>{d.pending_triples}</div>
@@ -230,12 +286,15 @@ export default function WorkspacePage() {
                             ) : (
                                 <div
                                     className={`col-span-2 text-center ${
-                                        docStatus[d.id] === "failed"
+                                        docRunInfo[d.id]?.status === "Failed"
                                             ? "stripes-failed"
                                             : "stripes-running"
                                     }`}
                                 >
-                                    {docStatus[d.id]}
+                                    {formatDocStatus(
+                                        docRunInfo[d.id]?.status,
+                                        docRunInfo[d.id]?.taskName,
+                                    )}
                                 </div>
                             )}
                             <div className="flex gap-2">
@@ -260,6 +319,16 @@ export default function WorkspacePage() {
                                 >
                                     <ShareIcon size={16} />
                                 </button>
+                                {docRunInfo[d.id]?.status === "Failed" && (
+                                    <button
+                                        className="bg-nord8 h-7 rounded px-2"
+                                        title="Retry"
+                                        aria-label="Retry"
+                                        onClick={() => handleRetryDocument(d)}
+                                    >
+                                        <RefreshCwIcon size={16} />
+                                    </button>
+                                )}
                                 <button
                                     className="bg-nord11 h-7 rounded px-2"
                                     title="Delete"

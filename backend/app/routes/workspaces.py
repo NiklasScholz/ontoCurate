@@ -52,6 +52,12 @@ router = APIRouter(
 )
 
 
+def _schema_repo_path(schema_path: str) -> str:
+    """Path to the workspace's LinkML schema file, relative to the repository root."""
+    schema_name = Path(schema_path).parent.name
+    return f"backend/config/{schema_name}/extraction_schema.yaml"
+
+
 @router.get("/", response_model=list[WorkspaceResponse])
 async def list_workspaces(
     current_user: User = Depends(get_current_user),
@@ -59,7 +65,13 @@ async def list_workspaces(
 ):
     workspaces = await WorkspaceRepository(session).get_all_by_user(current_user.id)
     return [
-        WorkspaceResponse(id=ws.id, name=ws.name, role=role) for ws, role in workspaces
+        WorkspaceResponse(
+            id=ws.id,
+            name=ws.name,
+            role=role,
+            schema_repo_path=_schema_repo_path(ws.schema_path),
+        )
+        for ws, role in workspaces
     ]
 
 
@@ -95,7 +107,12 @@ async def create_workspace(
     if not workspace_mem:
         raise BadRequestException("Failed to add user as workspace member")
     upsert_curator(str(workspace.id), user.id, user.name, user.email, user.username)
-    return WorkspaceResponse(id=workspace.id, name=workspace.name, role="owner")
+    return WorkspaceResponse(
+        id=workspace.id,
+        name=workspace.name,
+        role="owner",
+        schema_repo_path=_schema_repo_path(workspace.schema_path),
+    )
 
 
 @router.get(
@@ -112,7 +129,12 @@ async def get_workspace(
     role = await WorkspaceMemberRepository(session).get_role(
         workspace_id, current_user.id
     )
-    return WorkspaceResponse(id=workspace.id, name=workspace.name, role=role)
+    return WorkspaceResponse(
+        id=workspace.id,
+        name=workspace.name,
+        role=role,
+        schema_repo_path=_schema_repo_path(workspace.schema_path),
+    )
 
 
 @router.get(

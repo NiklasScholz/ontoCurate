@@ -38,3 +38,14 @@ def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id:
         lookup_wikidata_task.si(workspace_id, run_id),
     )
     return chord(doc_group, cross_doc_and_lookup)
+
+
+def build_retry_pipeline(
+    document_id: str, file_type: str, run_id: str, workspace_id: str
+):
+    """Chain for retrying a single failed document"""
+    return chain(
+        get_document_chain(document_id, file_type, run_id),
+        align_cross_document_task.si(workspace_id, run_id),
+        lookup_wikidata_task.si(workspace_id, run_id),
+    )

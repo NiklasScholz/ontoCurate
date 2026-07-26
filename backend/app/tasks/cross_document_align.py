@@ -27,6 +27,17 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
         "[%s] Starting cross-document alignment: workspace=%s", run_id, workspace_id
     )
 
+    async def all_documents_failed() -> bool:
+        async with AsyncSessionLocal() as session:
+            tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
+        return bool(tasks) and all(t.status == "Failed" for t in tasks)
+
+    if asyncio.run(all_documents_failed()):
+        logger.info(
+            "[%s] Skipping cross-document alignment, all documents failed", run_id
+        )
+        return workspace_id
+
     lock = workspace_alignment_lock(workspace_id)
     if not lock.acquire(blocking=False):
         logger.info(
@@ -41,12 +52,15 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
             async with AsyncSessionLocal() as session:
                 tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
             for t in tasks:
+                if t.status == "Failed":
+                    # Skip updating failed tasks
+                    continue
                 async with AsyncSessionLocal() as session:
                     await RunRepository(session).update_document_status(
                         UUID(run_id), t.document_id, status, task_name=task_name
                     )
 
-        await update_all("aligning", task_name="Cross-Document Alignment")
+        await update_all("Running", task_name="Cross-Document Alignment")
         try:
             async with AsyncSessionLocal() as session:
                 workspace = await WorkspaceRepository(session).get_by_id(
@@ -61,11 +75,11 @@ def align_cross_document_task(self, workspace_id: str, run_id: str) -> str:
                 run_id,
                 config_path,
             )
-            await update_all("done", task_name="Cross-Document Alignment")
+            await update_all("Done", task_name="Cross-Document Alignment")
 
             logger.info("[%s] Cross-document alignment complete", run_id)
         except Exception:
-            await update_all("failed")
+            await update_all("Failed")
             logger.exception("[%s] Cross-document alignment failed", run_id)
             raise
 
