@@ -1,11 +1,11 @@
 from uuid import UUID
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.exceptions import ForbiddenException, UnauthorizedException
-from app.core.security import decode_token
+from app.core.security import create_access_token, decode_token, set_auth_cookie
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.repositories.workspace import WorkspaceMemberRepository
@@ -13,6 +13,7 @@ from app.repositories.workspace import WorkspaceMemberRepository
 
 async def get_current_user(
     request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> User:
     token = request.cookies.get("access_token")
@@ -22,6 +23,8 @@ async def get_current_user(
     user = await UserRepository(session).get_by_email(payload["sub"])
     if not user:
         raise UnauthorizedException()
+    # re-issue cookie so only after 60min of inactivity users are logged out
+    set_auth_cookie(response, create_access_token(subject=user.email))
     return user
 
 

@@ -9,7 +9,12 @@ from app.core.config import settings
 from app.core.database import get_session
 from app.core.exceptions import BadRequestException, UnauthorizedException
 from app.core.limiter import limiter
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    set_auth_cookie,
+    verify_password,
+)
 from app.deps import get_current_user
 from app.models.user import User
 from app.repositories.user import UserRepository
@@ -17,12 +22,6 @@ from app.schemas.user import LoginRequest, RegisterRequest, UserResponse
 from app.store.writer import anonymize_curator
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _set_auth_cookie(response: Response, token: str, debug: bool) -> None:
-    response.set_cookie(
-        key="access_token", value=token, httponly=True, samesite="lax", secure=not debug
-    )
 
 
 class GoogleTokenRequest(BaseModel):
@@ -49,9 +48,7 @@ async def google_auth(
             provider="google",
             provider_id=user_info["sub"],
         )
-        _set_auth_cookie(
-            response, create_access_token(subject=user.email), settings.debug
-        )
+        set_auth_cookie(response, create_access_token(subject=user.email))
     except Exception as e:
         raise BadRequestException("Failed to add user")
     return user
@@ -79,7 +76,7 @@ async def login(
         user.password_hash = new_hash
         await session.commit()
 
-    _set_auth_cookie(response, create_access_token(subject=user.email), settings.debug)
+    set_auth_cookie(response, create_access_token(subject=user.email))
     return user
 
 
@@ -101,7 +98,7 @@ async def register(
         password_hash=get_password_hash(body.password),
         provider="local",
     )
-    _set_auth_cookie(response, create_access_token(subject=user.email), settings.debug)
+    set_auth_cookie(response, create_access_token(subject=user.email))
     return user
 
 

@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
+from fastapi import Response
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -23,6 +24,16 @@ def create_access_token(subject: str | Any) -> str:
     expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     to_encode = {"exp": expire, "sub": str(subject)}
     return jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=not settings.debug,
+    )
 
 
 def verify_password(
