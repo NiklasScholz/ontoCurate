@@ -196,6 +196,28 @@ class TestWhitespaceNormalisedMatch:
         assert conf == 0.9
 
 
+# URL Suffix Match Tests
+class TestUrlSuffixMatch:
+    def test_orcid_url_matches_bare_id_in_text(self):
+        source = "The author's ORCID is 0009-0005-5610-9093."
+        value = "https://orcid.org/0009-0005-5610-9093/"
+        start, end, conf = find_span_in(source, value, 0)
+        assert conf == 0.85
+        assert source[start:end] == "0009-0005-5610-9093"
+
+    def test_url_suffix_match_is_case_insensitive(self):
+        source = "See DOI 00.1234/ABCDEF for details."
+        value = "https://doi.org/00.1234/abcdef"
+        _, _, conf = find_span_in(source, value, 0)
+        assert conf == 0.85
+
+    def test_non_url_value_does_not_use_suffix_match(self):
+        source = "Completely unrelated content here."
+        value = "not/a/url"
+        result = find_span_in(source, value, 0)
+        assert result is None
+
+
 # Fuzzy Match Tests
 class TestFuzzyMatch:
     def test_fuzzy_match_below_1(self):

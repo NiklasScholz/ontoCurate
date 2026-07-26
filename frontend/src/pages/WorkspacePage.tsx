@@ -246,6 +246,7 @@ export default function WorkspacePage() {
                                     onClick={() => {
                                         navigate(
                                             `/curation?ws=${wsId}&doc=${d.id}`,
+                                            { state: { filename: d.filename } },
                                         );
                                     }}
                                 >

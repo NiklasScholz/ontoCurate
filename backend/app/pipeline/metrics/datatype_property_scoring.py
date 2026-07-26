@@ -213,6 +213,8 @@ def find_span_in(
     - 0.95 case-insensitive match
     - 0.95/0.75 date-aware match (only tried when value is a date of format YYYY-MM-DD)
     - 0.9 Normalized Match (any whitespace noise in source or value, inter- or intra-word)
+    - 0.85 URL suffix match (value is a URL and only its last path segment appears in text,
+      e.g. "0000-0000-0000-0000" for value "https://orcid.org/0000")
     - 0.0-0.94 partial match based on fuzzy string similarity (may yield higher scores than other matches)
 
     When exact_only=True, fuzzy and abbreviation fallbacks are skipped — useful for
@@ -267,6 +269,14 @@ def find_span_in(
             + 1
         )
         return offset + orig_start, offset + orig_end, 0.88
+
+    # URL suffix match checking for precence of last path segment of value in text
+    if re.match(r"^https?://", value):
+        suffix = value.rstrip("/").rsplit("/", 1)[-1]
+        if suffix:
+            idx = lower_text.find(suffix.lower())
+            if idx >= 0:
+                return offset + idx, offset + idx + len(suffix), 0.85
 
     if exact_only:
         return None
