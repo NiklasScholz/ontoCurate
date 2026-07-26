@@ -91,7 +91,7 @@ async def create_documents(
                 raw_bytes=content,
                 content_hash=content_hash,
             )
-            await run_repo.add_task(run.id, doc.id, task_name="Markdown Conversion")
+            await run_repo.add_task(run.id, doc.id, task_name="Conversion")
         elif filename.lower().endswith(".md") or filename.lower().endswith(".txt"):
             # UploadFile.read() returns bytes -> decode to text for source_content
             text = content.decode("utf-8", errors="replace")
@@ -101,7 +101,7 @@ async def create_documents(
                 source_content=text,
                 content_hash=content_hash,
             )
-            await run_repo.add_task(run.id, doc.id, task_name="Extracting")
+            await run_repo.add_task(run.id, doc.id, task_name="Extraction")
         else:
             raise BadRequestException(f"Unsupported file type: {filename}")
         documents.append({"document_id": str(doc.id), "file_type": doc.file_type})
@@ -144,7 +144,7 @@ async def retry_document(
     # remove all triples associated with this document (i.e. extraction triples if failed during alignment for example)
     delete_document_data(str(run.workspace_id), str(document_id))
 
-    task_name = "Markdown Conversion" if doc.file_type == "pdf" else "Extracting"
+    task_name = "Conversion" if doc.file_type == "pdf" else "Extraction"
     await run_repo.reset_document_for_retry(run.id, document_id, task_name)
 
     build_retry_pipeline(

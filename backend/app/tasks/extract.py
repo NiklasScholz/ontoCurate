@@ -25,7 +25,6 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
     - Reads document source content from database
     - Calls app.pipeline.extraction.extract_document
     - Chains align_document_task for per-document post-processing
-    - Updates task status to "Extracting"
     """
     logger.info("[%s] Extracting: document=%s", run_id, document_id)
 
@@ -54,9 +53,9 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 await RunRepository(session).update_document_status(
                     run_uuid,
                     document_uuid,
-                    "Extracting",
+                    "Running",
                     celery_task_id=self.request.id,
-                    task_name="Extracting",
+                    task_name="Extraction",
                 )
 
                 doc = await DocumentRepository(session).get_by_id(document_uuid)

@@ -23,7 +23,6 @@ import InviteMembersSection from "../components/InviteMembersPanel";
 
 // Shorter names so that it fits into the colum without extra line
 const SHORT_TASK_NAME: Record<string, string> = {
-    "Markdown Conversion": "Conversion",
     "Inner Document Alignment": "Alignment",
     "Cross-Document Alignment": "Alignment",
     "Wikidata Lookup": "Lookup",

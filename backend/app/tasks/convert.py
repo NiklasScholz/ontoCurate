@@ -32,9 +32,9 @@ def convert_pdf_task(self, document_id: str, run_id: str) -> str:
         document_uuid = UUID(document_id)
 
         async with AsyncSessionLocal() as session:
-            # set status to converting
+            # set status to running
             await RunRepository(session).update_document_status(
-                run_uuid, document_uuid, "Converting", celery_task_id=self.request.id
+                run_uuid, document_uuid, "Running", celery_task_id=self.request.id
             )
 
         try:
@@ -54,7 +54,7 @@ def convert_pdf_task(self, document_id: str, run_id: str) -> str:
             # set status back to queued so the next task (extract) sets extracting
             async with AsyncSessionLocal() as session:
                 await RunRepository(session).update_document_status(
-                    run_uuid, document_uuid, "Queued", task_name="Extracting"
+                    run_uuid, document_uuid, "Queued", task_name="Extraction"
                 )
 
             return document_id
