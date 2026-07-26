@@ -45,12 +45,16 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 task_name="Extracting",
             )
 
-        async with AsyncSessionLocal() as session:
-            doc = await DocumentRepository(session).get_by_id(document_uuid)
-            workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
-            run = await RunRepository(session).get_by_id(run_uuid)
-
         try:
+            async with AsyncSessionLocal() as session:
+                doc = await DocumentRepository(session).get_by_id(document_uuid)
+                if doc is None:
+                    raise ValueError(f"Document {document_id} not found")
+                workspace = await WorkspaceRepository(session).get_by_id(
+                    doc.workspace_id
+                )
+                run = await RunRepository(session).get_by_id(run_uuid)
+
             schema_path = workspace.schema_path
             model = (run.model if run and run.model else None) or settings.default_model
 

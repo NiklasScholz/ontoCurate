@@ -181,7 +181,7 @@ export default function WorkspacePage() {
                     No documents have been uploaded yet.
                 </div>
             ) : (
-                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 gap-y-2">
+                <div className="grid max-h-[40vh] grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 gap-y-2 overflow-y-auto">
                     <div>Document</div>
                     <div>Uploaded</div>
                     {docs.some((d) => docStatus[d.id] === "done") ? (

@@ -2,6 +2,7 @@ import {
     ArrowLeftIcon,
     ArrowRightIcon,
     CheckIcon,
+    ExternalLinkIcon,
     ListIcon,
     RotateCcwIcon,
     XIcon,
@@ -297,7 +298,7 @@ function EntityView({
     }, [workspaceId, entityId]);
 
     return neighborhood ? (
-        <div>
+        <div className="h-full">
             <LocalGraphView
                 center={entityId}
                 incoming={neighborhood.incoming}
@@ -307,6 +308,13 @@ function EntityView({
     ) : (
         <Spinner />
     );
+}
+
+// We currently do not support external links to documentation on the shipped schemas, all others can be inspected
+const INTERNAL_NAMESPACE = "https://ontocurate.app/";
+
+function isExternalUrl(value: string): boolean {
+    return /^https?:\/\//i.test(value) && !value.startsWith(INTERNAL_NAMESPACE);
 }
 
 function TextField({
@@ -324,15 +332,26 @@ function TextField({
 
     return (
         <div
-            className={`bg-nord6 flex h-40 flex-col justify-between gap-2 rounded-t border-t-4 p-2 ${edgeClassName}`}
+            className={`bg-nord6 flex h-28 flex-col justify-between gap-2 rounded-t border-t-4 p-2 ${edgeClassName}`}
         >
-            <div className="h-full font-mono text-sm wrap-anywhere">
+            <div className="flex h-full gap-1 font-mono text-sm wrap-anywhere">
                 <textarea
                     className="h-full w-full"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     onBlur={() => onChange(value)}
                 />
+                {isExternalUrl(current) && (
+                    <a
+                        href={current}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-nord10 shrink-0"
+                        title={current}
+                    >
+                        <ExternalLinkIcon size={16} />
+                    </a>
+                )}
             </div>
             <div
                 className={`flex justify-center gap-2 ${current === original && "hidden"}`}
@@ -375,7 +394,7 @@ export default function CurationDetail({
 
     return (
         <div
-            className={`bg-nord6 flex h-full w-full max-w-7xl flex-col gap-2 rounded p-4 shadow-xl ${statement.current.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.current.curation_status === PACO_REJECTED && "tint-rejected"}`}
+            className={`bg-nord6 flex h-full ${docId === null ? "w-[70vw]" : "w-full max-w-7xl"} flex-col gap-2 overflow-y-auto rounded p-4 shadow-xl ${statement.current.curation_status === PACO_ACCEPTED && "tint-accepted"} ${statement.current.curation_status === PACO_REJECTED && "tint-rejected"}`}
         >
             <div className="mb-4 flex justify-between gap-2">
                 <div></div>
@@ -529,14 +548,14 @@ export default function CurationDetail({
                     <div></div>
                     <div className="bg-nord6 h-4"></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-nord6 rounded-tr rounded-b">
+                <div className="grid h-80 grid-cols-2 gap-4">
+                    <div className="bg-nord6 overflow-hidden rounded-tr rounded-b">
                         <EntityView
                             workspaceId={workspaceId}
                             entityId={statement.current.subject}
                         />
                     </div>
-                    <div className="bg-nord6 rounded-tl rounded-b">
+                    <div className="bg-nord6 overflow-hidden rounded-tl rounded-b">
                         <EntityView
                             workspaceId={workspaceId}
                             entityId={statement.current.object}

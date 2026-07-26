@@ -1,4 +1,4 @@
-id: http://example.org/scholarly-metadata-ontology
+id: https://ontocurate.app/scholarly-metadata-ontology
 name: scholarly-metadata-ontology
 title: Scholarly Metadata Ontology
 description: >-
@@ -12,7 +12,7 @@ prefixes:
   dcterms: http://purl.org/dc/terms/
   foaf:    http://xmlns.com/foaf/0.1/
   cito:    http://purl.org/spar/cito/
-  smo:     http://example.org/scholarly-metadata-ontology#
+  smo:     https://ontocurate.app/scholarly-metadata-ontology#
 
 default_prefix: smo
 default_range: string

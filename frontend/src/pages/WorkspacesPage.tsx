@@ -23,7 +23,7 @@ export default function WorkspacesPage() {
             ) : workspaces.length === 0 ? (
                 <div className="italic">No workspace created yet</div>
             ) : (
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid max-h-[60vh] grid-cols-4 gap-6 overflow-y-auto">
                     {workspaces.map((ws) => (
                         <Link
                             to={`/workspace?ws=${ws.id}`}
