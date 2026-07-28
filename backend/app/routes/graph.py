@@ -1,3 +1,4 @@
+import asyncio
 import re
 from uuid import UUID
 
@@ -42,7 +43,9 @@ async def get_deduplication(workspace_id: UUID):
 
     graph = curation_graph(str(workspace_id))
 
-    payload = sparql_select(f"""
+    payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -61,14 +64,17 @@ async def get_deduplication(workspace_id: UUID):
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
-    originals_payload = sparql_select(f"""
+    originals_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -85,7 +91,8 @@ async def get_deduplication(workspace_id: UUID):
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     originals_rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
@@ -121,7 +128,9 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
     if not is_iri(entity_id):
         return EntityNeighborhoodResponse(incoming=[], outgoing=[])
 
-    incoming_payload = sparql_select(f"""
+    incoming_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> ?s .
@@ -132,9 +141,12 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
             }}
         }}
         ORDER BY ?p ?s
-    """)
+        """,
+    )
 
-    outgoing_payload = sparql_select(f"""
+    outgoing_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> <{entity_id}> .
@@ -145,7 +157,8 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
             }}
         }}
         ORDER BY ?p ?o
-    """)
+        """,
+    )
 
     return EntityNeighborhoodResponse(
         incoming=[

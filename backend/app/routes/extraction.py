@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import time
 from typing import Annotated
@@ -142,7 +143,9 @@ async def retry_document(
         raise NotFoundException(f"Document {document_id} not found")
 
     # remove all triples associated with this document (i.e. extraction triples if failed during alignment for example)
-    delete_document_data(str(run.workspace_id), str(document_id))
+    await asyncio.to_thread(
+        delete_document_data, str(run.workspace_id), str(document_id)
+    )
 
     task_name = "Conversion" if doc.file_type == "pdf" else "Extraction"
     await run_repo.reset_document_for_retry(run.id, document_id, task_name)

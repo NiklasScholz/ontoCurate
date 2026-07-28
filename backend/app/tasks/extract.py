@@ -90,7 +90,8 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 tmp_dir,
                 config_path=Path(workspace.provenance_config_path),
             )
-            write_candidate_statements_from_ttl(
+            await asyncio.to_thread(
+                write_candidate_statements_from_ttl,
                 run_id,
                 document_id,
                 ttl_path,

@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from app.store.client import curation_graph, sparql_select
-from app.store.utils import PACO
+from app.store.utils import PACO, create_source_document_entity
 from app.store.writer import pred_local_name, write_candidate_statements_from_ttl
 
 
@@ -105,6 +105,35 @@ def find_candidate_id(
 def sparql_count(query: str) -> int:
     bindings = sparql_select(query)["results"]["bindings"]
     return int(bindings[0]["count"]["value"])
+
+
+def count_candidate_statements_derived_from(workspace_id: str, document_id: str) -> int:
+    """Count candidate statements that have a prov:wasDerivedFrom link to the given document"""
+    source_document = create_source_document_entity(document_id).value
+    sparql = f"""
+        PREFIX prov: <http://www.w3.org/ns/prov#>
+        SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
+        GRAPH <{curation_graph(workspace_id)}> {{
+            ?cs prov:wasDerivedFrom <{source_document}> .
+        }}
+        }}
+    """
+    return sparql_count(sparql)
+
+
+async def upload_markdown(client, workspace_id: str) -> tuple[str, str]:
+    """Uploads a small markdown doc and returns (run_id, document_id)"""
+    resp = await client.post(
+        "/extraction/",
+        params={"workspace_id": workspace_id},
+        files=[("files", ("doc.md", b"# hello world", "text/markdown"))],
+    )
+    assert resp.status_code == 202
+    run_id = resp.json()["run_id"]
+
+    docs_resp = await client.get("/documents/", params={"workspace_id": workspace_id})
+    document_id = docs_resp.json()[0]["id"]
+    return run_id, document_id
 
 
 def activity_count(workspace_id: str, activity_class: str) -> int:

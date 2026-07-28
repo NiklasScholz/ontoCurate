@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from google.auth.transport import requests as google_requests
@@ -120,7 +122,7 @@ async def delete_me(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    anonymize_curator(current_user.id)
+    await asyncio.to_thread(anonymize_curator, current_user.id)
     await UserRepository(session).delete(current_user)
     response.delete_cookie("access_token")
     return {"message": "Account deleted"}

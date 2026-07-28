@@ -111,6 +111,10 @@ export default function WorkspacePage() {
         }
     };
 
+    const hasTriples =
+        docs !== undefined &&
+        docs.some((d) => (d.extracted_triples ?? 0) > 0);
+
     const wsId = searchParams.get("ws");
 
     useEffect(() => {
@@ -353,27 +357,63 @@ export default function WorkspacePage() {
                     />
                     <div className="relative">Start new run</div>
                 </Link>
-                <Link
-                    to={`/curation?ws=${wsId}`}
-                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                {hasTriples ? (
+                    <Link
+                        to={`/curation?ws=${wsId}`}
+                        className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                    >
+                        <MergeIcon
+                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                            size={48}
+                        />
+                        <div className="relative">Deduplication</div>
+                    </Link>
+                ) : (
+                    <div
+                        className="bg-nord8 relative flex h-24 w-32 cursor-not-allowed items-center justify-center rounded px-2 opacity-40"
+                        title="No triples have been generated yet"
+                        aria-disabled="true"
+                    >
+                        <MergeIcon
+                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                            size={48}
+                        />
+                        <div className="relative">Deduplication</div>
+                    </div>
+                )}
+                {hasTriples ? (
+                    <Link
+                        to={`/query?ws=${wsId}`}
+                        className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                    >
+                        <SearchIcon
+                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                            size={48}
+                        />
+                        <div className="relative">Queries</div>
+                    </Link>
+                ) : (
+                    <div
+                        className="bg-nord8 relative flex h-24 w-32 cursor-not-allowed items-center justify-center rounded px-2 opacity-40"
+                        title="No triples have been generated yet"
+                        aria-disabled="true"
+                    >
+                        <SearchIcon
+                            className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                            size={48}
+                        />
+                        <div className="relative">Queries</div>
+                    </div>
+                )}
+                <button
+                    disabled={!hasTriples}
+                    title={
+                        hasTriples
+                            ? undefined
+                            : "No triples have been generated yet"
+                    }
+                    className="bg-nord8 relative h-24 w-32 rounded px-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                    <MergeIcon
-                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                        size={48}
-                    />
-                    <div className="relative">Deduplication</div>
-                </Link>
-                <Link
-                    to={`/query?ws=${wsId}`}
-                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
-                >
-                    <SearchIcon
-                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                        size={48}
-                    />
-                    <div className="relative">Queries</div>
-                </Link>
-                <button className="bg-nord8 relative h-24 w-32 rounded px-2">
                     <ShareIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                         size={48}
