@@ -8,6 +8,7 @@ from app.deps import get_current_user, require_role
 from app.routes.documents import order_statements, zip_current_originals
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
+    DeduplicationCountResponse,
     EntityNeighborhoodResponse,
     IncomingEdge,
     OutgoingEdge,
@@ -19,7 +20,9 @@ from app.store.utils import (
     PACO_CURRENT,
     PACO_LOOKUP_ACTIVITY,
     PACO_OBJECT,
+    PACO_PENDING,
     PACO_PREDICATE,
+    PACO_STATUS,
     PACO_SUBJECT,
     PROV_DERIVED_FROM,
     PROV_GENERATED_BY,
@@ -101,6 +104,52 @@ async def get_deduplication(workspace_id: UUID):
 
     return zip_current_originals(
         order_statements(rows), order_statements(originals_rows)
+    )
+
+
+@router.get(
+    "/{workspace_id}/deduplication/count",
+    response_model=DeduplicationCountResponse,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
+async def get_deduplication_count(workspace_id: UUID):
+    """
+    Counts owl:sameAs statements (from alignment/lookup): total and pending review.
+    """
+
+    graph = curation_graph(str(workspace_id))
+
+    def count_query(pending_only: bool) -> str:
+        return f"""
+        SELECT (COUNT(DISTINCT ?s) AS ?count) WHERE {{
+            GRAPH <{graph}> {{
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+
+                VALUES ?activity_type {{
+                <{PACO_ALIGNMENT_ACTIVITY}>
+                <{PACO_LOOKUP_ACTIVITY}>
+            }}
+
+            ?e <{RDF_TYPE}> ?activity_type .
+            {f"?s <{PACO_STATUS}> <{PACO_PENDING}> ." if pending_only else ""}
+            }}
+        }}
+        """
+
+    def run_count(pending_only: bool) -> int:
+        payload = sparql_select(count_query(pending_only))
+        bindings = payload.get("results", {}).get("bindings", [])
+        return int(bindings[0]["count"]["value"]) if bindings else 0
+
+    total_count, pending_count = await asyncio.gather(
+        asyncio.to_thread(run_count, False),
+        asyncio.to_thread(run_count, True),
+    )
+    return DeduplicationCountResponse(
+        total_count=total_count, pending_count=pending_count
     )
 
 

@@ -55,6 +55,7 @@ export default function WorkspacePage() {
     const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [docActionError, setDocActionError] = useState<string | null>(null);
+    const [dedupCounts, setDedupCounts] = useState({ total: 0, pending: 0 });
 
     const fetchMembers = (id: string) => {
         client
@@ -154,6 +155,25 @@ export default function WorkspacePage() {
     useEffect(() => {
         updateDocStatus();
         const interval = setInterval(updateDocStatus, 10000);
+        return () => clearInterval(interval);
+    }, [wsId]);
+
+    useEffect(() => {
+        if (wsId === null) return;
+        const fetchDedupCount = () => {
+            client
+                .GET("/graph/{workspace_id}/deduplication/count", {
+                    params: { path: { workspace_id: wsId } },
+                })
+                .then((res) =>
+                    setDedupCounts({
+                        total: res.data?.total_count ?? 0,
+                        pending: res.data?.pending_count ?? 0,
+                    }),
+                );
+        };
+        fetchDedupCount();
+        const interval = setInterval(fetchDedupCount, 10000);
         return () => clearInterval(interval);
     }, [wsId]);
 
@@ -316,8 +336,8 @@ export default function WorkspacePage() {
                                 </button>
                                 <button
                                     className="bg-nord8 h-7 rounded px-2"
-                                    title="Share"
-                                    aria-label="Share"
+                                    title="Export"
+                                    aria-label="Export"
                                     onClick={() => {}}
                                 >
                                     <ShareIcon size={16} />
@@ -350,6 +370,7 @@ export default function WorkspacePage() {
                 <Link
                     to={`/upload?ws=${wsId}`}
                     className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                    title="Upload documents to start a new extraction run"
                 >
                     <FilePlusIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
@@ -361,12 +382,23 @@ export default function WorkspacePage() {
                     <Link
                         to={`/curation?ws=${wsId}`}
                         className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                        title={
+                            dedupCounts.total > 0
+                                ? `${dedupCounts.total - dedupCounts.pending} of ${dedupCounts.total} duplicate pair(s) reviewed`
+                                : undefined
+                        }
                     >
                         <MergeIcon
                             className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                             size={48}
                         />
                         <div className="relative">Deduplication</div>
+                        {dedupCounts.total > 0 && (
+                            <div className="absolute inset-x-0 bottom-1 text-center text-base font-semibold">
+                                {dedupCounts.total - dedupCounts.pending} /{" "}
+                                {dedupCounts.total}
+                            </div>
+                        )}
                     </Link>
                 ) : (
                     <div
@@ -385,6 +417,7 @@ export default function WorkspacePage() {
                     <Link
                         to={`/query?ws=${wsId}`}
                         className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                        title="Run SPARQL queries against the generated Knowledge Graph"
                     >
                         <SearchIcon
                             className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
@@ -409,7 +442,7 @@ export default function WorkspacePage() {
                     disabled={!hasTriples}
                     title={
                         hasTriples
-                            ? undefined
+                            ? "Export curated triples as JSON-LD or Turtle"
                             : "No triples have been generated yet"
                     }
                     className="bg-nord8 relative h-24 w-32 rounded px-2 disabled:cursor-not-allowed disabled:opacity-40"
