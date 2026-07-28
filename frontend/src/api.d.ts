@@ -392,23 +392,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/extraction/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run */
-        get: operations["get_run_extraction__run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/extraction/{run_id}/documents/{document_id}/retry": {
         parameters: {
             query?: never;
@@ -420,94 +403,6 @@ export interface paths {
         put?: never;
         /** Retry Document */
         post: operations["retry_document_extraction__run_id__documents__document_id__retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/extraction/{run_id}/statements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run Statements */
-        get: operations["get_run_statements_extraction__run_id__statements_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/extraction/{run_id}/statements/bulk_accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bulk Accept Statements */
-        post: operations["bulk_accept_statements_extraction__run_id__statements_bulk_accept_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/extraction/{run_id}/alignments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Run Alignments
-         * @description Return all owl:sameAs CandidateStatements produced by inner-document alignment for a run.
-         */
-        get: operations["get_run_alignments_extraction__run_id__alignments_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/extraction/{run_id}/entities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run Entities */
-        get: operations["get_run_entities_extraction__run_id__entities_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/extraction/{run_id}/entities/{entity_uri}/statements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run Entity Statements */
-        get: operations["get_run_entity_statements_extraction__run_id__entities__entity_uri__statements_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -526,6 +421,26 @@ export interface paths {
          * @description Gets all of the owl:sameAs statements that span across documents.
          */
         get: operations["get_deduplication_graph__workspace_id__deduplication_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/graph/{workspace_id}/deduplication/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Deduplication Count
+         * @description Counts owl:sameAs statements (from alignment/lookup): total and pending review.
+         */
+        get: operations["get_deduplication_count_graph__workspace_id__deduplication_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -899,6 +814,13 @@ export interface components {
             current: components["schemas"]["StatementResponse"];
             original: components["schemas"]["StatementResponse"];
         };
+        /** DeduplicationCountResponse */
+        DeduplicationCountResponse: {
+            /** Total Count */
+            total_count: number;
+            /** Pending Count */
+            pending_count: number;
+        };
         /** DocumentDetailResponse */
         DocumentDetailResponse: {
             /**
@@ -1064,44 +986,6 @@ export interface components {
             subject_spans: components["schemas"]["TextSpan"][];
             /** Object Spans */
             object_spans: components["schemas"]["TextSpan"][];
-        };
-        /** RunDetailResponse */
-        RunDetailResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Model */
-            model: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Status */
-            status: string;
-            /** Documents */
-            documents: components["schemas"]["RunDocumentResponse"][];
-        };
-        /** RunDocumentResponse */
-        RunDocumentResponse: {
-            /**
-             * Document Id
-             * Format: uuid
-             */
-            document_id: string;
-            /** Status */
-            status: string;
-            /** Task Name */
-            task_name: string;
-            /** Celery Task Id */
-            celery_task_id?: string | null;
         };
         /** StatementEdit */
         StatementEdit: {
@@ -1891,39 +1775,6 @@ export interface operations {
             };
         };
     };
-    get_run_extraction__run_id__get: {
-        parameters: {
-            query: {
-                workspace_id: string;
-            };
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     retry_document_extraction__run_id__documents__document_id__retry_post: {
         parameters: {
             query?: never;
@@ -1956,139 +1807,6 @@ export interface operations {
             };
         };
     };
-    get_run_statements_extraction__run_id__statements_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bulk_accept_statements_extraction__run_id__statements_bulk_accept_post: {
-        parameters: {
-            query: {
-                workspace_id: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_run_alignments_extraction__run_id__alignments_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_run_entities_extraction__run_id__entities_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_run_entity_statements_extraction__run_id__entities__entity_uri__statements_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     get_deduplication_graph__workspace_id__deduplication_get: {
         parameters: {
             query?: never;
@@ -2107,6 +1825,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurrentAndOriginalStatement"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_deduplication_count_graph__workspace_id__deduplication_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeduplicationCountResponse"];
                 };
             };
             /** @description Validation Error */
