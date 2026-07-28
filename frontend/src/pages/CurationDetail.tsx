@@ -545,7 +545,10 @@ export default function CurationDetail({
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-nord6 h-4"></div>
-                    <div></div>
+                    <div className="text-center font-mono text-sm text-nord3">
+                        Confidence:{" "}
+                        {(statement.current.confidence * 100).toFixed(2)}%
+                    </div>
                     <div className="bg-nord6 h-4"></div>
                 </div>
                 <div className="grid h-80 grid-cols-2 gap-4">
