@@ -45,12 +45,14 @@ class WorkspaceRepository:
         name: str,
         schema_path: str,
         alignment_config_path: str,
+        lookup_config_path: str,
         provenance_config_path: str,
     ) -> Workspace:
         workspace = Workspace(
             name=name,
             schema_path=schema_path,
             alignment_config_path=alignment_config_path,
+            lookup_config_path=lookup_config_path,
             provenance_config_path=provenance_config_path,
         )
         self.session.add(workspace)
@@ -64,6 +66,7 @@ class WorkspaceRepository:
         workspace_id: UUID,
         schema_path: str,
         alignment_config_path: str,
+        lookup_config_path: str,
         provenance_config_path: str,
     ) -> Workspace:
         workspace = Workspace(
@@ -71,6 +74,7 @@ class WorkspaceRepository:
             name=name,
             schema_path=schema_path,
             alignment_config_path=alignment_config_path,
+            lookup_config_path=lookup_config_path,
             provenance_config_path=provenance_config_path,
         )
         self.session.add(workspace)
