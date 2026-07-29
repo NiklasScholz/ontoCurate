@@ -5,6 +5,8 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import UUID
 
+import yaml
+
 from app.core.database import TaskSessionLocal as AsyncSessionLocal
 from app.pipeline.entity_alignment import (
     load_alignment_config,
@@ -24,23 +26,25 @@ logger = logging.getLogger(__name__)
 TMP_BASE = Path("/tmp/ontocurate")
 
 
-def build_lookup_config(config: dict) -> dict:
+def build_lookup_config(
+    alignment_config: dict,
+    lookup_file_config: dict,
+) -> dict:
     """
-    Build the Wikidata lookup configuration by overlaying
-    wikidata_lookup settings onto the normal alignment configuration.
+    Build the effective scoring configuration for Wikidata lookup.
 
-    Entity types without lookup-specific overrides retain their
-    normal alignment settings.
+    The normal alignment configuration provides the defaults.
+    The Wikidata lookup configuration provides lookup-specific overrides.
     """
-    lookup_config = deepcopy(config)
-    lookup_overrides = config.get("wikidata_lookup", {})
+    effective_config = deepcopy(alignment_config)
+    lookup_overrides = lookup_file_config.get("wikidata_lookup", {})
 
-    lookup_config["settings"] = {
-        **config.get("settings", {}),
+    effective_config["settings"] = {
+        **alignment_config.get("settings", {}),
         **lookup_overrides.get("settings", {}),
     }
 
-    entity_types = deepcopy(config.get("entity_types", {}))
+    entity_types = deepcopy(alignment_config.get("entity_types", {}))
 
     for entity_type, override in lookup_overrides.get(
         "entity_types",
@@ -51,9 +55,9 @@ def build_lookup_config(config: dict) -> dict:
             **override,
         }
 
-    lookup_config["entity_types"] = entity_types
+    effective_config["entity_types"] = entity_types
 
-    return lookup_config
+    return effective_config
 
 
 @celery_app.task(bind=True, name="runs.lookup_wikidata")
@@ -138,9 +142,16 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             )
 
             # Load alignment config for scoring
-            config_path = workspace.alignment_config_path
-            config = load_alignment_config(Path(config_path))
-            lookup_config = build_lookup_config(config)
+            alignment_config_path = Path(workspace.alignment_config_path)
+            lookup_config_path = Path(workspace.lookup_config_path)
+
+            alignment_config = load_alignment_config(alignment_config_path)
+            lookup_file_config = load_lookup_config(lookup_config_path)
+
+            lookup_config = build_lookup_config(
+                alignment_config,
+                lookup_file_config,
+            )
 
             # Build all local-Wikidata candidate pairs so semantic embeddings can be computed in one batch.
             entities_by_uri = {entity["uri"]: entity for entity in entities}

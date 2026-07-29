@@ -74,10 +74,12 @@ async def create_workspace(
     schema_path = str(base / "extraction_schema.yaml")
     provenance_path = str(base / "provenance_config.yaml")
     alignment_config_path = str(base / "alignment_config.yaml")
+    lookup_config_path = str(base / "lookup_config.yaml")
     if (
         not Path(schema_path).exists()
         or not Path(provenance_path).exists()
         or not Path(alignment_config_path).exists()
+        or not Path(lookup_config_path).exists()
     ):
         raise BadRequestException(f"Schema '{data.schema_name}' does not exist")
 
@@ -85,6 +87,7 @@ async def create_workspace(
         data.name,
         schema_path,
         alignment_config_path=alignment_config_path,
+        lookup_config_path=lookup_config_path,
         provenance_config_path=provenance_path,
     )
     if not workspace:

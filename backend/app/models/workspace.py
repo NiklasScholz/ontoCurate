@@ -17,6 +17,7 @@ class Workspace(Base):
     schema_path: Mapped[str] = mapped_column(String, nullable=False)
     alignment_config_path: Mapped[str] = mapped_column(String, nullable=False)
     provenance_config_path: Mapped[str] = mapped_column(String, nullable=False)
+    lookup_config_path: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
