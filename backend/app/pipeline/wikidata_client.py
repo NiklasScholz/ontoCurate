@@ -313,6 +313,7 @@ def generate_wikidata_candidates(
     entity: dict,
     limit: int = 5,
     language: str = "en",
+    request_delay_seconds: float = 0.1,
 ) -> list[dict]:
     """Generate Wikidata candidates for a local entity."""
     entity_types = entity.get("types", [])
@@ -362,7 +363,8 @@ def generate_wikidata_candidates(
 
             candidates.append(candidate)
 
-        time.sleep(0.1)
+        if request_delay_seconds > 0:
+            time.sleep(request_delay_seconds)
 
     return candidates[:limit]
 
@@ -371,6 +373,7 @@ def query_wikidata_for_entities(
     entities: list[dict],
     limit: int = 5,
     language: str = "en",
+    request_delay_seconds: float = 0.1,
 ) -> dict[str, list[dict]]:
     """Return Wikidata candidates grouped by local entity URI."""
     results = {}
@@ -385,6 +388,7 @@ def query_wikidata_for_entities(
             entity,
             limit=limit,
             language=language,
+            request_delay_seconds=request_delay_seconds,
         )
 
         if candidates:

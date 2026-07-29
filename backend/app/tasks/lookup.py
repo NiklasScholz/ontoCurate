@@ -122,6 +122,11 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 "en",
             )
 
+            request_delay_seconds = lookup_config.get("settings", {}).get(
+                "request_delay_seconds",
+                0.1,
+            )
+
             merged_ttl = working_dir / "merged.ttl"
 
             # Load entities from merged TTL if it exists, otherwise load from per-doc TTLs
@@ -152,16 +157,16 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
 
             # Query Wikidata for candidates
             logger.info(
-                "[%s] Querying Wikidata for candidates with limit=%d and language=%s...",
-                run_id,
-                candidate_limit,
-                language,
+                "[%s] Querying Wikidata with  delay=%.2fs...",
+                rund_id,
+                request_delay_seconds,
             )
             wikidata_candidates_map = await asyncio.to_thread(
                 query_wikidata_for_entities,
                 entities,
                 limit=candidate_limit,
                 language=language,
+                request_delay_seconds=request_delay_seconds,
             )
 
             if not wikidata_candidates_map:

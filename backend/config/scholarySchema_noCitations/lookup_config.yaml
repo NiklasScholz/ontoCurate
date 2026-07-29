@@ -1,7 +1,8 @@
 wikidata_lookup:
   settings:
     candidate_limit: 5
-    language: de
+    language: en
+    request_delay_seconds: 0.1
 
   entity_types:
     Person:
