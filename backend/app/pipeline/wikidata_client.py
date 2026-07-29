@@ -35,6 +35,7 @@ def create_wikimedia_client() -> httpx.Client:
 def search_wikidata(
     query: str,
     limit: int = 5,
+    language: str = "en",
 ) -> list[dict]:
     """
     Search Wikidata for entities matching the query string.
@@ -56,8 +57,8 @@ def search_wikidata(
     params: dict[str, str | int] = {
         "action": "wbsearchentities",
         "search": query.strip(),
-        "language": "en",
-        "uselang": "en",
+        "language": language,
+        "uselang": language,
         "format": "json",
         "type": "item",
         "limit": limit,
@@ -208,11 +209,19 @@ def claim_string_values(details: dict, property_id: str) -> list[str]:
 
 
 @lru_cache(maxsize=512)
-def fetch_english_label(wikidata_id: str) -> str:
-    """Fetch and cache the English label of a Wikidata item."""
+def fetch_label(
+    wikidata_id: str,
+    language: str = "en",
+) -> str:
+    """Fetch and cache a label of a Wikidata item."""
     details = fetch_wikidata_entity_details(wikidata_id)
 
-    return details.get("labels", {}).get("en", {}).get("value", "").strip()
+    return (
+        details.get("labels", {})
+        .get(language, {})
+        .get("value", "")
+        .strip()
+    )
 
 
 def _build_search_queries(
@@ -247,6 +256,7 @@ def _build_candidate_literals(
     result: dict,
     details: dict,
     entity_type: str | None,
+    language: str = "en",
 ) -> dict[str, list[str]]:
     """Build the literals used to compare a Wikidata candidate."""
     label = result.get("label", "")
@@ -262,8 +272,15 @@ def _build_candidate_literals(
         given_name_ids = claim_entity_ids(details, "P735")
         family_name_ids = claim_entity_ids(details, "P734")
 
-        given_names = [fetch_english_label(qid) for qid in given_name_ids]
-        family_names = [fetch_english_label(qid) for qid in family_name_ids]
+        given_names = [
+            fetch_label(qid, language)
+            for qid in given_name_ids
+        ]
+
+        family_names = [
+            fetch_label(qid, language)
+            for qid in family_name_ids
+        ]
 
         given_names = [value for value in given_names if value]
         family_names = [value for value in family_names if value]
@@ -279,7 +296,7 @@ def _build_candidate_literals(
         if orcids:
             literals["orcid"] = orcids
 
-    aliases = details.get("aliases", {}).get("en", [])
+    aliases = details.get("aliases", {}).get(language, [])
     alias_values = [
         alias.get("value", "") for alias in aliases if alias.get("value", "").strip()
     ]
@@ -292,7 +309,11 @@ def _build_candidate_literals(
     return literals
 
 
-def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
+def generate_wikidata_candidates(
+    entity: dict,
+    limit: int = 5,
+    language: str = "en",
+) -> list[dict]:
     """Generate Wikidata candidates for a local entity."""
     entity_types = entity.get("types", [])
     entity_type = entity_types[0] if entity_types else None
@@ -309,6 +330,7 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
         search_results = search_wikidata(
             query,
             limit=limit,
+            language=language,
         )
 
         for result in search_results:
@@ -330,6 +352,7 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
                     result,
                     details,
                     entity_type,
+                    language=language,
                 ),
                 "types": entity_types,
                 "source": "wikidata",
@@ -345,7 +368,9 @@ def generate_wikidata_candidates(entity: dict, limit: int = 5) -> list[dict]:
 
 
 def query_wikidata_for_entities(
-    entities: list[dict], limit: int = 5
+    entities: list[dict],
+    limit: int = 5,
+    language: str = "en",
 ) -> dict[str, list[dict]]:
     """Return Wikidata candidates grouped by local entity URI."""
     results = {}
@@ -359,6 +384,7 @@ def query_wikidata_for_entities(
         candidates = generate_wikidata_candidates(
             entity,
             limit=limit,
+            language=language,
         )
 
         if candidates:

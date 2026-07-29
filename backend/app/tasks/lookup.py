@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 TMP_BASE = Path("/tmp/ontocurate")
 
+def load_lookup_config(config_path: Path) -> dict:
+    """Load the lookup YAML configuration."""
+    with open(config_path, encoding="utf-8") as file:
+        return yaml.safe_load(file) or {}
 
 def build_lookup_config(
     alignment_config: dict,
@@ -95,6 +99,28 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 workspace = await WorkspaceRepository(session).get_by_id(
                     UUID(workspace_id)
                 )
+            
+            # Load alignment config for scoring
+            alignment_config_path = Path(workspace.alignment_config_path)
+            lookup_config_path = Path(workspace.lookup_config_path)
+
+            alignment_config = load_alignment_config(alignment_config_path)
+            lookup_file_config = load_lookup_config(lookup_config_path)
+
+            lookup_config = build_lookup_config(
+                alignment_config,
+                lookup_file_config,
+            )
+
+            candidate_limit = lookup_config.get("settings", {}).get(
+                "candidate_limit",
+                5,
+            )
+
+            language = lookup_config.get("settings", {}).get(
+                "language",
+                "en",
+            )
 
             merged_ttl = working_dir / "merged.ttl"
 
@@ -125,9 +151,17 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             )
 
             # Query Wikidata for candidates
-            logger.info("[%s] Querying Wikidata for candidates...", run_id)
+            logger.info(
+                "[%s] Querying Wikidata for candidates with limit=%d and language=%s...",
+                run_id,
+                candidate_limit,
+                language,
+            )
             wikidata_candidates_map = await asyncio.to_thread(
-                query_wikidata_for_entities, entities, limit=5
+                query_wikidata_for_entities,
+                entities,
+                limit=candidate_limit,
+                language=language,
             )
 
             if not wikidata_candidates_map:
@@ -139,18 +173,6 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 "[%s] Found Wikidata candidates for %d entities",
                 run_id,
                 len(wikidata_candidates_map),
-            )
-
-            # Load alignment config for scoring
-            alignment_config_path = Path(workspace.alignment_config_path)
-            lookup_config_path = Path(workspace.lookup_config_path)
-
-            alignment_config = load_alignment_config(alignment_config_path)
-            lookup_file_config = load_lookup_config(lookup_config_path)
-
-            lookup_config = build_lookup_config(
-                alignment_config,
-                lookup_file_config,
             )
 
             # Build all local-Wikidata candidate pairs so semantic embeddings can be computed in one batch.

@@ -1,4 +1,8 @@
 wikidata_lookup:
+  settings:
+    candidate_limit: 5
+    language: de
+
   entity_types:
     Person:
       threshold: 0.98
