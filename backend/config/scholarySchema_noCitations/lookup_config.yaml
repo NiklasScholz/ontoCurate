@@ -2,10 +2,30 @@ wikidata_lookup:
   settings:
     candidate_limit: 5
     language: en
-    request_delay_seconds: 0.1
+    request_delay_seconds: 0.1 
 
   entity_types:
+    AcademicArticle:
+      search_queries:
+        - predicates:
+            - title
+          max_queries: 2
+
     Person:
+      search_queries:
+        - predicates:
+            - givenName
+            - familyName
+          require_all: true
+          join_with: " "
+          fallback_predicates:
+            - familyName
+          max_queries: 1
+
+        - predicates:
+            - name
+          max_queries: 2
+
       threshold: 0.98
       weights:
         syntactic: 1.0
@@ -20,3 +40,9 @@ wikidata_lookup:
       sparsity_max_fields: 1
       hard_match_predicates:
         name: 0.98
+
+    Organization:
+      search_queries:
+        - predicates:
+            - name
+          max_queries: 2

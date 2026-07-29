@@ -223,33 +223,99 @@ def fetch_label(
         .strip()
     )
 
+def _build_queries_from_rule(
+    literals: dict[str, list[str]],
+    rule: dict,
+) -> list[str]:
+    """Build Wikidata search queries from one configured rule."""
+    predicates = rule.get("predicates", [])
+
+    if not predicates:
+        return []
+
+    require_all = rule.get("require_all", False)
+    join_with = rule.get("join_with", " ")
+    max_queries = rule.get("max_queries", 1)
+
+    value_lists = [
+        [
+            value.strip()
+            for value in literals.get(predicate, [])
+            if value and value.strip()
+        ]
+        for predicate in predicates
+    ]
+
+    if require_all and any(not values for values in value_lists):
+        fallback_predicates = rule.get("fallback_predicates", [])
+
+        if not fallback_predicates:
+            return []
+
+        fallback_rule = {
+            "predicates": fallback_predicates,
+            "require_all": True,
+            "join_with": join_with,
+            "max_queries": max_queries,
+        }
+
+        return _build_queries_from_rule(
+            literals,
+            fallback_rule,
+        )
+
+    # One predicate: each literal value becomes its own query.
+    if len(predicates) == 1:
+        return value_lists[0][:max_queries]
+
+    # Multiple predicates: combine the first value of each predicate.
+    parts = [
+        values[0]
+        for values in value_lists
+        if values
+    ]
+
+    if not parts:
+        return []
+
+    return [join_with.join(parts)]
+
 
 def _build_search_queries(
     entity: dict,
     entity_type: str | None,
+    type_config: dict | None = None,
 ) -> list[str]:
     """Build unique Wikidata search queries for a local entity."""
     literals = entity.get("literals", {})
+    type_config = type_config or {}
+    configured_rules = type_config.get("search_queries")
+
     queries: list[str] = []
 
-    if entity_type == "Person":
-        given_names = literals.get("givenName", [])
-        family_names = literals.get("familyName", [])
-        names = literals.get("name", [])
+    for rule in configured_rules:
+        queries.extend(
+            _build_queries_from_rule(
+                literals,
+                rule,
+            )
+        )
 
-        if given_names and family_names:
-            queries.append(f"{given_names[0]} {family_names[0]}")
-        elif family_names:
-            queries.append(family_names[0])
-
-        queries.extend(names[:2])
-    else:
-        names = literals.get("name") or literals.get("title", [])
-        queries.extend(names[:2])
-
-    return list(
-        dict.fromkeys(query.strip() for query in queries if query and query.strip())
+    unique_queries = list(
+        dict.fromkeys(
+            query.strip()
+            for query in queries
+            if query and query.strip()
+        )
     )
+
+    logger.info( #change to debug later
+        "Built configured Wikidata search queries for type %s: %s",
+        entity_type,
+        unique_queries,
+    )
+
+    return unique_queries
 
 
 def _build_candidate_literals(
@@ -314,6 +380,7 @@ def generate_wikidata_candidates(
     limit: int = 5,
     language: str = "en",
     request_delay_seconds: float = 0.1,
+    type_config: dict | None = None,
 ) -> list[dict]:
     """Generate Wikidata candidates for a local entity."""
     entity_types = entity.get("types", [])
@@ -325,6 +392,7 @@ def generate_wikidata_candidates(
     search_queries = _build_search_queries(
         entity,
         entity_type,
+        type_config=type_config,
     )
 
     for query in search_queries:
@@ -374,9 +442,11 @@ def query_wikidata_for_entities(
     limit: int = 5,
     language: str = "en",
     request_delay_seconds: float = 0.1,
+    entity_type_configs: dict | None = None,
 ) -> dict[str, list[dict]]:
     """Return Wikidata candidates grouped by local entity URI."""
     results = {}
+    entity_type_configs = entity_type_configs or {}
 
     for entity in entities:
         uri = entity.get("uri")
@@ -384,11 +454,16 @@ def query_wikidata_for_entities(
         if not uri or not entity.get("literals"):
             continue
 
+        entity_types = entity.get("types", [])
+        entity_type = entity_types[0] if entity_types else None
+        type_config = entity_type_configs.get(entity_type, {})
+        
         candidates = generate_wikidata_candidates(
             entity,
             limit=limit,
             language=language,
             request_delay_seconds=request_delay_seconds,
+            type_config=type_config,
         )
 
         if candidates:

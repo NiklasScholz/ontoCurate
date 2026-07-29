@@ -112,6 +112,10 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 lookup_file_config,
             )
 
+            wikidata_config = lookup_file_config.get("wikidata_lookup", {})
+            lookup_settings = wikidata_config.get("settings", {})
+            lookup_entity_types = wikidata_config.get("entity_types", {})
+
             candidate_limit = lookup_config.get("settings", {}).get(
                 "candidate_limit",
                 5,
@@ -152,13 +156,17 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 return
 
             logger.info(
-                "[%s] Loaded %d entities from merged TTL", run_id, len(entities)
+                "[%s] Loaded %d entities for Wikidata lookup",
+                run_id,
+                len(entities),
             )
 
             # Query Wikidata for candidates
             logger.info(
-                "[%s] Querying Wikidata with  delay=%.2fs...",
-                rund_id,
+                "[%s] Querying Wikidata with limit=%d, language=%s, delay=%.2fs...",
+                run_id,
+                candidate_limit,
+                language,
                 request_delay_seconds,
             )
             wikidata_candidates_map = await asyncio.to_thread(
@@ -167,6 +175,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 limit=candidate_limit,
                 language=language,
                 request_delay_seconds=request_delay_seconds,
+                entity_type_configs=lookup_entity_types,
             )
 
             if not wikidata_candidates_map:
