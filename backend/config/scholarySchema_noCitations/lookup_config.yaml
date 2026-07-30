@@ -45,20 +45,21 @@ wikidata_lookup:
         orcid:
           - source: string_claims
             property: P496
-      threshold: 0.98
-      weights:
-        syntactic: 1.0
-        semantic: 0.0
-        structural: 0.0
-      comparison_predicates:
-        - name
-      semantic_text_predicates:
-        - name
-      expand_initials: false
-      sparsity_penalty: 1.0
-      sparsity_max_fields: 1
-      hard_match_predicates:
-        name: 0.98
+      scoring:
+        threshold: 0.98
+        weights:
+          syntactic: 1.0
+          semantic: 0.0
+          structural: 0.0
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+        expand_initials: false
+        sparsity_penalty: 1.0
+        sparsity_max_fields: 1
+        hard_match_predicates:
+          name: 0.98
 
     Organization:
       search_queries:

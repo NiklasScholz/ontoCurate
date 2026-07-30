@@ -41,28 +41,36 @@ def build_lookup_config(
     The Wikidata lookup configuration provides lookup-specific overrides.
     """
     effective_config = deepcopy(alignment_config)
-    lookup_overrides = lookup_file_config.get("wikidata_lookup", {})
 
-    effective_config["settings"] = {
-        **alignment_config.get("settings", {}),
-        **lookup_overrides.get("settings", {}),
-    }
+    wikidata_config = lookup_file_config.get(
+        "wikidata_lookup",
+        {},
+    )
 
-    entity_types = deepcopy(alignment_config.get("entity_types", {}))
+    entity_types = deepcopy(
+        alignment_config.get("entity_types", {})
+    )
 
-    for entity_type, override in lookup_overrides.get(
+    for entity_type, lookup_type_config in wikidata_config.get(
         "entity_types",
         {},
     ).items():
+        scoring_overrides = lookup_type_config.get(
+            "scoring",
+            {},
+        )
+
+        if not scoring_overrides:
+            continue
+
         entity_types[entity_type] = {
             **entity_types.get(entity_type, {}),
-            **override,
+            **scoring_overrides,
         }
 
     effective_config["entity_types"] = entity_types
 
     return effective_config
-
 
 @celery_app.task(bind=True, name="runs.lookup_wikidata")
 def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
@@ -116,17 +124,17 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             lookup_settings = wikidata_config.get("settings", {})
             lookup_entity_types = wikidata_config.get("entity_types", {})
 
-            candidate_limit = lookup_config.get("settings", {}).get(
+            candidate_limit = lookup_settings.get(
                 "candidate_limit",
                 5,
             )
 
-            language = lookup_config.get("settings", {}).get(
+            language = lookup_settings.get(
                 "language",
                 "en",
             )
 
-            request_delay_seconds = lookup_config.get("settings", {}).get(
+            request_delay_seconds = lookup_settings.get(
                 "request_delay_seconds",
                 0.1,
             )
