@@ -465,7 +465,6 @@ def generate_wikidata_candidates(
                 "label": result["label"],
                 "description": result["description"],
                 "literals": candidate_literals,
-                "types": entity_types,
                 "source": "wikidata",
                 "relations_out": {},
                 "relations_in": {},
