@@ -20,6 +20,8 @@ import {
     type PendingInvite,
 } from "../components/InviteMembersPanel";
 import InviteMembersSection from "../components/InviteMembersPanel";
+import Popup from "../components/Popup";
+import ExportView from "../components/ExportView";
 
 // Shorter names so that it fits into the colum without extra line
 const SHORT_TASK_NAME: Record<string, string> = {
@@ -56,6 +58,9 @@ export default function WorkspacePage() {
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [docActionError, setDocActionError] = useState<string | null>(null);
     const [dedupCounts, setDedupCounts] = useState({ total: 0, pending: 0 });
+    const [showExport, setShowExport] = useState<
+        { document: string | undefined } | undefined
+    >();
 
     const fetchMembers = (id: string) => {
         client
@@ -184,9 +189,7 @@ export default function WorkspacePage() {
 
     const handleDeleteDocument = async (doc: Document) => {
         if (
-            !window.confirm(
-                `Delete "${doc.filename}"? This cannot be undone.`,
-            )
+            !window.confirm(`Delete "${doc.filename}"? This cannot be undone.`)
         ) {
             return;
         }
@@ -290,7 +293,9 @@ export default function WorkspacePage() {
                                 ) : d.file_type === "markdown" ? (
                                     <a
                                         className="underline"
-                                        href={apiUrl(`/documents/${d.id}/markdown`)}
+                                        href={apiUrl(
+                                            `/documents/${d.id}/markdown`,
+                                        )}
                                         target="_blank"
                                         rel="noreferrer"
                                     >
@@ -338,7 +343,13 @@ export default function WorkspacePage() {
                                     className="bg-nord8 h-7 rounded px-2"
                                     title="Export"
                                     aria-label="Export"
+<<<<<<< frontend/src/pages/WorkspacePage.tsx
                                     onClick={() => {}}
+=======
+                                    onClick={() => {
+                                        setShowExport({ document: d.id });
+                                    }}
+>>>>>>> frontend/src/pages/WorkspacePage.tsx
                                 >
                                     <ShareIcon size={16} />
                                 </button>
@@ -447,6 +458,26 @@ export default function WorkspacePage() {
                     }
                     className="bg-nord8 relative h-24 w-32 rounded px-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >
+                    <MergeIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Deduplication</div>
+                </Link>
+                <Link
+                    to={`/query?ws=${wsId}`}
+                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
+                >
+                    <SearchIcon
+                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
+                        size={48}
+                    />
+                    <div className="relative">Queries</div>
+                </Link>
+                <button
+                    className="bg-nord8 relative h-24 w-32 rounded px-2"
+                    onClick={() => setShowExport({ document: undefined })}
+                >
                     <ShareIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                         size={48}
@@ -467,6 +498,17 @@ export default function WorkspacePage() {
                         <p className="text-nord11 text-sm">{inviteError}</p>
                     )}
                 </>
+            )}
+
+            {showExport && (
+                <Popup show={true}>
+                    <ExportView
+                        isOwner={ws.role === "owner"}
+                        workspace={wsId}
+                        document={showExport.document}
+                        onClose={() => setShowExport(undefined)}
+                    />
+                </Popup>
             )}
         </Panel>
     );

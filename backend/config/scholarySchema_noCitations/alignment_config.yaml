@@ -147,20 +147,3 @@ entity_types:
     comparison_predicates:
       - title
 
-wikidata_lookup:
-  entity_types:
-    Person:
-      threshold: 0.98
-      weights:
-        syntactic: 1.0
-        semantic: 0.0
-        structural: 0.0
-      comparison_predicates:
-        - name
-      semantic_text_predicates:
-        - name
-      expand_initials: false
-      sparsity_penalty: 1.0
-      sparsity_max_fields: 1
-      hard_match_predicates:
-        name: 0.98

@@ -11,7 +11,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
 import type { CurrentAndOriginalStatement, Statement } from "../types.ts";
-import MarkdownView, { type HighlightSpan } from "../components/MarkdownView.tsx";
+import MarkdownView, {
+    type HighlightSpan,
+} from "../components/MarkdownView.tsx";
 import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology.ts";
 
 function useRelatedSpans(
@@ -29,7 +31,8 @@ function useRelatedSpans(
         }
 
         const isLiteral =
-            statement.text_span_start !== null && statement.text_span_end !== null;
+            statement.text_span_start !== null &&
+            statement.text_span_end !== null;
         const ownSpan = isLiteral
             ? {
                   start: statement.text_span_start as number,
@@ -58,7 +61,14 @@ function useRelatedSpans(
                 setSpans([
                     ...(ownSpan ? [ownSpan] : []),
                     ...res.data.subject_spans
-                        .filter((s) => !(ownSpan && s.start === ownSpan.start && s.end === ownSpan.end))
+                        .filter(
+                            (s) =>
+                                !(
+                                    ownSpan &&
+                                    s.start === ownSpan.start &&
+                                    s.end === ownSpan.end
+                                ),
+                        )
                         .map((s) => ({
                             ...s,
                             role: "subject" as const,
@@ -339,7 +349,11 @@ function TextField({
                     className="h-full w-full"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    onBlur={() => onChange(value)}
+                    onBlur={() => {
+                        if (value !== current) {
+                            onChange(value);
+                        }
+                    }}
                 />
                 {isExternalUrl(current) && (
                     <a
@@ -382,7 +396,7 @@ export default function CurationDetail({
     onClose: () => void;
     onPrevious: () => void;
     onNext: () => void;
-    onChange: (index: number) => void;
+    onChange: (update: Record<string, Statement>) => void;
     workspaceId: string;
     markdown: string | undefined;
     index: number;
@@ -445,7 +459,13 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     >
                         <CheckIcon size={16} />
@@ -462,7 +482,13 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     >
                         <RotateCcwIcon size={16} />
@@ -479,7 +505,13 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     >
                         <XIcon size={16} />
@@ -502,7 +534,13 @@ export default function CurationDetail({
                                     },
                                     body: { subject: newValue },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     />
                     <TextField
@@ -520,7 +558,13 @@ export default function CurationDetail({
                                     },
                                     body: { predicate: newValue },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     />
                     <TextField
@@ -539,7 +583,13 @@ export default function CurationDetail({
                                     },
                                     body: { object_value: newValue },
                                 })
-                                .then(() => onChange(index));
+                                .then((stm) =>
+                                    onChange(
+                                        Object.fromEntries([
+                                            [statement.original.id, stm.data],
+                                        ]),
+                                    ),
+                                );
                         }}
                     />
                 </div>

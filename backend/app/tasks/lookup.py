@@ -5,6 +5,8 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import UUID
 
+import yaml
+
 from app.core.database import TaskSessionLocal as AsyncSessionLocal
 from app.pipeline.entity_alignment import (
     load_alignment_config,
@@ -24,36 +26,51 @@ logger = logging.getLogger(__name__)
 TMP_BASE = Path("/tmp/ontocurate")
 
 
-def build_lookup_config(config: dict) -> dict:
+def load_lookup_config(config_path: Path) -> dict:
+    """Load the lookup YAML configuration."""
+    with open(config_path, encoding="utf-8") as file:
+        return yaml.safe_load(file) or {}
+
+
+def build_lookup_config(
+    alignment_config: dict,
+    lookup_file_config: dict,
+) -> dict:
     """
-    Build the Wikidata lookup configuration by overlaying
-    wikidata_lookup settings onto the normal alignment configuration.
+    Build the effective scoring configuration for Wikidata lookup.
 
-    Entity types without lookup-specific overrides retain their
-    normal alignment settings.
+    The normal alignment configuration provides the defaults.
+    The Wikidata lookup configuration provides lookup-specific overrides.
     """
-    lookup_config = deepcopy(config)
-    lookup_overrides = config.get("wikidata_lookup", {})
+    effective_config = deepcopy(alignment_config)
 
-    lookup_config["settings"] = {
-        **config.get("settings", {}),
-        **lookup_overrides.get("settings", {}),
-    }
+    wikidata_config = lookup_file_config.get(
+        "wikidata_lookup",
+        {},
+    )
 
-    entity_types = deepcopy(config.get("entity_types", {}))
+    entity_types = deepcopy(alignment_config.get("entity_types", {}))
 
-    for entity_type, override in lookup_overrides.get(
+    for entity_type, lookup_type_config in wikidata_config.get(
         "entity_types",
         {},
     ).items():
+        scoring_overrides = lookup_type_config.get(
+            "scoring",
+            {},
+        )
+
+        if not scoring_overrides:
+            continue
+
         entity_types[entity_type] = {
             **entity_types.get(entity_type, {}),
-            **override,
+            **scoring_overrides,
         }
 
-    lookup_config["entity_types"] = entity_types
+    effective_config["entity_types"] = entity_types
 
-    return lookup_config
+    return effective_config
 
 
 @celery_app.task(bind=True, name="runs.lookup_wikidata")
@@ -95,6 +112,37 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                     UUID(workspace_id)
                 )
 
+            # Load alignment config for scoring
+            alignment_config_path = Path(workspace.alignment_config_path)
+            lookup_config_path = Path(workspace.lookup_config_path)
+
+            alignment_config = load_alignment_config(alignment_config_path)
+            lookup_file_config = load_lookup_config(lookup_config_path)
+
+            lookup_config = build_lookup_config(
+                alignment_config,
+                lookup_file_config,
+            )
+
+            wikidata_config = lookup_file_config.get("wikidata_lookup", {})
+            lookup_settings = wikidata_config.get("settings", {})
+            lookup_entity_types = wikidata_config.get("entity_types", {})
+
+            candidate_limit = lookup_settings.get(
+                "candidate_limit",
+                5,
+            )
+
+            language = lookup_settings.get(
+                "language",
+                "en",
+            )
+
+            request_delay_seconds = lookup_settings.get(
+                "request_delay_seconds",
+                0.1,
+            )
+
             merged_ttl = working_dir / "merged.ttl"
 
             # Load entities from merged TTL if it exists, otherwise load from per-doc TTLs
@@ -120,13 +168,26 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 return
 
             logger.info(
-                "[%s] Loaded %d entities from merged TTL", run_id, len(entities)
+                "[%s] Loaded %d entities for Wikidata lookup",
+                run_id,
+                len(entities),
             )
 
             # Query Wikidata for candidates
-            logger.info("[%s] Querying Wikidata for candidates...", run_id)
+            logger.info(
+                "[%s] Querying Wikidata with limit=%d, language=%s, delay=%.2fs...",
+                run_id,
+                candidate_limit,
+                language,
+                request_delay_seconds,
+            )
             wikidata_candidates_map = await asyncio.to_thread(
-                query_wikidata_for_entities, entities, limit=5
+                query_wikidata_for_entities,
+                entities,
+                limit=candidate_limit,
+                language=language,
+                request_delay_seconds=request_delay_seconds,
+                entity_type_configs=lookup_entity_types,
             )
 
             if not wikidata_candidates_map:
@@ -139,11 +200,6 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 run_id,
                 len(wikidata_candidates_map),
             )
-
-            # Load alignment config for scoring
-            config_path = workspace.alignment_config_path
-            config = load_alignment_config(Path(config_path))
-            lookup_config = build_lookup_config(config)
 
             # Build all local-Wikidata candidate pairs so semantic embeddings can be computed in one batch.
             entities_by_uri = {entity["uri"]: entity for entity in entities}
