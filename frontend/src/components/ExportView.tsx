@@ -4,10 +4,12 @@ import { apiUrl } from "../client";
 import Panel from "./Panel";
 
 export default function ExportView({
+    isOwner,
     workspace,
     onClose,
     document,
 }: {
+    isOwner: boolean;
     workspace: string;
     onClose: () => void;
     document: string | undefined;
@@ -50,10 +52,27 @@ export default function ExportView({
                     <option value="json-ld">JSON-LD</option>
                 </select>
 
-                <label htmlFor="provenance">Include provenance data</label>
+                <label
+                    htmlFor="provenance"
+                    className={!isOwner && "opacity-50"}
+                    title={
+                        isOwner
+                            ? undefined
+                            : "Only available to the workspace owner"
+                    }
+                >
+                    Include provenance data
+                </label>
                 <input
                     id="provenance"
                     type="checkbox"
+                    disabled={!isOwner}
+                    className={!isOwner && "opacity-50"}
+                    title={
+                        isOwner
+                            ? undefined
+                            : "Only available to the workspace owner"
+                    }
                     checked={includeProvenance}
                     onChange={(e) => setIncludeProvenance(e.target.checked)}
                 />

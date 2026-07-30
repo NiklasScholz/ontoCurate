@@ -340,6 +340,7 @@ export default function WorkspacePage() {
             {showExport && (
                 <Popup show={true}>
                     <ExportView
+                        isOwner={ws.role === "owner"}
                         workspace={wsId}
                         document={showExport.document}
                         onClose={() => setShowExport(undefined)}
