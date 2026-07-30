@@ -63,7 +63,7 @@ wikidata_lookup:
           - source: item_claim_labels
             property: P1416  # affiliation
       scoring:
-        threshold: 0.98
+        threshold: 0.95
         weights:
           syntactic: 1.0
           semantic: 0.0
@@ -75,6 +75,7 @@ wikidata_lookup:
         sparsity_max_fields: 1
         hard_match_predicates:
           name: 0.98
+        fuzzy_match_penalty: 0.1
         unresolved_orcid_penalty: 0.4
 
     Organization:
@@ -176,17 +177,11 @@ orcid_lookup:
             - familyName
             - affiliation
           require_all: true
-
         - predicates:
             - givenName
             - familyName
           require_all: true
           join_with: " "
-          fallback_predicates:
-            - name
-
-        - predicates:
-            - name
 
       scoring:
         threshold: 0.9
@@ -201,4 +196,5 @@ orcid_lookup:
         sparsity_max_fields: 1
         hard_match_predicates:
           orcid: 1.0
+        fuzzy_match_penalty: 0.05
         unresolved_orcid_penalty: 0.4

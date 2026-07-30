@@ -69,7 +69,7 @@ wikidata_lookup:
             property: P496
 
       scoring:
-        threshold: 0.98
+        threshold: 0.95
         weights:
           syntactic: 1.0
           semantic: 0.0
@@ -81,6 +81,7 @@ wikidata_lookup:
         sparsity_max_fields: 1
         hard_match_predicates:
           name: 0.98
+        fuzzy_match_penalty: 0.1 # Candidates that were not resolved through fix uri get lower confidence automatically
         unresolved_orcid_penalty: 0.4
 
     Organization:
@@ -185,17 +186,11 @@ orcid_lookup:
             - familyName
             - affiliation
           require_all: true
-
         - predicates:
             - givenName
             - familyName
           require_all: true
           join_with: " "
-          fallback_predicates:
-            - name
-
-        - predicates:
-            - name
 
       scoring:
         threshold: 0.9
@@ -210,5 +205,5 @@ orcid_lookup:
         sparsity_max_fields: 1
         hard_match_predicates:
           orcid: 1.0
-        # never accept a candidate with an unresolved ORCID
+        fuzzy_match_penalty: 0.05 # Candidates that were not resolved through orcid API get lower confidence automatically
         unresolved_orcid_penalty: 0.4

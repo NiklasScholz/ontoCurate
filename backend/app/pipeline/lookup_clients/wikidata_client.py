@@ -453,6 +453,7 @@ def _search_wikidata_candidates(
                 candidate = _result_to_wikidata_candidate(result, type_config, language)
                 if candidate is None:
                     continue
+                candidate["fuzzy_match"] = True
                 logger.debug(
                     "Built Wikidata candidate literals for type %s and entity %s: %s",
                     entity_type,
@@ -494,13 +495,13 @@ def generate_wikidata_candidates(
 
         if candidates:
             return candidates
+
         fallback_candidates = _search_wikidata_candidates(
             entity, limit, language, request_delay_seconds, type_config
         )
         for candidate in fallback_candidates:
             candidate["orcid_unresolved"] = True
         return fallback_candidates
-    # Fall back to fuzzy/exact label search
     return _search_wikidata_candidates(
         entity, limit, language, request_delay_seconds, type_config
     )

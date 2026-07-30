@@ -189,8 +189,11 @@ def _search_orcid_candidates(
 
             seen_queries.add(query)
 
-            for result in search_orcid(query, limit=limit):
+            results = search_orcid(query, limit=limit)
+
+            for result in results:
                 candidate = _result_to_candidate(result)
+                candidate["fuzzy_match"] = True
                 if candidate["uri"] in seen_uris:
                     continue
                 seen_uris.add(candidate["uri"])
@@ -227,14 +230,12 @@ def generate_orcid_candidates(
                 time.sleep(request_delay_seconds)
         if candidates:
             return candidates
-
         fallback_candidates = _search_orcid_candidates(
             entity, limit, request_delay_seconds, type_config, field_names
         )
         for candidate in fallback_candidates:
             candidate["orcid_unresolved"] = True
         return fallback_candidates
-
     return _search_orcid_candidates(
         entity, limit, request_delay_seconds, type_config, field_names
     )

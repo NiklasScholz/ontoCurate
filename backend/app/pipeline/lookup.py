@@ -122,6 +122,7 @@ def score_and_write_results(
         type_cfg = resolve_type_config(lookup_config, entity_type)
         raw_type_cfg = lookup_config.get("entity_types", {}).get(entity_type, {})
         unresolved_orcid_penalty = raw_type_cfg.get("unresolved_orcid_penalty", 0.0)
+        fuzzy_match_penalty = raw_type_cfg.get("fuzzy_match_penalty", 0.0)
 
         for candidate in candidates:
             score = combined_similarity(
@@ -141,6 +142,10 @@ def score_and_write_results(
             if candidate.get("orcid_unresolved"):
                 score *= 1.0 - unresolved_orcid_penalty
             if score >= type_cfg["threshold"]:
+                if candidate.get(
+                    "fuzzy_match"
+                ):  # penalty afterwards so it does not affect score thresholding
+                    score *= 1.0 - fuzzy_match_penalty
                 related_orcid = (candidate.get("literals", {}).get("orcid") or [None])[
                     0
                 ]
