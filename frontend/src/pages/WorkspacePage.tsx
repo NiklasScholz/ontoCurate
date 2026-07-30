@@ -19,6 +19,8 @@ import {
     type PendingInvite,
 } from "../components/InviteMembersPanel";
 import InviteMembersSection from "../components/InviteMembersPanel";
+import Popup from "../components/Popup";
+import ExportView from "../components/ExportView";
 
 export default function WorkspacePage() {
     const navigate = useNavigate();
@@ -33,6 +35,9 @@ export default function WorkspacePage() {
     const [members, setMembers] = useState<ExistingMember[]>([]);
     const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
     const [inviteError, setInviteError] = useState<string | null>(null);
+    const [showExport, setShowExport] = useState<
+        { document: string | undefined } | undefined
+    >();
 
     const fetchMembers = (id: string) => {
         client
@@ -253,9 +258,11 @@ export default function WorkspacePage() {
                                 </button>
                                 <button
                                     className="bg-nord8 h-7 rounded px-2"
-                                    title="Share"
-                                    aria-label="Share"
-                                    onClick={() => {}}
+                                    title="Export"
+                                    aria-label="Export"
+                                    onClick={() => {
+                                        setShowExport({ document: d.id });
+                                    }}
                                 >
                                     <ShareIcon size={16} />
                                 </button>
@@ -304,7 +311,10 @@ export default function WorkspacePage() {
                     />
                     <div className="relative">Queries</div>
                 </Link>
-                <button className="bg-nord8 relative h-24 w-32 rounded px-2">
+                <button
+                    className="bg-nord8 relative h-24 w-32 rounded px-2"
+                    onClick={() => setShowExport({ document: undefined })}
+                >
                     <ShareIcon
                         className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
                         size={48}
@@ -325,6 +335,16 @@ export default function WorkspacePage() {
                         <p className="text-nord11 text-sm">{inviteError}</p>
                     )}
                 </>
+            )}
+
+            {showExport && (
+                <Popup show={true}>
+                    <ExportView
+                        workspace={wsId}
+                        document={showExport.document}
+                        onClose={() => setShowExport(undefined)}
+                    />
+                </Popup>
             )}
         </Panel>
     );
