@@ -25,10 +25,12 @@ logger = logging.getLogger(__name__)
 
 TMP_BASE = Path("/tmp/ontocurate")
 
+
 def load_lookup_config(config_path: Path) -> dict:
     """Load the lookup YAML configuration."""
     with open(config_path, encoding="utf-8") as file:
         return yaml.safe_load(file) or {}
+
 
 def build_lookup_config(
     alignment_config: dict,
@@ -47,9 +49,7 @@ def build_lookup_config(
         {},
     )
 
-    entity_types = deepcopy(
-        alignment_config.get("entity_types", {})
-    )
+    entity_types = deepcopy(alignment_config.get("entity_types", {}))
 
     for entity_type, lookup_type_config in wikidata_config.get(
         "entity_types",
@@ -71,6 +71,7 @@ def build_lookup_config(
     effective_config["entity_types"] = entity_types
 
     return effective_config
+
 
 @celery_app.task(bind=True, name="runs.lookup_wikidata")
 def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
@@ -107,7 +108,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 workspace = await WorkspaceRepository(session).get_by_id(
                     UUID(workspace_id)
                 )
-            
+
             # Load alignment config for scoring
             alignment_config_path = Path(workspace.alignment_config_path)
             lookup_config_path = Path(workspace.lookup_config_path)

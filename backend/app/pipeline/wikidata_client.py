@@ -216,12 +216,8 @@ def fetch_label(
     """Fetch and cache a label of a Wikidata item."""
     details = fetch_wikidata_entity_details(wikidata_id)
 
-    return (
-        details.get("labels", {})
-        .get(language, {})
-        .get("value", "")
-        .strip()
-    )
+    return details.get("labels", {}).get(language, {}).get("value", "").strip()
+
 
 def _build_queries_from_rule(
     literals: dict[str, list[str]],
@@ -269,11 +265,7 @@ def _build_queries_from_rule(
         return value_lists[0][:max_queries]
 
     # Multiple predicates: combine the first value of each predicate.
-    parts = [
-        values[0]
-        for values in value_lists
-        if values
-    ]
+    parts = [values[0] for values in value_lists if values]
 
     if not parts:
         return []
@@ -301,11 +293,7 @@ def _build_search_queries(
         )
 
     unique_queries = list(
-        dict.fromkeys(
-            query.strip()
-            for query in queries
-            if query and query.strip()
-        )
+        dict.fromkeys(query.strip() for query in queries if query and query.strip())
     )
 
     logger.debug(
@@ -314,6 +302,7 @@ def _build_search_queries(
     )
 
     return unique_queries
+
 
 def _extract_candidate_values(
     source_config: dict,
@@ -331,18 +320,14 @@ def _extract_candidate_values(
         aliases = details.get("aliases", {}).get(language, [])
 
         values = [
-            alias.get("value", "")
-            for alias in aliases
-            if isinstance(alias, dict)
+            alias.get("value", "") for alias in aliases if isinstance(alias, dict)
         ]
 
     elif source == "string_claims":
         property_id = source_config.get("property")
 
         if not property_id:
-            raise ValueError(
-                "Candidate source 'string_claims' requires a property"
-            )
+            raise ValueError("Candidate source 'string_claims' requires a property")
 
         values = claim_string_values(
             details,
@@ -353,24 +338,17 @@ def _extract_candidate_values(
         property_id = source_config.get("property")
 
         if not property_id:
-            raise ValueError(
-                "Candidate source 'item_claim_labels' requires a property"
-            )
+            raise ValueError("Candidate source 'item_claim_labels' requires a property")
 
         entity_ids = claim_entity_ids(
             details,
             property_id,
         )
 
-        values = [
-            fetch_label(entity_id, language)
-            for entity_id in entity_ids
-        ]
+        values = [fetch_label(entity_id, language) for entity_id in entity_ids]
 
     else:
-        raise ValueError(
-            f"Unknown candidate literal source: {source!r}"
-        )
+        raise ValueError(f"Unknown candidate literal source: {source!r}")
 
     return list(
         dict.fromkeys(
@@ -379,6 +357,7 @@ def _extract_candidate_values(
             if isinstance(value, str) and value.strip()
         )
     )
+
 
 def _build_candidate_literals(
     result: dict,
@@ -413,6 +392,7 @@ def _build_candidate_literals(
             literals[local_predicate] = unique_values
 
     return literals
+
 
 def generate_wikidata_candidates(
     entity: dict,
@@ -512,7 +492,7 @@ def query_wikidata_for_entities(
                 entity_type,
             )
             continue
-        
+
         candidates = generate_wikidata_candidates(
             entity,
             limit=limit,
