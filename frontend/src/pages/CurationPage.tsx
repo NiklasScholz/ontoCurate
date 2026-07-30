@@ -54,6 +54,7 @@ function StatementsView({
     onChange: (index: Record<string, Statement>) => void;
 }) {
     const [threshold, setThreshold] = useState<number>(0);
+    const [bulkAcceptInProgress, setBulkAcceptInProgress] = useState(false);
 
     const filteredStatements = useMemo(() => {
         return statements === undefined
@@ -82,9 +83,11 @@ function StatementsView({
                 />
                 <div>{threshold}%</div>
                 <button
+                    disabled={bulkAcceptInProgress}
                     className="bg-nord8 rounded px-2 py-1"
                     onClick={() => {
                         const clone = [...filteredStatements];
+                        setBulkAcceptInProgress(true);
                         client
                             .POST("/statements/{workspace_id}/bulk_accept", {
                                 params: {
@@ -94,7 +97,7 @@ function StatementsView({
                                     ({ stm }) => stm.current.id,
                                 ),
                             })
-                            .then((newStatements) =>
+                            .then((newStatements) => {
                                 onChange(
                                     Object.fromEntries(
                                         newStatements.data.map((s, i) => [
@@ -102,12 +105,16 @@ function StatementsView({
                                             s,
                                         ]),
                                     ),
-                                ),
-                            );
+                                );
+                                setBulkAcceptInProgress(false);
+                            });
                     }}
                 >
                     Bulk accept {filteredStatements.length} triples
                 </button>
+                <div className={!bulkAcceptInProgress && "hidden"}>
+                    <Spinner />
+                </div>
             </div>
             <div className="flex min-h-0 flex-col">
                 <div className="bg-nord3 text-nord6 grid grid-cols-[30px_1fr_1fr_1fr_1fr] gap-5 font-bold">
