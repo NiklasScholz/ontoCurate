@@ -343,13 +343,9 @@ export default function WorkspacePage() {
                                     className="bg-nord8 h-7 rounded px-2"
                                     title="Export"
                                     aria-label="Export"
-<<<<<<< frontend/src/pages/WorkspacePage.tsx
-                                    onClick={() => {}}
-=======
                                     onClick={() => {
                                         setShowExport({ document: d.id });
                                     }}
->>>>>>> frontend/src/pages/WorkspacePage.tsx
                                 >
                                     <ShareIcon size={16} />
                                 </button>
@@ -457,25 +453,6 @@ export default function WorkspacePage() {
                             : "No triples have been generated yet"
                     }
                     className="bg-nord8 relative h-24 w-32 rounded px-2 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    <MergeIcon
-                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                        size={48}
-                    />
-                    <div className="relative">Deduplication</div>
-                </Link>
-                <Link
-                    to={`/query?ws=${wsId}`}
-                    className="bg-nord8 relative flex h-24 w-32 items-center justify-center rounded px-2"
-                >
-                    <SearchIcon
-                        className="text-nord8-light absolute top-0 right-0 bottom-0 left-0 m-auto"
-                        size={48}
-                    />
-                    <div className="relative">Queries</div>
-                </Link>
-                <button
-                    className="bg-nord8 relative h-24 w-32 rounded px-2"
                     onClick={() => setShowExport({ document: undefined })}
                 >
                     <ShareIcon

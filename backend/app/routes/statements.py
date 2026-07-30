@@ -48,10 +48,10 @@ async def accept_statement_endpoint(
 
     try:
         await asyncio.to_thread(
-                accept_statement,
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
+            accept_statement,
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
         )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
@@ -79,13 +79,13 @@ async def reject_statement_endpoint(
     if workspace is None:
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
-    try:       
+    try:
         await asyncio.to_thread(
-                reject_statement,
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-            )
+            reject_statement,
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
+        )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -114,13 +114,13 @@ async def edit_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-       await asyncio.to_thread(
-                edit_statement,
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-                edit=edit,
-            )
+        await asyncio.to_thread(
+            edit_statement,
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
+            edit=edit,
+        )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
