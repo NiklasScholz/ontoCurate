@@ -132,9 +132,7 @@ export default function WorkspacePage() {
 
     const handleDeleteDocument = async (doc: Document) => {
         if (
-            !window.confirm(
-                `Delete "${doc.filename}"? This cannot be undone.`,
-            )
+            !window.confirm(`Delete "${doc.filename}"? This cannot be undone.`)
         ) {
             return;
         }
@@ -211,7 +209,9 @@ export default function WorkspacePage() {
                                 ) : d.file_type === "markdown" ? (
                                     <a
                                         className="underline"
-                                        href={apiUrl(`/documents/${d.id}/markdown`)}
+                                        href={apiUrl(
+                                            `/documents/${d.id}/markdown`,
+                                        )}
                                         target="_blank"
                                         rel="noreferrer"
                                     >

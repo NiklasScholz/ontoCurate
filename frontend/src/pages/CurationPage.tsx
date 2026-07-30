@@ -3,7 +3,11 @@ import { client } from "../client";
 import Spinner from "../components/Spinner";
 import { Link, useSearchParams } from "react-router-dom";
 import Panel from "../components/Panel";
-import type { CurrentAndOriginalStatement, DocumentDetail } from "../types";
+import type {
+    CurrentAndOriginalStatement,
+    DocumentDetail,
+    Statement,
+} from "../types";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import NotFound from "./NotFound";
 import MarkdownView from "../components/MarkdownView";
@@ -47,7 +51,7 @@ function StatementsView({
     setPage: React.Dispatch<React.SetStateAction<number>>;
     setSelected: React.Dispatch<React.SetStateAction<number | undefined>>;
     workspaceId: string;
-    onChange: (index: number) => void;
+    onChange: (index: Record<string, Statement>) => void;
 }) {
     const [threshold, setThreshold] = useState<number>(0);
 
@@ -80,16 +84,26 @@ function StatementsView({
                 <button
                     className="bg-nord8 rounded px-2 py-1"
                     onClick={() => {
-                        for (const { stm, i } of filteredStatements) {
-                            client
-                                .POST("/statements/{workspace_id}/accept", {
-                                    params: {
-                                        path: { workspace_id: workspaceId },
-                                        query: { statement_id: stm.current.id },
-                                    },
-                                })
-                                .then(() => onChange(i));
-                        }
+                        const clone = [...filteredStatements];
+                        client
+                            .POST("/statements/{workspace_id}/bulk_accept", {
+                                params: {
+                                    path: { workspace_id: workspaceId },
+                                },
+                                body: filteredStatements.map(
+                                    ({ stm }) => stm.current.id,
+                                ),
+                            })
+                            .then((newStatements) =>
+                                onChange(
+                                    Object.fromEntries(
+                                        newStatements.data.map((s, i) => [
+                                            clone[i].stm.original.id,
+                                            s,
+                                        ]),
+                                    ),
+                                ),
+                            );
                     }}
                 >
                     Bulk accept {filteredStatements.length} triples
@@ -261,31 +275,18 @@ export default function CurationPage() {
         return <NotFound />;
     }
 
-    function reloadStatement(i: number) {
-        client
-            .GET(
-                "/statements/{workspace_id}/statements/{statement_id}/current",
-                {
-                    params: {
-                        path: {
-                            workspace_id: wsId,
-                            statement_id: statements[i].current.id,
-                        },
-                    },
-                },
-            )
-            .then((newStatement) => {
-                setStatements((prev) =>
-                    prev.map((stm, j) =>
-                        i === j
-                            ? {
-                                  original: prev[i].original,
-                                  current: newStatement.data,
-                              }
-                            : stm,
-                    ),
-                );
-            });
+    function updateStatements(update: Record<string, Statement>) {
+        console.log("UPDATES", update);
+        setStatements((prev) =>
+            prev.map((stm, i) =>
+                stm.original.id in update
+                    ? {
+                          original: prev[i].original,
+                          current: update[stm.original.id],
+                      }
+                    : stm,
+            ),
+        );
     }
 
     return (
@@ -332,16 +333,13 @@ export default function CurationPage() {
                         setPage={setPage}
                         setSelected={setSelected}
                         workspaceId={wsId}
-                        onChange={(i) => reloadStatement(i)}
+                        onChange={(update) => updateStatements(update)}
                     />
                 )) ||
                     (tab === "document" && docId !== null && (
                         <>
                             {doc ? (
-                                <MarkdownView
-                                    text={doc.markdown}
-                                    spans={[]}
-                                />
+                                <MarkdownView text={doc.markdown} spans={[]} />
                             ) : (
                                 <Spinner />
                             )}
@@ -362,7 +360,7 @@ export default function CurationPage() {
                         onClose={() => setSelected(undefined)}
                         onNext={() => setSelected(selected + 1)}
                         onPrevious={() => setSelected(selected - 1)}
-                        onChange={(i) => reloadStatement(i)}
+                        onChange={(update) => updateStatements(update)}
                         index={selected}
                         total={statements.length}
                         statement={statements[selected]}

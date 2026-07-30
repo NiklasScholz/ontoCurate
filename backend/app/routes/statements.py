@@ -8,7 +8,7 @@ from app.core.exceptions import NotFoundException
 from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.workspace import WorkspaceRepository
-from app.schemas.statement import StatementEdit, StatementIdResponse, StatementResponse
+from app.schemas.statement import StatementEdit, StatementResponse
 from app.store.client import curation_graph
 from app.store.queries import get_current_candidate_statement
 from app.store.writer import (
@@ -28,7 +28,7 @@ router = APIRouter(
     "/{workspace_id}/accept",
     status_code=200,
     dependencies=[Depends(require_role("owner", "editor"))],
-    response_model=StatementIdResponse,
+    response_model=StatementResponse,
 )
 async def accept_statement_endpoint(
     workspace_id: UUID,
@@ -46,13 +46,12 @@ async def accept_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        return StatementIdResponse(
-            id=accept_statement(
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-            )
+        accept_statement(
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
         )
+        return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -61,7 +60,7 @@ async def accept_statement_endpoint(
     "/{workspace_id}/reject",
     status_code=200,
     dependencies=[Depends(require_role("owner", "editor"))],
-    response_model=StatementIdResponse,
+    response_model=StatementResponse,
 )
 async def reject_statement_endpoint(
     workspace_id: UUID,
@@ -79,13 +78,12 @@ async def reject_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        return StatementIdResponse(
-            id=reject_statement(
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-            )
+        reject_statement(
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
         )
+        return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -94,6 +92,7 @@ async def reject_statement_endpoint(
     "/{workspace_id}/edit",
     status_code=200,
     dependencies=[Depends(require_role("owner", "editor"))],
+    response_model=StatementResponse,
 )
 async def edit_statement_endpoint(
     workspace_id: UUID,
@@ -112,22 +111,22 @@ async def edit_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        return StatementIdResponse(
-            id=edit_statement(
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-                edit=edit,
-            )
+        edit_statement(
+            stmt_id=statement_id,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
+            edit=edit,
         )
+        return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(
     "/{workspace_id}/reset",
-    response_model=StatementResponse,
+    status_code=200,
     dependencies=[Depends(require_role("owner", "editor"))],
+    response_model=StatementResponse,
 )
 async def reset_statement_endpoint(
     workspace_id: UUID,
@@ -151,6 +150,42 @@ async def reset_statement_endpoint(
             triggered_by=current_user.id,
             workspace_id=str(workspace.id),
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{workspace_id}/bulk_accept",
+    status_code=200,
+    dependencies=[Depends(require_role("owner", "editor"))],
+    response_model=list[StatementResponse],
+)
+async def bulk_accept(
+    workspace_id: UUID,
+    statement_ids: list[str],
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    workspace_repo = WorkspaceRepository(session)
+
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None:
+        raise NotFoundException(f"Workspace {workspace_id} not found")
+
+    try:
+        result = []
+        for statement_id in statement_ids:
+            accept_statement(
+                stmt_id=statement_id,
+                triggered_by=current_user.id,
+                workspace_id=str(workspace.id),
+            )
+            result.append(
+                await get_current_statement_endpoint(
+                    workspace_id, statement_id, session
+                )
+            )
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

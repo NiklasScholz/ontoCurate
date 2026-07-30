@@ -618,6 +618,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/statements/{workspace_id}/bulk_accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Accept */
+        post: operations["bulk_accept_statements__workspace_id__bulk_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/statements/{workspace_id}/statements/{statement_id}/current": {
         parameters: {
             query?: never;
@@ -1096,11 +1113,6 @@ export interface components {
             object_value?: string | null;
             /** Object Iri */
             object_iri?: string | null;
-        };
-        /** StatementIdResponse */
-        StatementIdResponse: {
-            /** Id */
-            id: string;
         };
         /** StatementResponse */
         StatementResponse: {
@@ -2121,7 +2133,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementIdResponse"];
+                    "application/json": components["schemas"]["StatementResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2154,7 +2166,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementIdResponse"];
+                    "application/json": components["schemas"]["StatementResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2191,7 +2203,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["StatementResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2225,6 +2237,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_accept_statements__workspace_id__bulk_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResponse"][];
                 };
             };
             /** @description Validation Error */
