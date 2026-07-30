@@ -1,73 +1,214 @@
+# Literals dervied from graph neigbors that are required for lookup services (e.g. affiliation or publication doi for a Person)
+# as = the name of the literal to be derived
+# from_literal = the name of a literal on the entity itself to derive from
+# from_relation_in = the name of a relation on the entity to derive from (incoming edge)
+# from_relation_out = the name of a relation on the entity to derive from (outgoing edge)
+# relation_literal = the name of a literal on the related entity to derive from
+literal_derivation:
+  Person:
+    - as: orcid
+      from_literal: identifier
+    - as: doi
+      from_relation_in: author
+      relation_literal: doi
+    - as: affiliation
+      from_relation_out: affiliation
+      relation_literal: name
+
 wikidata_lookup:
   settings:
     candidate_limit: 5
     language: en
-    request_delay_seconds: 0.1 
+    request_delay_seconds: 0.1
 
+    default_threshold: 0.8
+    default_weights:
+      syntactic: 0.7
+      semantic: 0.3
+    default_comparison_predicates:
+      - name
+    default_semantic_text_predicates:
+      - name
+    default_expand_initials: false
+
+  # Entity types that should be looked up in Wikidata and their configurations.
+  # require_any_of: a list of predicates that must be present for the lookup service to trigger
+  # instance_of: a list of Wikidata QIDs that the candidate must be an instance of to be considered valid (e.g. Q5 for humans)
+  # search_queries: a list of query rules to generate search queries from the entity's literals
+  # candidate_literals: a mapping of local literal names to the respective wikidata property used for scoring
+  # scoring: configuration for scoring candidates, including thresholds and weights for syntactic and semantic similarity (same as in the alignment config)
   entity_types:
-    AcademicArticle:
-      search_queries:
-        - predicates:
-            - title
-          max_queries: 2
-
-      candidate_literals:
-        title:
-          - source: label
-          - source: aliases
-
     Person:
+      require_any_of:
+        - givenName
+      instance_of:
+        - Q5  # human
+
       search_queries:
         - predicates:
             - givenName
             - familyName
           require_all: true
           join_with: " "
-          fallback_predicates:
-            - familyName
-          max_queries: 1
 
         - predicates:
             - name
-          max_queries: 2
+
       candidate_literals:
         name:
           - source: label
           - source: aliases
         givenName:
-        - source: item_claim_labels
-          property: P735
-
+          - source: item_claim_labels
+            property: P735
         familyName:
           - source: item_claim_labels
             property: P734
-
         orcid:
           - source: string_claims
             property: P496
+
       scoring:
         threshold: 0.98
         weights:
           syntactic: 1.0
           semantic: 0.0
-          structural: 0.0
         comparison_predicates:
           - name
         semantic_text_predicates:
           - name
-        expand_initials: false
         sparsity_penalty: 1.0
         sparsity_max_fields: 1
         hard_match_predicates:
           name: 0.98
+        unresolved_orcid_penalty: 0.4
 
     Organization:
+      instance_of:
+        - Q43229  # organization
+        - Q3918  # university
+        - Q2085381  # publishing house
+
       search_queries:
         - predicates:
             - name
-          max_queries: 2
 
       candidate_literals:
         name:
           - source: label
           - source: aliases
+
+      scoring:
+        threshold: 0.90
+        weights:
+          syntactic: 0.85
+          semantic: 0.15
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+
+    Conference:
+      instance_of:
+        - Q2020153 # conference
+        - Q47258130  # academic conference series
+
+      search_queries:
+        - predicates:
+            - name
+
+      candidate_literals:
+        name:
+          - source: label
+          - source: aliases
+
+      scoring:
+        threshold: 0.82
+        weights:
+          syntactic: 0.15
+          semantic: 0.85
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+        expand_initials: true
+
+    Workshop:
+      instance_of:
+        - Q40444998  # academic workshop
+
+      search_queries:
+        - predicates:
+            - name
+
+      candidate_literals:
+        name:
+          - source: label
+          - source: aliases
+
+      scoring:
+        threshold: 0.85
+        weights:
+          syntactic: 0.5
+          semantic: 0.5
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+
+orcid_lookup:
+  settings:
+    candidate_limit: 5
+    request_delay_seconds: 0.1
+
+    # Maps local predicates to orcid API field names
+    field_names:
+      givenName: given-names
+      familyName: family-name
+      name: text
+      doi: digital-object-ids
+      affiliation: current-institution-affiliation-name
+
+  entity_types:
+    Person:
+      require_any_of:
+        - doi
+        - affiliation
+
+      search_queries:
+        - predicates:
+            - familyName
+            - doi
+          require_all: true
+
+        - predicates:
+            - familyName
+            - affiliation
+          require_all: true
+
+        - predicates:
+            - givenName
+            - familyName
+          require_all: true
+          join_with: " "
+          fallback_predicates:
+            - name
+
+        - predicates:
+            - name
+
+      scoring:
+        threshold: 0.9
+        weights:
+          syntactic: 1.0
+          semantic: 0.0
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+        sparsity_penalty: 1.0
+        sparsity_max_fields: 1
+        hard_match_predicates:
+          orcid: 1.0
+        # never accept a candidate with an unresolved ORCID
+        unresolved_orcid_penalty: 0.4
