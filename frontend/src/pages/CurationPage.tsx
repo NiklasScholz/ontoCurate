@@ -283,7 +283,6 @@ export default function CurationPage() {
     }
 
     function updateStatements(update: Record<string, Statement>) {
-        console.log("UPDATES", update);
         setStatements((prev) =>
             prev.map((stm, i) =>
                 stm.original.id in update
