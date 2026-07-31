@@ -58,7 +58,7 @@ datatype_properties:
         heading: "References"
 ```
 
-- **exact_only_predicates**: predicates for which only exact, case-insensitive, date-aware, and normalized matches are accepted (Tiers 1–5). Fuzzy and abbreviation matching (Tiers 6–7) are skipped. If no verbatim match is found the triple is left unannotated (`confidence = None`) rather than receiving a misleading fuzzy score. Intended for identifier fields (ISSN, DOI, etc.) where a digit-sequence fuzzy match against unrelated text produces false confidence.
+- **exact_only_predicates**: predicates for which only exact, case-insensitive, date-aware, normalized, and URL suffix matches are accepted (Tiers 1–6). Fuzzy and abbreviation matching (Tiers 7–8) are skipped. If no verbatim match is found the triple is left unannotated (`confidence = None`) rather than receiving a misleading fuzzy score. Intended for identifier fields (ISSN, DOI, etc.) where a digit-sequence fuzzy match against unrelated text produces false confidence.
 - **windows**: per-predicate window declarations. A predicate can declare a single window or a list — when multiple are declared the highest-confidence match across all windows wins. Supported strategies: `head` (first N chars), `tail` (last N chars), `section` (search for markdown heading), `full` (entire document, default).
 - **outlier_pentalty_entities**: only entities whose `rdf:type` local name appears in this list are subject to the outlier penalty.
 - **date_languages**: default `[en]`. Add code for everylanguage that maybe used for source documents. This is used for date matching using the `dataparser` library, which enables date recognition in over 200 languages. To reduce runtime signficantly, the config restricts to those languages possibly being present in uploaded source documents.
@@ -82,10 +82,13 @@ After cleaning white space and new lines (incl. intra-word) a confidence score o
 #### Tier 5: Markdown Normalized Match
 Same as Tier 4, but markdown inline markers (`*`, `_`, `` ` ``) and em/en dashes are additionally removed before comparing, to catch matches that were not caught due to markdown formatting of the conversion. Yields a confidence score of 0.88.
 
-#### Tier 6: Abbreviation Match:
+#### Tier 6: URL Suffix Match
+When the target value is a URL (`http://` or `https://`) that without previous matches, its last path segment (e.g. `0000-0000-0000-0000` from `https://orcid.org/0000-0000-0000-0000`) is searched for in the text. This can catch identifiers such as doi or orcid and yields a confidence score of 0.85.
+
+#### Tier 7: Abbreviation Match:
 If partial abbreviations were found (e.g. KG Graph for Knowledge Graph) a confidence score of 0.75 is returned 
 
-#### Tier 7: Fuzzy Matches:
+#### Tier 8: Fuzzy Matches:
 On sentence level partial_ratio from rapidfuzz is provided (if best sentence score is >= 50). It expects to find a partial matching sentence in source of target length. 
 
 ### Penalities to Out-Of-Window & Outliers

@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { client } from "../client";
 import Spinner from "../components/Spinner";
-import { Link, useSearchParams } from "react-router-dom";
+import { TableSkeleton } from "../components/Skeleton";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import Panel from "../components/Panel";
 import type {
     CurrentAndOriginalStatement,
@@ -209,13 +210,22 @@ function StatementsView({
             </div>
         </div>
     ) : (
-        <Spinner />
+        <TableSkeleton
+            gridColsClassName="grid-cols-[30px_1fr_1fr_1fr_1fr]"
+            columns={5}
+            rows={20}
+        />
     );
 }
 
 export default function CurationPage() {
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const [selected, setSelected] = useState<number | undefined>(undefined);
+
+    // load filename immediately if known from previous page, to avoid spinner when statements request is handled first by backend
+    const filenameFromState = (location.state as { filename?: string } | null)
+        ?.filename;
 
     const [doc, setDoc] = useState<DocumentDetail | undefined>(undefined);
 
@@ -309,7 +319,11 @@ export default function CurationPage() {
                         {docId === null ? (
                             <>Deduplication</>
                         ) : (
-                            <>Document {doc ? doc.filename : <Spinner />}</>
+                            <>
+                                Document{" "}
+                                {doc?.filename ??
+                                    filenameFromState ?? <Spinner />}
+                            </>
                         )}
                     </h1>
                 </div>

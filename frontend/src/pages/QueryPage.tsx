@@ -184,13 +184,16 @@ export default function QueryPage() {
                 ) : result.rows.length === 0 ? (
                     <div className="text-center italic">No results.</div>
                 ) : (
-                    <div className="flex max-h-[32rem] flex-col overflow-scroll text-sm">
+                    <div className="flex max-h-[32rem] flex-col text-sm">
                         <div
-                            className="bg-nord6 sticky top-0 grid gap-5 font-bold"
+                            className="bg-nord3 text-nord6 grid gap-5 font-bold"
                             style={{
-                                gridTemplateColumns: `repeat(${result.variables.length}, 1fr)`,
+                                gridTemplateColumns: `30px repeat(${result.variables.length}, 1fr)`,
                             }}
                         >
+                            <div className="overflow-hidden text-right text-nowrap text-ellipsis">
+                                #
+                            </div>
                             {result.variables.map((v) => (
                                 <div
                                     key={v}
@@ -200,28 +203,33 @@ export default function QueryPage() {
                                 </div>
                             ))}
                         </div>
-                        {result.rows.map((row, i) => (
-                            <div
-                                key={i}
-                                className="even:bg-nord4 grid gap-5"
-                                style={{
-                                    gridTemplateColumns: `repeat(${result.variables.length}, 1fr)`,
-                                }}
-                            >
-                                {result.variables.map((v) => (
-                                    <div
-                                        key={v}
-                                        className={`overflow-hidden text-nowrap text-ellipsis ${
-                                            row[v]?.type === "uri"
-                                                ? "font-mono"
-                                                : ""
-                                        }`}
-                                    >
-                                        {row[v]?.value ?? ""}
+                        <div className="flex flex-col overflow-scroll">
+                            {result.rows.map((row, i) => (
+                                <div
+                                    key={i}
+                                    className="even:bg-nord4 grid gap-5"
+                                    style={{
+                                        gridTemplateColumns: `30px repeat(${result.variables.length}, 1fr)`,
+                                    }}
+                                >
+                                    <div className="overflow-hidden text-right text-nowrap text-ellipsis">
+                                        {i + 1}
                                     </div>
-                                ))}
-                            </div>
-                        ))}
+                                    {result.variables.map((v) => (
+                                        <div
+                                            key={v}
+                                            className={`overflow-hidden text-nowrap text-ellipsis ${
+                                                row[v]?.type === "uri"
+                                                    ? "font-mono"
+                                                    : ""
+                                            }`}
+                                        >
+                                            {row[v]?.value ?? ""}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ))}
         </Panel>

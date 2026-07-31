@@ -1,5 +1,10 @@
-import { XIcon } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { ExternalLinkIcon, XIcon } from "lucide-react";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { client } from "../client";
+
+const REPO_URL =
+    "https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate";
 
 const STEPS = [
     "Create or open a shared workspace with a configured ontology",
@@ -48,7 +53,12 @@ const CONFIDENCE_BANDS: ConfidenceBand[] = [
 
 const PAGE_HELP: Record<
     string,
-    { title: string; body: string; confidenceTable?: boolean }
+    {
+        title: string;
+        body: string;
+        confidenceTable?: boolean;
+        showSchemaLink?: boolean;
+    }
 > = {
     "/workspaces": {
         title: "Workspaces",
@@ -61,22 +71,51 @@ const PAGE_HELP: Record<
     "/workspace": {
         title: "Workspace",
         body: "Upload documents and start extraction runs guided by the workspace's ontology. Once a run finishes, open the document or deduplicaion view to review generated triples. You can also export the triples to json-ld or ttl format for use in other tools.",
+        showSchemaLink: true,
     },
     "/upload": {
         title: "Upload",
         body: "Upload the documents you want to extract knowledge triples from. This will start the LLM extraction process guided by the ontology specified for this workspace. Note that depending on the ontology and currently submitted runs, the extraction process may take some time to complete. For deeply nested schemas and many documents, this can possibly take multiple hours due to the recursive prompting of LLMs.",
+        showSchemaLink: true,
     },
     "/curation": {
         title: "Curation",
-        body: "Browse extracted triples on the left. Click one to inspect the source text, confidence and graph neighborhood, then accept, edit, or reject it. Bulk Accept is available for high-confidence triples.\n\nPlease note that these confidence scores are based on syntactic and semantic heuristics and may not always be accurately reflective of the true quality of LLM extracted triples. We recommend reviewing all triples broadly before accepting via bulk. \n\nThe table reflects the scores for extraction confidence. Please note that alignment confidence scores follow different heuristics (i.e., they will always be above a certain threshold based on semantic, syntactic and structural similarity as configured for the ontology). \n For more information on how these scores are calculated, please refer to the documentation.",
+        body: "Browse extracted triples on the left. Click one to inspect the source text, confidence and graph neighborhood, then accept, edit, or reject it. Bulk Accept is available for high-confidence triples.\n\nPlease note that these confidence scores are based on syntactic and semantic heuristics and may not always be accurately reflective of the true quality of LLM extracted triples. We recommend reviewing all triples broadly before accepting via bulk. \n\nThe table reflects the scores for extraction confidence. Please note that alignment confidence scores follow different heuristics (i.e., they will always be above a certain threshold based on semantic, syntactic and structural similarity as configured for the ontology).",
         confidenceTable: true,
+        showSchemaLink: true,
     },
 };
 
 export default function HelpDialog({ onClose }: { onClose: () => void }) {
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const pageHelp = PAGE_HELP[location.pathname];
     const showSteps = STEPS_PATHS.includes(location.pathname);
+
+    const workspaceId = searchParams.get("ws");
+    const [workspaceSchema, setWorkspaceSchema] = useState<
+        { workspaceId: string; repoPath: string } | undefined
+    >(undefined);
+
+    useEffect(() => {
+        if (!workspaceId) return;
+        client
+            .GET("/workspaces/{workspace_id}", {
+                params: { path: { workspace_id: workspaceId } },
+            })
+            .then(({ data }) => {
+                if (data?.schema_repo_path)
+                    setWorkspaceSchema({
+                        workspaceId,
+                        repoPath: data.schema_repo_path,
+                    });
+            });
+    }, [workspaceId]);
+
+    const schemaRepoPath =
+        workspaceSchema?.workspaceId === workspaceId
+            ? workspaceSchema.repoPath
+            : undefined;
 
     return (
         <div className="bg-nord6 flex max-h-[80vh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded p-4 shadow-xl">
@@ -106,6 +145,18 @@ export default function HelpDialog({ onClose }: { onClose: () => void }) {
                 <div className="border-nord4 flex flex-col gap-1 border-t pt-3">
                     <span className="text-base font-medium">Information about {pageHelp.title}</span>
                     <p className="text-base whitespace-pre-line opacity-80">{pageHelp.body}</p>
+
+                    {pageHelp.showSchemaLink && schemaRepoPath && (
+                        <a
+                            href={`${REPO_URL}/-/blob/main/${schemaRepoPath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-nord10 flex items-center gap-1 text-base"
+                        >
+                            View this workspace's schema in the repository
+                            <ExternalLinkIcon size={14} />
+                        </a>
+                    )}
 
                     {pageHelp.confidenceTable && (
                         <table className="mt-2 w-full border-collapse text-left text-base">

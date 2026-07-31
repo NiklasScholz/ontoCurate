@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -124,7 +125,9 @@ async def get_triple_count(
 
     document_entity = create_source_document_entity(str(document_id)).value
 
-    payload = sparql_select(f"""
+    payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT (COUNT(*) AS ?count) WHERE {{
             GRAPH <{graph}> {{
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
@@ -137,7 +140,8 @@ async def get_triple_count(
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     rows = [b["count"]["value"] for b in payload.get("results", {}).get("bindings", [])]
 
@@ -211,7 +215,9 @@ async def delete_document(
         raise ForbiddenException(
             f"Only workspace owners can delete document {document_id}"
         )
-    delete_document_data(str(doc.workspace_id), str(document_id))
+    await asyncio.to_thread(
+        delete_document_data, str(doc.workspace_id), str(document_id)
+    )
     await DocumentRepository(session).delete(document_id)
 
 
@@ -250,7 +256,9 @@ async def get_document_statements(
 
     document_entity = create_source_document_entity(str(document_id)).value
 
-    payload = sparql_select(f"""
+    payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -263,14 +271,17 @@ async def get_document_statements(
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
-    originals_payload = sparql_select(f"""
+    originals_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -281,7 +292,8 @@ async def get_document_statements(
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     originals_rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
@@ -317,8 +329,8 @@ async def get_related_spans_endpoint(
     if not role:
         raise ForbiddenException(f"You do not have access to document {document_id}")
 
-    subject_spans, object_spans = get_related_spans(
-        str(workspace_id), str(document_id), subject, object
+    subject_spans, object_spans = await asyncio.to_thread(
+        get_related_spans, str(workspace_id), str(document_id), subject, object
     )
     return RelatedSpansResponse(subject_spans=subject_spans, object_spans=object_spans)
 
@@ -428,7 +440,9 @@ async def export_document_provenance(
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
-    content = query_export_document_provenance(graph, document_entity, format, prefixes)
+    content = await asyncio.to_thread(
+        query_export_document_provenance, graph, document_entity, format, prefixes
+    )
     return Response(
         content=content,
         media_type=media_type,
@@ -451,7 +465,9 @@ async def export_document_data(
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(doc.workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
-    content = query_export_document_data(graph, document_entity, format, prefixes)
+    content = await asyncio.to_thread(
+        query_export_document_data, graph, document_entity, format, prefixes
+    )
     return Response(
         content=content,
         media_type=media_type,

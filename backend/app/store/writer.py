@@ -323,9 +323,6 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
     # Get confidence score
     confidence_score = props.get(PACO_CONFIDENCE)
 
-    if confidence_score is None:
-        raise ValueError(f"Statement {stmt_id} is missing confidence score")
-
     # Get text span if exists
     text_span_start = None
     text_span_end = None
@@ -761,13 +758,17 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
             Triple(new_statement, NamedNode(PACO_ORIGIN), curator),
             Triple(new_statement, NamedNode(PROV_GENERATED_BY), accepting_activity),
             Triple(new_statement, NamedNode(PROV_DERIVED_FROM), NamedNode(stmt_id)),
+        ]
+    )
+
+    if confidence_score is not None:
+        triples.append(
             Triple(
                 new_statement,
                 NamedNode(PACO_CONFIDENCE),
                 Literal(confidence_score, datatype=NamedNode(XSD_FLOAT)),
-            ),
-        ]
-    )
+            )
+        )
 
     if text_span_start is not None and text_span_end is not None:
         triples.append(
@@ -933,13 +934,17 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
             Triple(new_statement, NamedNode(PACO_ORIGIN), curator),
             Triple(new_statement, NamedNode(PROV_GENERATED_BY), rejecting_activity),
             Triple(new_statement, NamedNode(PROV_DERIVED_FROM), NamedNode(stmt_id)),
+        ]
+    )
+
+    if confidence_score is not None:
+        triples.append(
             Triple(
                 new_statement,
                 NamedNode(PACO_CONFIDENCE),
                 Literal(confidence_score, datatype=NamedNode(XSD_FLOAT)),
-            ),
-        ]
-    )
+            )
+        )
 
     if text_span_start is not None and text_span_end is not None:
         triples.append(
@@ -1135,13 +1140,17 @@ def edit_statement(
             Triple(new_statement, NamedNode(PACO_ORIGIN), curator),
             Triple(new_statement, NamedNode(PROV_GENERATED_BY), editing_activity),
             Triple(new_statement, NamedNode(PROV_DERIVED_FROM), NamedNode(stmt_id)),
+        ]
+    )
+
+    if confidence_score is not None:
+        triples.append(
             Triple(
                 new_statement,
                 NamedNode(PACO_CONFIDENCE),
                 Literal(confidence_score, datatype=NamedNode(XSD_FLOAT)),
-            ),
-        ]
-    )
+            )
+        )
 
     if text_span_start is not None and text_span_end is not None:
         triples.append(
@@ -1313,12 +1322,16 @@ def reset_statement(
             NamedNode(PROV_DERIVED_FROM),
             NamedNode(stmt_id),
         ),
-        Triple(
-            new_statement,
-            NamedNode(PACO_CONFIDENCE),
-            Literal(original_confidence_score),
-        ),
     ]
+
+    if original_confidence_score is not None:
+        triples.append(
+            Triple(
+                new_statement,
+                NamedNode(PACO_CONFIDENCE),
+                Literal(original_confidence_score),
+            )
+        )
 
     if original_text_span_start is not None and original_text_span_end is not None:
         triples.extend(

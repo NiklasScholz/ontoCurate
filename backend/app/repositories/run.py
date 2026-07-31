@@ -71,6 +71,24 @@ class RunRepository:
             run_id, document_id, status, task_name=task_name
         )
 
+    async def reset_document_for_retry(
+        self, run_id: UUID, document_id: UUID, task_name: str
+    ) -> None:
+        await self.session.execute(
+            update(RunTask)
+            .where(RunTask.run_id == run_id, RunTask.document_id == document_id)
+            .values(status="Queued", task_name=task_name, celery_task_id=None)
+        )
+        await self.session.commit()
+
+    async def get_task(self, run_id: UUID, document_id: UUID) -> RunTask | None:
+        result = await self.session.execute(
+            select(RunTask).where(
+                RunTask.run_id == run_id, RunTask.document_id == document_id
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_tasks_by_run(self, run_id: UUID) -> list[RunTask]:
         result = await self.session.execute(
             select(RunTask).where(RunTask.run_id == run_id)

@@ -1,9 +1,9 @@
-id: http://example.org/scholarly-metadata-ontology
-name: scholarly-metadata-ontology
-title: Scholarly Metadata Ontology
+id: https://ontocurate.app/scholarly-metadata-ontology
+name: scholarly-metadata-ontology-no-citations
+title: Scholarly Metadata Ontology without Citations
 description: >-
   Application ontology for extracting metadata from scholarly conference papers,
-  proceedings, and journal articles. Reuses bibo:, schema:, dcterms:, foaf:, and cito:.
+  proceedings, and journal articles. Reuses bibo:, schema:, dcterms:, foaf:.
 
 prefixes:
   linkml:  https://w3id.org/linkml/
@@ -11,8 +11,7 @@ prefixes:
   bibo:    http://purl.org/ontology/bibo/
   dcterms: http://purl.org/dc/terms/
   foaf:    http://xmlns.com/foaf/0.1/
-  cito:    http://purl.org/spar/cito/
-  smo:     http://example.org/scholarly-metadata-ontology#
+  smo:     https://ontocurate.app/scholarly-metadata-ontology-no-citations#
 
 default_prefix: smo
 default_range: string

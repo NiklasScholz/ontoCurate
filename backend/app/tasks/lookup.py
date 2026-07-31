@@ -32,12 +32,15 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             async with AsyncSessionLocal() as session:
                 tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
             for t in tasks:
+                if t.status == "Failed":
+                    # Skip updating failed tasks
+                    continue
                 async with AsyncSessionLocal() as session:
                     await RunRepository(session).update_document_status(
                         UUID(run_id), t.document_id, status, task_name=task_name
                     )
 
-        await update_all("aligning", task_name="Entity Lookup")
+        await update_all("Running", task_name="External Lookup")
         working_dir = TMP_BASE / run_id
         try:
             async with AsyncSessionLocal() as session:
@@ -67,14 +70,14 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 ttl_files = list(working_dir.glob("*.ttl"))
                 if not ttl_files:
                     logger.info("[%s] No TTL files found in working directory", run_id)
-                    await update_all("done", task_name="Entity Lookup")
+                    await update_all("Done", task_name="External Lookup")
                     return
                 for ttl_path in ttl_files:
                     entities.extend(load_entity_information(ttl_path))
 
             if not entities:
                 logger.info("[%s] No entities found in merged TTL", run_id)
-                await update_all("done", task_name="Entity Lookup")
+                await update_all("Done", task_name="Lookup")
                 return
 
             logger.info(
@@ -95,7 +98,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             if not total_results:
                 logger.info("[%s] No entity lookup result(s) above threshold", run_id)
 
-            await update_all("done", task_name="Entity Lookup")
+            await update_all("Done", task_name="Lookup")
             logger.info(
                 "[%s] Entity lookup complete: %d result(s) written",
                 run_id,
@@ -103,7 +106,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
             )
 
         except Exception:
-            await update_all("failed")
+            await update_all("Failed", task_name="Lookup")
             logger.exception("[%s] Entity lookup failed", run_id)
             raise
         finally:

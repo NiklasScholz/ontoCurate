@@ -25,6 +25,15 @@ def align_document_task(self, extract_result: tuple) -> str:
         extract_result
     )
 
+    if ttl_path is None:
+        # Skip document failed in the extraction stage
+        logger.info(
+            "[%s] Skipping alignment, previous stage failed: document=%s",
+            run_id,
+            document_id,
+        )
+        return document_id
+
     logger.info("[%s] Aligning: document=%s", run_id, document_id)
 
     ttl_path = Path(ttl_path)
@@ -37,7 +46,7 @@ def align_document_task(self, extract_result: tuple) -> str:
                     UUID(run_id), UUID(document_id), status, task_name=task_name
                 )
 
-        await update_status("aligning", task_name="Inner Document Alignment")
+        await update_status("Running", task_name="Inner Document Alignment")
         try:
             async with AsyncSessionLocal() as session:
                 workspace = await WorkspaceRepository(session).get_by_id(
@@ -63,17 +72,16 @@ def align_document_task(self, extract_result: tuple) -> str:
 
             other_tasks = [t for t in tasks if str(t.document_id) != document_id]
             all_others_finished = all(
-                t.status in {"waiting", "done", "failed"} for t in other_tasks
+                t.status in {"Waiting", "Done", "Failed"} for t in other_tasks
             )
             if all_others_finished:
-                await update_status("queued", task_name="Cross-Document Alignment")
+                await update_status("Queued", task_name="Cross-Document Alignment")
             else:
-                await update_status("waiting", task_name="Cross-Document Alignment")
+                await update_status("Waiting", task_name="Cross-Document Alignment")
             logger.info("[%s] Alignment complete: document=%s", run_id, document_id)
         except Exception:
-            await update_status("failed")
+            await update_status("Failed")
             logger.exception("[%s] Alignment failed: document=%s", run_id, document_id)
-            raise
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 

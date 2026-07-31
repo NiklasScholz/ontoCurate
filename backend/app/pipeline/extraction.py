@@ -142,10 +142,20 @@ def name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
     )
 
 
+def default_prefix_from_schema(schema_path: Path | None) -> str:
+    "Returns the default_prefix of linkml schema, so fallback ids work correctly."
+    if schema_path is None:
+        return "smo"
+    raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
+    return raw.get("default_prefix", "smo")
+
+
 INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
 
 
-def fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> str:
+def fallback_id(
+    obj: dict, name_fields: tuple[str, ...], doc_name: str = "", prefix: str = "smo"
+) -> str:
     """Generates a stable, TTL-safe URI for an entity that lacks one."""
     value = obj.get("name") if "name" in name_fields else None
     if value and isinstance(value, str):
@@ -177,7 +187,7 @@ def fallback_id(obj: dict, name_fields: tuple[str, ...], doc_name: str = "") -> 
         :6
         # ensures no conflicts during conversion. Same entities will be linked later during alignment phases.
     ]
-    return f"smo:{local}_{digest}"
+    return f"{prefix}:{local}_{digest}"
 
 
 # Cleaning of results so ttl conversion does not fail
@@ -206,12 +216,15 @@ def clean_result(
     name_fields: tuple[str, ...],
     counters: defaultdict,
     doc_name: str = "",
+    prefix: str = "smo",
 ) -> object:
     """Recursively clean the extraction result to ensure TTL conversion does not fail."""
     if isinstance(obj, dict):
         cleaned: dict = {}
         for k, v in obj.items():
-            v = clean_result(v, uri_fields, name_fields, counters, doc_name=doc_name)
+            v = clean_result(
+                v, uri_fields, name_fields, counters, doc_name=doc_name, prefix=prefix
+            )
             if k in uri_fields and isinstance(v, str):
                 norm = normalize_unicode(v.strip())
                 if not is_valid_uri(norm):
@@ -232,14 +245,25 @@ def clean_result(
                 or raw_id.endswith(":AUTO")
                 or raw_id.endswith("/AUTO")
             ):
-                cleaned["id"] = fallback_id(cleaned, name_fields, doc_name=doc_name)
+                cleaned["id"] = fallback_id(
+                    cleaned, name_fields, doc_name=doc_name, prefix=prefix
+                )
         if "id" not in cleaned and any(cleaned.get(f) for f in name_fields):
-            cleaned["id"] = fallback_id(cleaned, name_fields, doc_name=doc_name)
+            cleaned["id"] = fallback_id(
+                cleaned, name_fields, doc_name=doc_name, prefix=prefix
+            )
         return cleaned
 
     if isinstance(obj, list):
         cleaned_list = [
-            clean_result(item, uri_fields, name_fields, counters, doc_name=doc_name)
+            clean_result(
+                item,
+                uri_fields,
+                name_fields,
+                counters,
+                doc_name=doc_name,
+                prefix=prefix,
+            )
             for item in obj
         ]
         merged: dict[str, dict] = {}
@@ -286,9 +310,15 @@ def clean_extraction(
 
     uri_fields = uri_fields_from_schema(schema_path)
     name_fields = name_fields_from_schema(schema_path)
+    prefix = default_prefix_from_schema(schema_path)
 
     data = clean_result(
-        data, uri_fields, name_fields, defaultdict(int), doc_name=doc_name
+        data,
+        uri_fields,
+        name_fields,
+        defaultdict(int),
+        doc_name=doc_name,
+        prefix=prefix,
     )
 
     output_path.write_text(

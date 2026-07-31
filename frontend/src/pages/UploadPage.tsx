@@ -6,7 +6,7 @@ import {
     TrashIcon,
     TriangleAlertIcon,
 } from "lucide-react";
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { client } from "../client";
 import NotFound from "./NotFound";
 
@@ -18,9 +18,25 @@ export default function UploadPage() {
     const [files, setFiles] = useState<{ id: string; data: File }[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (wsId === null) {
         return <NotFound />;
+    }
+
+    function addFiles(newFiles: FileList | File[]) {
+        for (const file of Array.from(newFiles)) {
+            if (!/\.(pdf|md)$/i.test(file.name)) {
+                alert("Only PDF or Markdown files are accepted!");
+                return;
+            }
+        }
+        setFiles([
+            ...files,
+            ...Array.from(newFiles).map((data) => {
+                return { id: crypto.randomUUID(), data };
+            }),
+        ]);
     }
 
     function onDragEnter(e: DragEvent<HTMLDivElement>) {
@@ -41,19 +57,14 @@ export default function UploadPage() {
     function onDrop(e: DragEvent<HTMLDivElement>) {
         e.preventDefault();
         e.stopPropagation();
+        addFiles(e.dataTransfer.files);
+    }
 
-        for (const file of Array.from(e.dataTransfer.files)) {
-            if (file.type !== "application/pdf") {
-                alert("Only PDF files are accepted!");
-                return;
-            }
+    function onFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+        if (e.target.files && e.target.files.length > 0) {
+            addFiles(e.target.files);
         }
-        setFiles([
-            ...files,
-            ...Array.from(e.dataTransfer.files).map((data) => {
-                return { id: crypto.randomUUID(), data };
-            }),
-        ]);
+        e.target.value = "";
     }
 
     return (
@@ -68,15 +79,34 @@ export default function UploadPage() {
                 <h1 className="text-center text-xl">Upload documents</h1>
             </div>
 
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.md,text/markdown"
+                multiple
+                className="hidden"
+                onChange={onFileInputChange}
+            />
+
             <div
-                className="border-nord3/50 flex min-h-24 items-center justify-center border-4 border-dashed"
+                className="border-nord3/50 flex max-h-[50vh] min-h-24 flex-wrap items-center justify-center gap-2 overflow-y-auto border-4 border-dashed p-2"
                 onDragEnter={onDragEnter}
                 onDragLeave={onDragLeave}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
             >
                 {files.length === 0 ? (
-                    <div className="text-nord3 italic">Drop files here</div>
+                    <div className="text-nord3 flex flex-col items-center gap-2 italic">
+                        <span>Drop files here</span>
+                        <span>or</span>
+                        <button
+                            type="button"
+                            className="bg-nord4 text-nord0 rounded px-1.5 py-0.5 text-xs not-italic"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            Browse files
+                        </button>
+                    </div>
                 ) : (
                     files.map((file) => (
                         <div
@@ -101,6 +131,16 @@ export default function UploadPage() {
                             </button>
                         </div>
                     ))
+                )}
+                {files.length > 0 && (
+                    <button
+                        type="button"
+                        className="text-nord3 hover:bg-nord4 flex h-32 w-32 flex-col items-center justify-center gap-1 rounded text-sm"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <span>+</span>
+                        <span>Add files</span>
+                    </button>
                 )}
             </div>
 

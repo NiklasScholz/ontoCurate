@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,7 +47,8 @@ async def accept_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        accept_statement(
+        await asyncio.to_thread(
+            accept_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
             workspace_id=str(workspace.id),
@@ -78,7 +80,8 @@ async def reject_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        reject_statement(
+        await asyncio.to_thread(
+            reject_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
             workspace_id=str(workspace.id),
@@ -111,7 +114,8 @@ async def edit_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        edit_statement(
+        await asyncio.to_thread(
+            edit_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
             workspace_id=str(workspace.id),
@@ -145,7 +149,8 @@ async def reset_statement_endpoint(
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     try:
-        return reset_statement(
+        return await asyncio.to_thread(
+            reset_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
             workspace_id=str(workspace.id),
@@ -206,12 +211,14 @@ async def get_current_statement_endpoint(
     graph = curation_graph(str(workspace_id))
 
     try:
-        current_statement_id = get_current_candidate_statement(
+        current_statement_id = await asyncio.to_thread(
+            get_current_candidate_statement,
             stmt_id=statement_id,
             graph=graph,
         )
 
-        statement = load_candidate_statement(
+        statement = await asyncio.to_thread(
+            load_candidate_statement,
             stmt_id=current_statement_id,
             graph=graph,
         )

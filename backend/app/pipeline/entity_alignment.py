@@ -124,6 +124,10 @@ def generate_candidate_pairs(
 
         for i, a in enumerate(bucket):
             for b in bucket[i + 1 :]:
+                if a["uri"] == b["uri"]:
+                    # avoids self-pairs
+                    continue
+
                 pair_id = frozenset({a["uri"], b["uri"]})
                 if pair_id in seen:
                     continue
@@ -287,7 +291,10 @@ def run_cross_document_alignment(
     Additionally, it checks for entities from previous runs and aligns them with the current run.
     """
 
-    ttl_files = list(working_dir.glob("*.ttl"))
+    # Exclude merged.ttl: it's this function's own output (written below) and
+    # persists in working_dir across retries of the same run. Re-reading it
+    # here would load every entity a second time and pair it against itself.
+    ttl_files = [p for p in working_dir.glob("*.ttl") if p.name != "merged.ttl"]
 
     entities = []
     for ttl_path in ttl_files:

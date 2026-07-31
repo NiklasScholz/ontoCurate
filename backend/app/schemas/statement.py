@@ -49,6 +49,11 @@ class StatementIdResponse(BaseModel):
     id: str
 
 
+class DeduplicationCountResponse(BaseModel):
+    total_count: int
+    pending_count: int
+
+
 class TextSpan(BaseModel):
     start: int
     end: int

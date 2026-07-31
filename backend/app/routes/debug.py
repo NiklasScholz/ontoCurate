@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from celery.result import AsyncResult
@@ -83,21 +84,27 @@ async def check_oxigraph():
     subject = "https://ontocurate.org/debug/subject"
     predicate = "https://ontocurate.org/debug/predicate"
 
-    sparql_update(f"""
+    await asyncio.to_thread(
+        sparql_update,
+        f"""
         INSERT DATA {{
             GRAPH <{graph}> {{
                 <{subject}> <{predicate}> "hello world" .
             }}
         }}
-    """)
+        """,
+    )
 
-    result = sparql_select(f"""
+    result = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?o WHERE {{
             GRAPH <{graph}> {{ <{subject}> <{predicate}> ?o }}
         }}
-    """)
+        """,
+    )
 
-    sparql_update(f"DROP SILENT GRAPH <{graph}>")
+    await asyncio.to_thread(sparql_update, f"DROP SILENT GRAPH <{graph}>")
 
     bindings = result.get("results", {}).get("bindings", [])
     if not bindings:
@@ -140,24 +147,27 @@ async def seed_statement_for_testing(
 
     source_document_id = create_source_document_entity("test-paper").value
 
-    sparql_update(f"""
-    INSERT DATA {{
-        GRAPH <{graph}> {{
-            <{source_document_id}> a <{PACO_SOURCE_DOCUMENT}> .
-            <{statement_id}> a <{PACO_CANDIDATE}> .
-            <{statement_id}> a <http://www.w3.org/ns/prov#Entity> .
-            <{statement_id}> <{PACO_SUBJECT}> <https://ontocurate.app/entities/Paper_X> .
-            <{statement_id}> <{PACO_PREDICATE}> <https://schema.org/author> .
-            <{statement_id}> <{PACO_OBJECT}> <https://ontocurate.app/entities/Author_Y> .
-            <{statement_id}> <{PACO_STATUS}> <{PACO_PENDING}> .
-            <{statement_id}> <{PACO_CURRENT}> true .
-            <{statement_id}> <{PACO_CONFIDENCE}> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
-            <{statement_id}> <{PROV_DERIVED_FROM}> <{source_document_id}> .
-            <{statement_id}> <{PACO_ORIGIN}> <https://ontocurate.app/origins/test-origin> .
-            <{statement_id}> <{PACO_CREATED_AT}> "2023-10-01T12:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+    await asyncio.to_thread(
+        sparql_update,
+        f"""
+        INSERT DATA {{
+            GRAPH <{graph}> {{
+                <{source_document_id}> a <{PACO_SOURCE_DOCUMENT}> .
+                <{statement_id}> a <{PACO_CANDIDATE}> .
+                <{statement_id}> a <http://www.w3.org/ns/prov#Entity> .
+                <{statement_id}> <{PACO_SUBJECT}> <https://ontocurate.app/entities/Paper_X> .
+                <{statement_id}> <{PACO_PREDICATE}> <https://schema.org/author> .
+                <{statement_id}> <{PACO_OBJECT}> <https://ontocurate.app/entities/Author_Y> .
+                <{statement_id}> <{PACO_STATUS}> <{PACO_PENDING}> .
+                <{statement_id}> <{PACO_CURRENT}> true .
+                <{statement_id}> <{PACO_CONFIDENCE}> "0.85"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+                <{statement_id}> <{PROV_DERIVED_FROM}> <{source_document_id}> .
+                <{statement_id}> <{PACO_ORIGIN}> <https://ontocurate.app/origins/test-origin> .
+                <{statement_id}> <{PACO_CREATED_AT}> "2023-10-01T12:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+            }}
         }}
-    }}
-    """)
+        """,
+    )
 
     return {
         "workspace_id": workspace_id,

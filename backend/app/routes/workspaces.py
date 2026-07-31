@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
@@ -52,6 +53,12 @@ router = APIRouter(
 )
 
 
+def _schema_repo_path(schema_path: str) -> str:
+    """Path to the workspace's LinkML schema file, relative to the repository root."""
+    schema_name = Path(schema_path).parent.name
+    return f"backend/config/{schema_name}/extraction_schema.yaml"
+
+
 @router.get("/", response_model=list[WorkspaceResponse])
 async def list_workspaces(
     current_user: User = Depends(get_current_user),
@@ -59,7 +66,13 @@ async def list_workspaces(
 ):
     workspaces = await WorkspaceRepository(session).get_all_by_user(current_user.id)
     return [
-        WorkspaceResponse(id=ws.id, name=ws.name, role=role) for ws, role in workspaces
+        WorkspaceResponse(
+            id=ws.id,
+            name=ws.name,
+            role=role,
+            schema_repo_path=_schema_repo_path(ws.schema_path),
+        )
+        for ws, role in workspaces
     ]
 
 
@@ -97,8 +110,15 @@ async def create_workspace(
     )
     if not workspace_mem:
         raise BadRequestException("Failed to add user as workspace member")
-    upsert_curator(str(workspace.id), user.id, user.name, user.email, user.username)
-    return WorkspaceResponse(id=workspace.id, name=workspace.name, role="owner")
+    await asyncio.to_thread(
+        upsert_curator, str(workspace.id), user.id, user.name, user.email, user.username
+    )
+    return WorkspaceResponse(
+        id=workspace.id,
+        name=workspace.name,
+        role="owner",
+        schema_repo_path=_schema_repo_path(workspace.schema_path),
+    )
 
 
 @router.get(
@@ -115,7 +135,12 @@ async def get_workspace(
     role = await WorkspaceMemberRepository(session).get_role(
         workspace_id, current_user.id
     )
-    return WorkspaceResponse(id=workspace.id, name=workspace.name, role=role)
+    return WorkspaceResponse(
+        id=workspace.id,
+        name=workspace.name,
+        role=role,
+        schema_repo_path=_schema_repo_path(workspace.schema_path),
+    )
 
 
 @router.get(
@@ -153,7 +178,9 @@ async def export_provenance_graph(
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
-    content = export_graph(curation_graph(workspace_id), format, prefixes)
+    content = await asyncio.to_thread(
+        export_graph, curation_graph(workspace_id), format, prefixes
+    )
     return Response(
         content=content,
         media_type=media_type,
@@ -176,7 +203,9 @@ async def export_data_graph(
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
-    content = export_graph(data_graph(workspace_id), format, prefixes)
+    content = await asyncio.to_thread(
+        export_graph, data_graph(workspace_id), format, prefixes
+    )
     return Response(
         content=content,
         media_type=media_type,
@@ -218,7 +247,9 @@ async def query_workspace_graph(
     )
 
     try:
-        payload = sparql_select(body.query, restrict_to_graph=graph_iri)
+        payload = await asyncio.to_thread(
+            sparql_select, body.query, restrict_to_graph=graph_iri
+        )
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Query timed out") from exc
     except httpx.HTTPStatusError as exc:
@@ -241,7 +272,7 @@ async def delete_workspace(
     workspace_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
-    drop_workspace_graphs(str(workspace_id))
+    await asyncio.to_thread(drop_workspace_graphs, str(workspace_id))
     await RunRepository(session).delete_all_for_workspace(workspace_id)
     await DocumentRepository(session).delete_all_for_workspace(workspace_id)
     await WorkspaceRepository(session).delete(workspace_id)
@@ -297,7 +328,9 @@ async def add_workspace_member(
         )
 
     await workspace_repo.add_member(workspace_id, user.id, body.role)
-    upsert_curator(str(workspace_id), user.id, user.name, user.email, user.username)
+    await asyncio.to_thread(
+        upsert_curator, str(workspace_id), user.id, user.name, user.email, user.username
+    )
     return user
 
 

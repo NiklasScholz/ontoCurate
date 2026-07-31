@@ -1,3 +1,4 @@
+import asyncio
 import re
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from app.deps import get_current_user, require_role
 from app.routes.documents import order_statements, zip_current_originals
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
+    DeduplicationCountResponse,
     EntityNeighborhoodResponse,
     IncomingEdge,
     OutgoingEdge,
@@ -18,7 +20,9 @@ from app.store.utils import (
     PACO_CURRENT,
     PACO_LOOKUP_ACTIVITY,
     PACO_OBJECT,
+    PACO_PENDING,
     PACO_PREDICATE,
+    PACO_STATUS,
     PACO_SUBJECT,
     PROV_DERIVED_FROM,
     PROV_GENERATED_BY,
@@ -42,7 +46,9 @@ async def get_deduplication(workspace_id: UUID):
 
     graph = curation_graph(str(workspace_id))
 
-    payload = sparql_select(f"""
+    payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -61,14 +67,17 @@ async def get_deduplication(workspace_id: UUID):
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
-    originals_payload = sparql_select(f"""
+    originals_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
@@ -85,7 +94,8 @@ async def get_deduplication(workspace_id: UUID):
             }}
         }}
         ORDER BY ?s ?p ?o
-    """)
+        """,
+    )
 
     originals_rows = [
         (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
@@ -97,6 +107,52 @@ async def get_deduplication(workspace_id: UUID):
     )
     statements.sort(key=lambda s: s.current.subject)
     return statements
+
+
+@router.get(
+    "/{workspace_id}/deduplication/count",
+    response_model=DeduplicationCountResponse,
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
+async def get_deduplication_count(workspace_id: UUID):
+    """
+    Counts owl:sameAs statements (from alignment/lookup): total and pending review.
+    """
+
+    graph = curation_graph(str(workspace_id))
+
+    def count_query(pending_only: bool) -> str:
+        return f"""
+        SELECT (COUNT(DISTINCT ?s) AS ?count) WHERE {{
+            GRAPH <{graph}> {{
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+
+                VALUES ?activity_type {{
+                <{PACO_ALIGNMENT_ACTIVITY}>
+                <{PACO_LOOKUP_ACTIVITY}>
+            }}
+
+            ?e <{RDF_TYPE}> ?activity_type .
+            {f"?s <{PACO_STATUS}> <{PACO_PENDING}> ." if pending_only else ""}
+            }}
+        }}
+        """
+
+    def run_count(pending_only: bool) -> int:
+        payload = sparql_select(count_query(pending_only))
+        bindings = payload.get("results", {}).get("bindings", [])
+        return int(bindings[0]["count"]["value"]) if bindings else 0
+
+    total_count, pending_count = await asyncio.gather(
+        asyncio.to_thread(run_count, False),
+        asyncio.to_thread(run_count, True),
+    )
+    return DeduplicationCountResponse(
+        total_count=total_count, pending_count=pending_count
+    )
 
 
 @router.get(
@@ -123,7 +179,9 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
     if not is_iri(entity_id):
         return EntityNeighborhoodResponse(incoming=[], outgoing=[])
 
-    incoming_payload = sparql_select(f"""
+    incoming_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?s ?p WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> ?s .
@@ -134,9 +192,12 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
             }}
         }}
         ORDER BY ?p ?s
-    """)
+        """,
+    )
 
-    outgoing_payload = sparql_select(f"""
+    outgoing_payload = await asyncio.to_thread(
+        sparql_select,
+        f"""
         SELECT ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> <{entity_id}> .
@@ -147,7 +208,8 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
             }}
         }}
         ORDER BY ?p ?o
-    """)
+        """,
+    )
 
     return EntityNeighborhoodResponse(
         incoming=[

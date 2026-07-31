@@ -4,6 +4,7 @@ import pytest
 from test_utils import (
     activity_count,
     add_candidate_statements,
+    count_candidate_statements_derived_from,
     find_candidate_id,
     gen_workspace_id,
     sparql_count,
@@ -131,20 +132,6 @@ def test_accept_statement_preserves_object_datatype(tmp_path):
     assert len(bindings) == 1
     assert bindings[0]["o"]["value"] == "2024"
     assert bindings[0]["o"]["datatype"] == "http://www.w3.org/2001/XMLSchema#gYear"
-
-
-def count_candidate_statements_derived_from(workspace_id: str, document_id: str) -> int:
-    """Count candidate statements that have a prov:wasDerivedFrom link to the given document."""
-    source_document = create_source_document_entity(document_id).value
-    sparql = f"""
-PREFIX prov: <http://www.w3.org/ns/prov#>
-SELECT (COUNT(DISTINCT ?cs) AS ?count) WHERE {{
-  GRAPH <{curation_graph(workspace_id)}> {{
-    ?cs prov:wasDerivedFrom <{source_document}> .
-  }}
-}}
-    """
-    return sparql_count(sparql)
 
 
 def count_candidate_statement_chain(workspace_id: str, document_id: str) -> int:
