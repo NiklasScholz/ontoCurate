@@ -501,20 +501,22 @@ def write_alignment_results(
 def write_lookup_results(
     lookups: list[tuple[str, str, float]],
     workspace_id: str,
+    source: str = "wikidata",
     run_id: str | None = None,
     document_ids: list[str] | None = None,
 ) -> None:
     """
-    Writes owl:sameAs CandidateStatements for proposed Wikidata lookup tuples.
+    Writes owl:sameAs CandidateStatements for proposed entity lookup tuples.
 
     Each lookup tuple contains:
 
         (
             local_entity_uri,
-            wikidata_entity_uri,
+            candidate_entity_uri,
             confidence_score,
         )
 
+    `source` identifies which lookup source produced the candidates
     The generated statements remain pending until a curator accepts
     or rejects them.
     """
@@ -528,18 +530,15 @@ def write_lookup_results(
     doc_ids = sorted(set(document_ids or []))
     document_key = "|".join(doc_ids) if doc_ids else "unknown-documents"
 
-    if len(doc_ids) == 1:
-        doc_key = doc_ids[0]
-        lookup_activity = NamedNode(f"{LOOKUP_ACTIVITIES}{uuid4()}")
-    else:
-        lookup_activity = NamedNode(f"{LOOKUP_ACTIVITIES}{uuid4()}")
+    lookup_activity = NamedNode(f"{LOOKUP_ACTIVITIES}{uuid4()}")
+    lookup_agent = NamedNode(f"{PACO}{source}-lookup")
 
     triples = [
-        Triple(N_PACO_WIKIDATA_LOOKUP, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
-        Triple(N_PACO_WIKIDATA_LOOKUP, N_SCHEMA_NAME, Literal("wikidata-lookup")),
+        Triple(lookup_agent, N_RDF_TYPE, N_PROV_SOFTWARE_AGENT),
+        Triple(lookup_agent, N_SCHEMA_NAME, Literal(f"{source}-lookup")),
         Triple(lookup_activity, N_RDF_TYPE, N_PACO_LOOKUP_ACTIVITY),
         Triple(lookup_activity, N_RDF_TYPE, N_PROV_ACTIVITY),
-        Triple(lookup_activity, N_PROV_ASSOCIATED_WITH, N_PACO_WIKIDATA_LOOKUP),
+        Triple(lookup_activity, N_PROV_ASSOCIATED_WITH, lookup_agent),
         Triple(
             lookup_activity,
             N_PACO_CREATED_AT,
@@ -559,14 +558,14 @@ def write_lookup_results(
             )
         )
 
-    for local_uri, wikidata_uri, score in lookups:
+    for local_uri, candidate_uri, score in lookups:
         fingerprint = sha256(
             (
                 f"{workspace_id}|"
                 f"{run_key}|"
                 f"{document_key}|"
                 f"{local_uri}|"
-                f"{wikidata_uri}"
+                f"{candidate_uri}"
             ).encode("utf-8")
         ).hexdigest()[:24]
 
@@ -578,8 +577,8 @@ def write_lookup_results(
                 Triple(candidate, N_RDF_TYPE, N_PROV_ENTITY),
                 Triple(candidate, N_PACO_SUBJECT, NamedNode(local_uri)),
                 Triple(candidate, N_PACO_PREDICATE, N_OWL_SAME_AS),
-                Triple(candidate, N_PACO_OBJECT, NamedNode(wikidata_uri)),
-                Triple(candidate, N_PACO_ORIGIN, N_PACO_WIKIDATA_LOOKUP),
+                Triple(candidate, N_PACO_OBJECT, NamedNode(candidate_uri)),
+                Triple(candidate, N_PACO_ORIGIN, lookup_agent),
                 Triple(candidate, N_PACO_STATUS, N_PACO_PENDING),
                 Triple(
                     candidate,

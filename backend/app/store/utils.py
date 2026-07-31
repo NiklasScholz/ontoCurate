@@ -43,7 +43,6 @@ PACO_REJECTED = f"{PACO}rejected"
 # PACO agent individuals
 PACO_ONTOGPT = f"{PACO}ontogpt"
 PACO_ENTITY_ALIGNMENT = f"{PACO}entity-alignment"
-PACO_WIKIDATA_LOOKUP = f"{PACO}wikidata-lookup"
 
 # PACO object properties
 PACO_SUBJECT = f"{PACO}subject"
@@ -111,7 +110,6 @@ N_PACO_ACCEPTED = NamedNode(PACO_ACCEPTED)
 # PACO agent individuals
 N_PACO_ONTOGPT = NamedNode(PACO_ONTOGPT)
 N_PACO_ENTITY_ALIGNMENT = NamedNode(PACO_ENTITY_ALIGNMENT)
-N_PACO_WIKIDATA_LOOKUP = NamedNode(PACO_WIKIDATA_LOOKUP)
 
 # PACO object properties
 N_PACO_SUBJECT = NamedNode(PACO_SUBJECT)
