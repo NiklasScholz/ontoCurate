@@ -102,9 +102,11 @@ async def get_deduplication(workspace_id: UUID):
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
 
-    return zip_current_originals(
+    statements = zip_current_originals(
         order_statements(rows), order_statements(originals_rows)
     )
+    statements.sort(key=lambda s: s.current.subject)
+    return statements
 
 
 @router.get(

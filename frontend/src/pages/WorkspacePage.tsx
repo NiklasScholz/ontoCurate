@@ -27,7 +27,6 @@ import ExportView from "../components/ExportView";
 const SHORT_TASK_NAME: Record<string, string> = {
     "Inner Document Alignment": "Alignment",
     "Cross-Document Alignment": "Alignment",
-    "Wikidata Lookup": "Lookup",
 };
 
 function formatDocStatus(
