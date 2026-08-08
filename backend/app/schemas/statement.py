@@ -33,11 +33,13 @@ class StatementEdit(BaseModel):
 class IncomingEdge(BaseModel):
     predicate: str
     subject: str
+    status: str
 
 
 class OutgoingEdge(BaseModel):
     predicate: str
     object: str
+    status: str
 
 
 class EntityNeighborhoodResponse(BaseModel):

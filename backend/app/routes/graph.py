@@ -5,7 +5,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from app.deps import get_current_user, require_role
-from app.routes.documents import order_statements, zip_current_originals
+from app.routes.documents import (
+    order_statements,
+    sort_by_relation_count,
+    zip_current_originals,
+)
 from app.schemas.statement import (
     CurrentAndOriginalStatement,
     DeduplicationCountResponse,
@@ -105,8 +109,7 @@ async def get_deduplication(workspace_id: UUID):
     statements = zip_current_originals(
         order_statements(rows), order_statements(originals_rows)
     )
-    statements.sort(key=lambda s: s.current.subject)
-    return statements
+    return sort_by_relation_count(statements)
 
 
 @router.get(
@@ -182,13 +185,14 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
     incoming_payload = await asyncio.to_thread(
         sparql_select,
         f"""
-        SELECT ?s ?p WHERE {{
+        SELECT ?s ?p ?status WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> ?s .
                 ?r <{PACO_PREDICATE}> ?p .
                 ?r <{PACO_OBJECT}> <{entity_id}> .
                 ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?r <{PACO_CURRENT}> true .
+                ?r <{PACO_STATUS}> ?status .
             }}
         }}
         ORDER BY ?p ?s
@@ -198,13 +202,14 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
     outgoing_payload = await asyncio.to_thread(
         sparql_select,
         f"""
-        SELECT ?p ?o WHERE {{
+        SELECT ?p ?o ?status WHERE {{
             GRAPH <{graph}> {{
                 ?r <{PACO_SUBJECT}> <{entity_id}> .
                 ?r <{PACO_PREDICATE}> ?p .
                 ?r <{PACO_OBJECT}> ?o .
                 ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?r <{PACO_CURRENT}> true .
+                ?r <{PACO_STATUS}> ?status .
             }}
         }}
         ORDER BY ?p ?o
@@ -213,11 +218,19 @@ async def get_neighborhood(workspace_id: UUID, entity_id: str):
 
     return EntityNeighborhoodResponse(
         incoming=[
-            IncomingEdge(predicate=b["p"]["value"], subject=b["s"]["value"])
+            IncomingEdge(
+                predicate=b["p"]["value"],
+                subject=b["s"]["value"],
+                status=b["status"]["value"],
+            )
             for b in incoming_payload.get("results", {}).get("bindings", [])
         ],
         outgoing=[
-            OutgoingEdge(predicate=b["p"]["value"], object=b["o"]["value"])
+            OutgoingEdge(
+                predicate=b["p"]["value"],
+                object=b["o"]["value"],
+                status=b["status"]["value"],
+            )
             for b in outgoing_payload.get("results", {}).get("bindings", [])
         ],
     )

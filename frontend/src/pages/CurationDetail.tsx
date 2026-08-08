@@ -14,7 +14,12 @@ import type { CurrentAndOriginalStatement, Statement } from "../types.ts";
 import MarkdownView, {
     type HighlightSpan,
 } from "../components/MarkdownView.tsx";
-import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology.ts";
+import {
+    INTERNAL_NAMESPACE,
+    PACO_ACCEPTED,
+    PACO_REJECTED,
+    processEntityLabel,
+} from "../ontology.ts";
 
 function useRelatedSpans(
     docId: string | null,
@@ -89,9 +94,20 @@ function useRelatedSpans(
 }
 
 type Neighborhood = {
-    incoming: { predicate: string; subject: string }[];
-    outgoing: { predicate: string; object: string }[];
+    incoming: { predicate: string; subject: string; status: string }[];
+    outgoing: { predicate: string; object: string; status: string }[];
 };
+
+function statusColor(status: string): string {
+    const styles = getComputedStyle(document.documentElement);
+    if (status === PACO_ACCEPTED) {
+        return styles.getPropertyValue("--color-nord14");
+    }
+    if (status === PACO_REJECTED) {
+        return styles.getPropertyValue("--color-nord11");
+    }
+    return styles.getPropertyValue("--color-nord4");
+}
 
 function SvgMultilineText({
     x,
@@ -184,15 +200,11 @@ function SvgMultilineText({
     );
 }
 
-function processEntityLabel(s: string): string {
-    return s.split(/[/#]/).at(-1);
-}
-
 function Neighbors({
     neighbors,
     incoming,
 }: {
-    neighbors: { node: string; predicate: string }[];
+    neighbors: { node: string; predicate: string; status: string }[];
     incoming: boolean;
 }) {
     const styles = getComputedStyle(document.documentElement);
@@ -201,7 +213,7 @@ function Neighbors({
 
     return neighbors
         .filter((_, i) => i < MAX_NODES)
-        .map(({ node, predicate }, i) => {
+        .map(({ node, predicate, status }, i) => {
             const ypos =
                 (i + 0.5) * (500 / Math.min(neighbors.length, MAX_NODES));
             return (
@@ -211,7 +223,7 @@ function Neighbors({
                         y1={ypos}
                         x2="400"
                         y2="250"
-                        stroke={nord4}
+                        stroke={statusColor(status)}
                         strokeWidth="5"
                     />
                     {neighbors.length > MAX_NODES && i === MAX_NODES - 1 ? (
@@ -261,14 +273,14 @@ function LocalGraphView({
     return (
         <svg viewBox="0 0 800 500" className="h-full w-full">
             <Neighbors
-                neighbors={incoming.map(({ subject, predicate }) => {
-                    return { node: subject, predicate };
+                neighbors={incoming.map(({ subject, predicate, status }) => {
+                    return { node: subject, predicate, status };
                 })}
                 incoming={true}
             />
             <Neighbors
-                neighbors={outgoing.map(({ object, predicate }) => {
-                    return { node: object, predicate };
+                neighbors={outgoing.map(({ object, predicate, status }) => {
+                    return { node: object, predicate, status };
                 })}
                 incoming={false}
             />
@@ -286,9 +298,11 @@ function LocalGraphView({
 function EntityView({
     workspaceId,
     entityId,
+    statusRefresh,
 }: {
     workspaceId: string;
     entityId: string;
+    statusRefresh: string;
 }) {
     const [neighborhood, setNeighborhood] = useState<Neighborhood | undefined>(
         undefined,
@@ -305,7 +319,7 @@ function EntityView({
             .then((res) => {
                 setNeighborhood(res.data);
             });
-    }, [workspaceId, entityId]);
+    }, [workspaceId, entityId, statusRefresh]);
 
     return neighborhood ? (
         <div className="h-full">
@@ -321,8 +335,6 @@ function EntityView({
 }
 
 // We currently do not support external links to documentation on the shipped schemas, all others can be inspected
-const INTERNAL_NAMESPACE = "https://ontocurate.app/";
-
 function isExternalUrl(value: string): boolean {
     return /^https?:\/\//i.test(value) && !value.startsWith(INTERNAL_NAMESPACE);
 }
@@ -606,12 +618,14 @@ export default function CurationDetail({
                         <EntityView
                             workspaceId={workspaceId}
                             entityId={statement.current.subject}
+                            statusRefresh={`${statement.current.id}:${statement.current.curation_status}`}
                         />
                     </div>
                     <div className="bg-nord6 overflow-hidden rounded-tl rounded-b">
                         <EntityView
                             workspaceId={workspaceId}
                             entityId={statement.current.object}
+                            statusRefresh={`${statement.current.id}:${statement.current.curation_status}`}
                         />
                     </div>
                 </div>

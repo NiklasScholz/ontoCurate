@@ -14,7 +14,11 @@ import NotFound from "./NotFound";
 import MarkdownView from "../components/MarkdownView";
 import Popup from "../components/Popup";
 import CurationDetail from "./CurationDetail";
-import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology";
+import {
+    PACO_ACCEPTED,
+    PACO_REJECTED,
+    processEntityLabelWithNamespace,
+} from "../ontology";
 
 function ConfidenceBar({ percentage }: { percentage: number }) {
     return (
@@ -77,12 +81,28 @@ function StatementsView({
                     type="range"
                     min="0"
                     max="100"
-                    defaultValue={threshold}
+                    step="0.01"
+                    value={threshold}
                     onChange={(e) =>
-                        setThreshold(Number.parseInt(e.target.value))
+                        setThreshold(Number.parseFloat(e.target.value))
                     }
                 />
-                <div>{threshold}%</div>
+                <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={threshold}
+                    onChange={(e) => {
+                        const value = Number.parseFloat(e.target.value);
+                        if (Number.isNaN(value)) {
+                            return;
+                        }
+                        setThreshold(Math.min(100, Math.max(0, value)));
+                    }}
+                    className="border-nord4 w-14 rounded border px-1 py-0.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <div>%</div>
                 <button
                     disabled={bulkAcceptInProgress}
                     className="bg-nord8 rounded px-2 py-1"
@@ -163,14 +183,24 @@ function StatementsView({
                                             <div className="overflow-hidden text-right text-nowrap text-ellipsis">
                                                 {i + 1}
                                             </div>
-                                            <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                {stm.current.subject}
+                                            <div
+                                                className="overflow-hidden text-nowrap text-ellipsis"
+                                                title={stm.current.subject}
+                                            >
+                                                {processEntityLabelWithNamespace(
+                                                    stm.current.subject,
+                                                )}
                                             </div>
                                             <div className="overflow-hidden text-nowrap text-ellipsis">
                                                 {stm.current.predicate}
                                             </div>
-                                            <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                {stm.current.object}
+                                            <div
+                                                className="overflow-hidden text-nowrap text-ellipsis"
+                                                title={stm.current.object}
+                                            >
+                                                {processEntityLabelWithNamespace(
+                                                    stm.current.object,
+                                                )}
                                             </div>
                                             <div className="overflow-hidden text-nowrap text-ellipsis">
                                                 <ConfidenceBar

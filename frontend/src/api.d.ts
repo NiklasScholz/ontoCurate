@@ -933,6 +933,8 @@ export interface components {
             predicate: string;
             /** Subject */
             subject: string;
+            /** Status */
+            status: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -963,6 +965,8 @@ export interface components {
             predicate: string;
             /** Object */
             object: string;
+            /** Status */
+            status: string;
         };
         /** QueryBindingValue */
         QueryBindingValue: {

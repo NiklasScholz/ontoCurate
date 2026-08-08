@@ -233,9 +233,8 @@ async def get_document_statements(
     """
     Returns all statements associated entirely with the given document.
 
-    The order of statements is as follows (coarsest to finest grouping):
-    - Data type properties are listed before object properties.
-    - Finally, sort triples lexicographically.
+    Statements are grouped by their (immutable) original subject, and subjects
+    with more outgoing relations are listed first so main document occurs first making it more suitable for reviewing.
 
     owl:sameAs triples that connect entities from different documents are not listed.
 
@@ -300,8 +299,8 @@ async def get_document_statements(
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
 
-    return zip_current_originals(
-        order_statements(rows), order_statements(originals_rows)
+    return sort_by_relation_count(
+        zip_current_originals(order_statements(rows), order_statements(originals_rows))
     )
 
 
@@ -403,9 +402,30 @@ def order_statements(
             )
         )
 
-    # TODO: The sorting order must be stable. Since subject/predicate/object can be changed by the user, we currently can't really use them as the sort key!
-    records.sort(key=lambda s: s.original)
     return records
+
+
+def sort_by_relation_count(
+    statements: list[CurrentAndOriginalStatement],
+) -> list[CurrentAndOriginalStatement]:
+    """
+    Orders statements by the outgoing relation count of their (immutable) original
+    subject.
+    Ties are broken by the original subject/predicate/object which stay stable.
+    """
+    counts = {}
+    for stm in statements:
+        counts[stm.original.subject] = counts.get(stm.original.subject, 0) + 1
+
+    return sorted(
+        statements,
+        key=lambda stm: (
+            -counts[stm.original.subject],
+            stm.original.subject,
+            stm.original.predicate,
+            stm.original.object,
+        ),
+    )
 
 
 async def _get_document_or_403(
