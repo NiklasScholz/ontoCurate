@@ -5,13 +5,12 @@ export const PACO_PENDING = PACO + "pending";
 export const INTERNAL_NAMESPACE = "https://ontocurate.app/";
 
 export function processEntityLabel(value: string): string {
-    if (!value.startsWith(INTERNAL_NAMESPACE)) {
-        return value;
-    }
     return value.split(/[/#]/).at(-1) ?? value;
 }
 
 export function processEntityLabelWithNamespace(value: string): string {
-    const localName = processEntityLabel(value);
-    return value.startsWith(INTERNAL_NAMESPACE) ? `onto:${localName}` : localName;
+    if (!value.startsWith(INTERNAL_NAMESPACE)) {
+        return value;
+    }
+    return `onto:${processEntityLabel(value)}`;
 }

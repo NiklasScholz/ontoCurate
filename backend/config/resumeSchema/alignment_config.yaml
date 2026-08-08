@@ -1,0 +1,72 @@
+settings:
+  default_threshold: 0.8
+
+  default_weights:
+    syntactic: 0.6
+    semantic: 0.3
+    structural: 0.1
+
+  default_comparison_predicates:
+    - name
+
+  default_semantic_text_predicates:
+    - name
+
+  default_expand_initials: false
+
+  unique_keys:
+    - identifier
+
+entity_types:
+  Person:
+    threshold: 0.92
+    weights:
+      syntactic: 0.85
+      semantic: 0.05
+      structural: 0.1
+    comparison_predicates:
+      - name
+      - email
+    semantic_text_predicates:
+      - name
+    sparsity_penalty: 0.92
+    sparsity_max_fields: 2
+    hard_match_predicates:
+      email: 0.98
+
+  Organization:
+    threshold: 0.90
+    weights:
+      syntactic: 0.75
+      semantic: 0.15
+      structural: 0.1
+    comparison_predicates:
+      - name
+      - location
+    semantic_text_predicates:
+      - name
+      - location
+    unique_keys:
+      - location
+
+  Experience:
+    threshold: 0.97
+    weights:
+      syntactic: 0.9
+      semantic: 0.1
+      structural: 0.0
+    comparison_predicates:
+      - title
+    semantic_text_predicates:
+      - title
+
+  Education:
+    threshold: 0.97
+    weights:
+      syntactic: 0.9
+      semantic: 0.1
+      structural: 0.0
+    comparison_predicates:
+      - degree
+    semantic_text_predicates:
+      - degree

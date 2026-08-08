@@ -30,6 +30,7 @@ def extract_document(
     api_key: str,
     max_text_length: int | None = None,
     max_output_tokens: int | None = None,
+    temperature: float = 0.3,
 ) -> tuple[Path, Path]:
     """
     Stage 1: Call `ontogpt extract` as a subprocess, clean the YAML output,
@@ -45,6 +46,8 @@ def extract_document(
     - api_key: API key for KI Connect NRW
     - max_text_length: Optional max text length to pass to ontoGPT for internal chunking
     - max_output_tokens: Optional max completion tokens per LLM call (see ontogpt_patches/llm_client.py)
+    - temperature: Sampling temperature for the LLM completion; low values favor
+      consistently extracting every list entry over creative variation
     Returns:
         (yaml_path, ttl_path)
     """
@@ -66,6 +69,7 @@ def extract_document(
         api_key=api_key,
         max_text_length=max_text_length,
         max_output_tokens=max_output_tokens,
+        temperature=temperature,
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     yaml_to_turtle(yaml_out, ttl_out, schema_path)
@@ -84,6 +88,7 @@ def extract_onto(
     verbose: bool = True,
     max_text_length: int | None = None,
     max_output_tokens: int | None = None,
+    temperature: float = 0.3,
 ) -> None:
     env = os.environ.copy()
     if api_base:
@@ -109,6 +114,8 @@ def extract_onto(
         "openai",
         "--api-base",
         base_url,
+        "-p",
+        str(temperature),
         "-O",
         output_format,
         "-o",

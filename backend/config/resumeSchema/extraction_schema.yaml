@@ -1,0 +1,264 @@
+id: https://ontocurate.app/resume-cv-ontology
+name: resume-cv-ontology
+title: Resume / CV Extraction Ontology
+description: >-
+  Application ontology for extracting structured data from resumes and CVs.
+  Reuses schema: and foaf: for standard person/organization properties. No
+  dedicated resume vocabulary is used (DOAC and ResumeRDF are both dead
+  namespaces); fields without a good external match use the resc: prefix.
+
+prefixes:
+  linkml:  https://w3id.org/linkml/
+  schema:  http://schema.org/
+  foaf:    http://xmlns.com/foaf/0.1/
+  resc:    https://ontocurate.app/resume-cv-ontology#
+
+default_prefix: resc
+default_range: string
+
+imports:
+  - linkml:types
+
+
+#  CLASSES
+classes:
+
+  Resume:
+    tree_root: true
+    class_uri: resc:Resume
+    description: A single résumé/CV document belonging to one candidate.
+    slots:
+      - id
+      - candidate
+      - summary
+      - skills
+      - certifications
+      - experience
+      - education
+
+  Person:
+    class_uri: schema:Person
+    description: The candidate this résumé belongs to.
+    slots:
+      - id
+      - name
+      - email
+      - phone
+      - location
+      - website
+
+  Organization:
+    class_uri: schema:Organization
+    description: An employer or educational institution.
+    slots:
+      - id
+      - org_name
+      - location
+    slot_usage:
+      location:
+        description: >-
+          The employer's or institution's city/region for this specific entry,
+          usually given on the same line as, or the line directly below, the
+          job title/company or degree/institution header (e.g. "Stuttgart,
+          Germany | Feb 2021 - Present"). This is the employer's/institution's
+          location, not the candidate's own contact-section location - always
+          check the job/education entry itself for it. Leave blank only if no
+          location is stated anywhere in that entry.
+
+  Experience:
+    class_uri: schema:EmployeeRole
+    description: A single work experience / employment entry.
+    slots:
+      - id
+      - title
+      - employer
+      - start_date
+      - end_date
+      - responsibilities
+
+  Education:
+    class_uri: resc:Education
+    description: A single education entry.
+    slots:
+      - id
+      - institution
+      - degree
+      - start_date
+      - end_date
+
+#  SLOTS
+
+slots:
+
+  id:
+    identifier: true
+    slot_uri: schema:identifier
+    range: uriorcurie
+    ifabsent: http://example.org/resume-cv-ontology/AUTO
+    description: "Unique identifier for this entity. Always output the literal value AUTO."
+
+  # Resume
+
+  candidate:
+    slot_uri: resc:candidate
+    range: Person
+    inlined: true
+    description: >-
+      The person this résumé belongs to. Extract name and contact details
+      exactly as given in the header/contact section.
+
+  summary:
+    slot_uri: schema:description
+    range: string
+    description: >-
+      The candidate's professional summary or objective statement, if the
+      résumé includes one (often labeled "Summary", "Objective", or "Profile").
+      Copy verbatim from the source text - do not paraphrase, and do not write
+      one if the résumé doesn't include it.
+
+  skills:
+    slot_uri: resc:skill
+    range: string
+    multivalued: true
+    description: >-
+      Individual skills listed in a Skills / Technical Skills / Core
+      Competencies section. Output each skill as a separate item separated by
+      " ; ". Only include skills explicitly listed there - do not infer
+      skills implied by job descriptions elsewhere in the résumé.
+
+  certifications:
+    slot_uri: resc:certification
+    range: string
+    multivalued: true
+    description: >-
+      Individual certifications or licenses listed in a Certifications /
+      Licenses section, exactly as written (e.g. "AWS Certified Solutions
+      Architect - Associate, 2022"). Output each as a separate item
+      separated by " ; ".
+
+  experience:
+    slot_uri: resc:hasExperience
+    range: Experience
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Each work experience / employment entry listed in the résumé's
+      Experience / Work History / Employment section, in the order they appear.
+      Each entry starts at a job title/company header and continues through
+      every bullet point beneath it up to the next header (or end of section).
+      All of those bullets belong to the SAME Experience entity as that
+      header's title and employer - never split one job's bullets into a
+      separate Experience entry, and never emit an Experience entry for a
+      bullet without also carrying over the title/employer/dates of the job
+      header it's listed under.
+      CRITICAL: the semicolon " ; " is reserved for separating one job entry
+      from the next - it must never appear inside a single entry (including
+      inside its responsibilities/bullets). Use " ~ " there instead.
+
+  education:
+    slot_uri: resc:hasEducation
+    range: Education
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Each education entry listed in the résumé's Education section, in the
+      order they appear.
+
+  # Person
+
+  name:
+    slot_uri: foaf:name
+    range: string
+    description: >-
+      Full name of the candidate, exactly as it appears at the top of the
+      résumé. Leave blank if the résumé does not state a name in text (e.g.
+      a name that only appears as a logo/image, or an anonymized CV).
+
+  email:
+    slot_uri: schema:email
+    range: string
+    description: "Candidate's email address, exactly as written in the contact section. Leave blank if not given."
+
+  phone:
+    slot_uri: schema:telephone
+    range: string
+    description: "Candidate's phone number, exactly as written in the contact section. Leave blank if not given."
+
+  location:
+    slot_uri: schema:address
+    range: string
+    description: >-
+      City/region as stated in the contact/header section, e.g. "Austin, TX".
+      Leave blank if not given - do not infer from job or education history.
+
+  website:
+    slot_uri: schema:url
+    range: string
+    description: >-
+      Personal website, portfolio, or LinkedIn/GitHub URL listed in the
+      contact section. Leave blank if not available - never output placeholder text.
+
+  # Organization
+
+  org_name:
+    slot_uri: schema:name
+    range: string
+    description: The name of the employer or institution, exactly as written.
+
+  # Experience
+
+  title:
+    slot_uri: schema:roleName
+    range: string
+    description: "Job title exactly as written for this role, e.g. \"Senior Software Engineer\"."
+
+  employer:
+    slot_uri: schema:worksFor
+    range: Organization
+    inlined: true
+    description: "The company/organization for this role. Include name and location if given."
+
+  responsibilities:
+    slot_uri: resc:responsibility
+    range: string
+    multivalued: true
+    description: >-
+      Each bullet point describing responsibilities/achievements under this
+      role. Copy each bullet verbatim as its own item, separated by " ~ "
+      (do not use ";" - that character separates entries in the surrounding
+      experience list and must not appear inside a single entry) - do not
+      summarize, merge, or rewrite bullets.
+
+  # Education
+
+  institution:
+    slot_uri: resc:institution
+    range: Organization
+    inlined: true
+    description: "The school/university for this entry. Include name and location if given."
+
+  degree:
+    slot_uri: resc:degree
+    range: string
+    description: >-
+      Degree and field of study exactly as written, e.g.
+      "B.Sc. in Computer Science" or "MBA".
+
+  # Shared (Experience, Education)
+
+  start_date:
+    slot_uri: schema:startDate
+    range: string
+    description: >-
+      Start date exactly as written (e.g. "2020", "Jan 2020", "March 2021").
+      Do not reformat, and do not infer a specific day if only a month/year
+      is given. Leave blank if the date cannot be confidently associated
+      with this specific entry.
+
+  end_date:
+    slot_uri: schema:endDate
+    range: string
+    description: >-
+      End date exactly as written, or "Present"/"Current" if the résumé
+      states the role or program is ongoing. Leave blank if the date cannot
+      be confidently associated with this specific entry.

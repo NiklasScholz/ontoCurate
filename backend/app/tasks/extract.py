@@ -82,6 +82,7 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 api_key=settings.openai_api_key,
                 max_text_length=settings.max_text_length,
                 max_output_tokens=settings.max_output_tokens,
+                temperature=settings.extraction_temperature,
             )
 
             provenance_path = annotate_confidence(
