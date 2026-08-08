@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { client } from "../client";
+import { apiUrl, client } from "../client";
 import Spinner from "../components/Spinner";
 import { TableSkeleton } from "../components/Skeleton";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
@@ -356,6 +356,38 @@ export default function CurationPage() {
                             </>
                         )}
                     </h1>
+                    {docId === null &&
+                        (statements?.some(
+                            (s) => s.current.curation_status === PACO_ACCEPTED,
+                        ) ? (
+                            <div className="bg-nord4 absolute top-0 right-0 flex h-full items-center gap-2 rounded px-3 text-sm">
+                                <span>Export merged graph:</span>
+                                <a
+                                    className="underline"
+                                    href={apiUrl(
+                                        `/graph/${wsId}/deduplication/export?format=turtle`,
+                                    )}
+                                >
+                                    Turtle
+                                </a>
+                                <a
+                                    className="underline"
+                                    href={apiUrl(
+                                        `/graph/${wsId}/deduplication/export?format=json-ld`,
+                                    )}
+                                >
+                                    JSON-LD
+                                </a>
+                            </div>
+                        ) : (
+                            <div
+                                className="bg-nord4 absolute top-0 right-0 flex h-full cursor-not-allowed items-center gap-2 rounded px-3 text-sm opacity-40"
+                                title="No owl:sameAs statements have been accepted yet"
+                                aria-disabled="true"
+                            >
+                                <span>Export merged graph</span>
+                            </div>
+                        ))}
                 </div>
 
                 <div className="mb-4 flex gap-4">

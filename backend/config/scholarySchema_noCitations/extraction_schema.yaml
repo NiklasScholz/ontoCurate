@@ -117,6 +117,7 @@ classes:
     slots:
       - id
       - publication_year
+      - journal_name
       - volume
       - issue_number
       - in_journal
@@ -358,6 +359,15 @@ slots:
     range: Organization
     description: The organization responsible for publishing this resource. Include all relevant information about the organization you have given.
 
+  journal_name:
+    slot_uri: smo:journalName
+    range: string
+    description: >-
+      The name of the journal this issue belongs to, exactly as it appears in the
+      source (abbreviated or full form, whichever is given). Always populate this
+      even though the journal is also captured via in_journal - it lets this issue
+      be matched against others from the same journal.
+
   volume:
     slot_uri: bibo:volume
     range: string
@@ -437,7 +447,7 @@ slots:
       naming a parent event. If no such explicit mention exists, leave this field blank -
       do NOT infer or guess a parent conference.
 
-  #  Journal Issue 
+  #  Journal Issue
 
   issue_number:
     slot_uri: bibo:issue

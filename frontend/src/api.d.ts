@@ -449,6 +449,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/graph/{workspace_id}/deduplication/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Deduplication Graph
+         * @description Exports the data graph with entities confirmed identical via internal
+         *     cross-document alignment merged onto a single canonical URI each.
+         */
+        get: operations["export_deduplication_graph_graph__workspace_id__deduplication_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/graph/{workspace_id}/neighborhood": {
         parameters: {
             query?: never;
@@ -1873,6 +1894,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DeduplicationCountResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_deduplication_graph_graph__workspace_id__deduplication_export_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

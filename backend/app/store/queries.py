@@ -1,3 +1,5 @@
+import re
+
 from rdflib import Graph, URIRef
 
 from app.pipeline.utils.turtle_utils import (
@@ -8,6 +10,7 @@ from app.schemas.statement import TextSpan
 from app.store.client import (
     ExportFormat,
     curation_graph,
+    data_graph,
     serialize_export,
     sparql_construct,
     sparql_select,
@@ -95,6 +98,108 @@ def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
         frozenset({b["duplicateSubject"]["value"], b["duplicateTarget"]["value"]})
         for b in bindings
     }
+
+
+def get_accepted_alignment_pairs(workspace_id: str) -> set[tuple[str, str]]:
+    """
+    Returns accepted owl:sameAs candidatestatments produced by the alignment stage.
+    """
+    graph = curation_graph(workspace_id)
+    query = f"""
+        SELECT DISTINCT ?s ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?cs a <{PACO_CANDIDATE}> ;
+                    <{PACO_CURRENT}> true ;
+                    <{PACO_STATUS}> <{PACO_ACCEPTED}> ;
+                    <{PACO_PREDICATE}> <{OWL_SAME_AS}> ;
+                    <{PACO_SUBJECT}> ?s ;
+                    <{PACO_OBJECT}> ?o ;
+                    <{PROV_DERIVED_FROM}>* ?original .
+                ?original <{PROV_GENERATED_BY}> ?activity .
+                ?activity a <{PACO_ALIGNMENT_ACTIVITY}> .
+            }}
+        }}
+    """
+    payload = sparql_select(query)
+    bindings = payload.get("results", {}).get("bindings", [])
+    return {(b["s"]["value"], b["o"]["value"]) for b in bindings}
+
+
+def hash_stripping_rewrite(entity_uris: set[str]) -> dict[str, str]:
+    """
+    Maps each fallback-hashed entity URI to its hash-free form ensuring no conflicts
+    """
+    stripped_groups = {}
+    for uri in entity_uris:
+        match = re.compile(r"^(.*)_[0-9a-f]{6}$").match(uri)
+        stripped_groups.setdefault(match.group(1) if match else uri, []).append(uri)
+
+    return {
+        uris[0]: stripped
+        for stripped, uris in stripped_groups.items()
+        if len(uris) == 1 and uris[0] != stripped
+    }
+
+
+def export_deduplicated_graph(
+    workspace_id: str,
+    format: ExportFormat = ExportFormat.turtle,
+    prefixes: dict[str, str] = BASE_PREFIXES,
+) -> str:
+    """
+    Export the data graph with accepted aligned entities merged into a single URI without hashes.
+    """
+    ttl = sparql_construct(f"""
+        CONSTRUCT {{ ?s ?p ?o }}
+        WHERE {{ GRAPH <{data_graph(workspace_id)}> {{ ?s ?p ?o }} }}
+        """)
+    data = Graph()
+    data.parse(data=ttl, format="turtle")
+
+    # Union-find over accepted sameAs pairs to merge connected components into a single URI
+    parent = {}
+
+    def find(x: str) -> str:
+        while parent.get(x, x) != x:
+            x = parent[x]
+        return x
+
+    # traverse lookup graph
+    for a, b in get_accepted_alignment_pairs(workspace_id):
+        root_a, root_b = find(a), find(b)
+        if root_a != root_b:
+            parent[root_b] = root_a
+
+    canonical = {member: find(member) for member in parent}
+
+    def rewrite_aligned(term):
+        if isinstance(term, URIRef) and str(term) in canonical:
+            return URIRef(canonical[str(term)])
+        return term
+
+    aligned = Graph()
+    for s, p, o in data:
+        new_s, new_o = rewrite_aligned(s), rewrite_aligned(o)
+        if new_s == new_o and s != o:
+            # skip self-loops created through merge
+            continue
+        aligned.add((new_s, p, new_o))
+
+    entity_uris = {
+        str(term) for s, _, o in aligned for term in (s, o) if isinstance(term, URIRef)
+    }
+    # strip hashes from URIs without conflicts
+    hash_rewrite = hash_stripping_rewrite(entity_uris)
+
+    def rewrite_hash(term):
+        if isinstance(term, URIRef) and str(term) in hash_rewrite:
+            return URIRef(hash_rewrite[str(term)])
+        return term
+
+    merged = Graph()
+    for s, p, o in aligned:
+        merged.add((rewrite_hash(s), p, rewrite_hash(o)))
+    return serialize_export(merged.serialize(format="turtle"), format, prefixes)
 
 
 def get_related_spans(

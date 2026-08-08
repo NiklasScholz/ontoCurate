@@ -3,8 +3,12 @@ import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import FileResponse, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_session
 from app.deps import get_current_user, require_role
+from app.repositories.workspace import WorkspaceRepository
 from app.routes.documents import (
     order_statements,
     sort_by_relation_count,
@@ -17,7 +21,13 @@ from app.schemas.statement import (
     IncomingEdge,
     OutgoingEdge,
 )
-from app.store.client import curation_graph, sparql_select
+from app.store.client import (
+    EXPORT_FORMAT_MEDIA_TYPES,
+    ExportFormat,
+    curation_graph,
+    sparql_select,
+)
+from app.store.queries import export_deduplicated_graph
 from app.store.utils import (
     PACO_ALIGNMENT_ACTIVITY,
     PACO_CANDIDATE,
@@ -31,6 +41,7 @@ from app.store.utils import (
     PROV_DERIVED_FROM,
     PROV_GENERATED_BY,
     RDF_TYPE,
+    build_prefix_map,
 )
 
 router = APIRouter(
@@ -155,6 +166,34 @@ async def get_deduplication_count(workspace_id: UUID):
     )
     return DeduplicationCountResponse(
         total_count=total_count, pending_count=pending_count
+    )
+
+
+@router.get(
+    "/{workspace_id}/deduplication/export",
+    dependencies=[Depends(require_role("owner", "editor"))],
+    response_class=FileResponse,
+)
+async def export_deduplication_graph(
+    workspace_id: UUID,
+    format: ExportFormat = ExportFormat.turtle,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Exports the data graph by merging entities, that were accepted as aligned, onto a single URI.
+    """
+    media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    prefixes = build_prefix_map(workspace.schema_path if workspace else None)
+    content = await asyncio.to_thread(
+        export_deduplicated_graph, str(workspace_id), format, prefixes
+    )
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="deduplicated.{extension}"'
+        },
     )
 
 
