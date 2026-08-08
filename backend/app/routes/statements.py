@@ -14,8 +14,10 @@ from app.store.client import curation_graph
 from app.store.queries import get_current_candidate_statement
 from app.store.writer import (
     accept_statement,
+    accept_statements_bulk,
     edit_statement,
     load_candidate_statement,
+    load_candidate_statements_bulk,
     reject_statement,
     reset_statement,
 )
@@ -177,22 +179,45 @@ async def bulk_accept(
     if workspace is None:
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
+    if not statement_ids:
+        return []
+
+    graph = curation_graph(str(workspace_id))
+
     try:
-        result = []
-        for statement_id in statement_ids:
-            accept_statement(
-                stmt_id=statement_id,
-                triggered_by=current_user.id,
-                workspace_id=str(workspace.id),
-            )
-            result.append(
-                await get_current_statement_endpoint(
-                    workspace_id, statement_id, session
-                )
-            )
-        return result
+        new_ids = await asyncio.to_thread(
+            accept_statements_bulk,
+            stmt_ids=statement_ids,
+            triggered_by=current_user.id,
+            workspace_id=str(workspace.id),
+        )
+        accepted = await asyncio.to_thread(
+            load_candidate_statements_bulk,
+            stmt_ids=list(new_ids.values()),
+            graph=graph,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    result = []
+    for statement_id in statement_ids:
+        new_id = new_ids[statement_id]
+        statement = accepted[new_id]
+        result.append(
+            StatementResponse(
+                id=new_id,
+                subject=statement["subject"],
+                predicate=statement["predicate"],
+                object=statement["object_node"].value,
+                origin=statement["origin"],
+                curation_status=statement["status"],
+                created_at=statement["created_at"],
+                confidence=statement["confidence_score"],
+                text_span_start=statement["text_span_start"],
+                text_span_end=statement["text_span_end"],
+            )
+        )
+    return result
 
 
 @router.get(
@@ -223,15 +248,11 @@ async def get_current_statement_endpoint(
             graph=graph,
         )
 
-        object_node = statement["object_node"]
-
-        object_value = object_node.value
-
         return StatementResponse(
             id=current_statement_id,
             subject=statement["subject"],
             predicate=statement["predicate"],
-            object=object_value,
+            object=statement["object_node"].value,
             origin=statement["origin"],
             curation_status=statement["status"],
             created_at=statement["created_at"],

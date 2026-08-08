@@ -240,6 +240,227 @@ def get_related_spans(
     return spans_for(subject), (spans_for(object) if object is not None else [])
 
 
+def get_document_statement_rows(
+    workspace_id: str, document_id: str
+) -> tuple[list[tuple[str, str, str, str]], list[tuple[str, str, str, str]]]:
+    """Returns (current_rows, original_rows) for every CandidateStatement derived
+    from {document_id} as (subject, predicate, object, original) tuples."""
+    graph = curation_graph(workspace_id)
+    document_entity = create_source_document_entity(document_id).value
+
+    payload = sparql_select(f"""
+        SELECT ?s ?p ?o ?os WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> <{document_entity}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+    rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
+        for b in payload.get("results", {}).get("bindings", [])
+    ]
+
+    originals_payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> <{document_entity}> .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+    originals_rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        for b in originals_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return rows, originals_rows
+
+
+def get_deduplication_statement_rows(
+    workspace_id: str,
+) -> tuple[list[tuple[str, str, str, str]], list[tuple[str, str, str, str]]]:
+    """Returns (current_rows, original_rows) for every owl:sameAs CandidateStatement
+    produced by alignment/lookups as (subject, predicate, object, original) tuples (like above).
+    """
+    graph = curation_graph(workspace_id)
+
+    activity_values = f"""
+        VALUES ?activity_type {{
+            <{PACO_ALIGNMENT_ACTIVITY}>
+            <{PACO_LOOKUP_ACTIVITY}>
+        }}
+    """
+
+    payload = sparql_select(f"""
+        SELECT ?s ?p ?o ?os WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+                {activity_values}
+                ?e <{RDF_TYPE}> ?activity_type .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+    rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
+        for b in payload.get("results", {}).get("bindings", [])
+    ]
+
+    originals_payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                ?s ?p ?o .
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_GENERATED_BY}> ?e .
+                {activity_values}
+                ?e <{RDF_TYPE}> ?activity_type .
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+    originals_rows = [
+        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        for b in originals_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return rows, originals_rows
+
+
+def get_deduplication_counts(workspace_id: str) -> tuple[int, int]:
+    """Returns (total_count, pending_count) of owl:sameAs CandidateStatements
+    produced by alignment/lookup."""
+    graph = curation_graph(workspace_id)
+    payload = sparql_select(f"""
+        SELECT (COUNT(*) AS ?total) (SUM(?is_pending) AS ?pending) WHERE {{
+            SELECT DISTINCT ?s (IF(?status = <{PACO_PENDING}>, 1, 0) AS ?is_pending) WHERE {{
+                GRAPH <{graph}> {{
+                    ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                    ?s <{PACO_CURRENT}> true .
+                    ?s <{PACO_STATUS}> ?status .
+                    ?s <{PROV_DERIVED_FROM}>* ?os .
+                    ?os <{PROV_GENERATED_BY}> ?e .
+                    VALUES ?activity_type {{
+                        <{PACO_ALIGNMENT_ACTIVITY}>
+                        <{PACO_LOOKUP_ACTIVITY}>
+                    }}
+                    ?e <{RDF_TYPE}> ?activity_type .
+                }}
+            }}
+        }}
+        """)
+    bindings = payload.get("results", {}).get("bindings", [])
+    if not bindings:
+        return 0, 0
+    return int(bindings[0]["total"]["value"]), int(bindings[0]["pending"]["value"])
+
+
+def get_entity_neighborhood(
+    workspace_id: str, entity_id: str
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    """Returns (incoming, outgoing) edges for {entity_id}'s local neighborhood,
+    as (predicate, other_entity, status) tuples."""
+    graph = curation_graph(workspace_id)
+
+    incoming_payload = sparql_select(f"""
+        SELECT ?s ?p ?status WHERE {{
+            GRAPH <{graph}> {{
+                ?r <{PACO_SUBJECT}> ?s .
+                ?r <{PACO_PREDICATE}> ?p .
+                ?r <{PACO_OBJECT}> <{entity_id}> .
+                ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?r <{PACO_CURRENT}> true .
+                ?r <{PACO_STATUS}> ?status .
+            }}
+        }}
+        ORDER BY ?p ?s
+        """)
+    incoming = [
+        (b["p"]["value"], b["s"]["value"], b["status"]["value"])
+        for b in incoming_payload.get("results", {}).get("bindings", [])
+    ]
+
+    outgoing_payload = sparql_select(f"""
+        SELECT ?p ?o ?status WHERE {{
+            GRAPH <{graph}> {{
+                ?r <{PACO_SUBJECT}> <{entity_id}> .
+                ?r <{PACO_PREDICATE}> ?p .
+                ?r <{PACO_OBJECT}> ?o .
+                ?r <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?r <{PACO_CURRENT}> true .
+                ?r <{PACO_STATUS}> ?status .
+            }}
+        }}
+        ORDER BY ?p ?o
+        """)
+    outgoing = [
+        (b["p"]["value"], b["o"]["value"], b["status"]["value"])
+        for b in outgoing_payload.get("results", {}).get("bindings", [])
+    ]
+
+    return incoming, outgoing
+
+
+def get_triple_counts_bulk(
+    document_ids: list[str], workspace_id: str
+) -> dict[str, tuple[int, int]]:
+    """Returns {document_id: (extracted_count, pending_count)} for every document
+    in {document_ids}."""
+    if not document_ids:
+        return {}
+
+    graph = curation_graph(workspace_id)
+    document_entities = {
+        document_id: create_source_document_entity(document_id).value
+        for document_id in document_ids
+    }
+    values_clause = " ".join(f"<{iri}>" for iri in document_entities.values())
+
+    payload = sparql_select(f"""
+        SELECT ?doc (COUNT(?s) AS ?extracted) (SUM(?is_pending) AS ?pending) WHERE {{
+            GRAPH <{graph}> {{
+                VALUES ?doc {{ {values_clause} }}
+                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PACO_CURRENT}> true .
+                ?s <{PACO_STATUS}> ?status .
+                BIND(IF(?status = <{PACO_PENDING}>, 1, 0) AS ?is_pending)
+                ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{PROV_GENERATED_BY}> ?e .
+                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
+                ?e <{PROV_USED}> ?doc .
+            }}
+        }}
+        GROUP BY ?doc
+        """)
+
+    counts_by_doc_entity = {
+        b["doc"]["value"]: (
+            int(b["extracted"]["value"]),
+            int(b["pending"]["value"]),
+        )
+        for b in payload.get("results", {}).get("bindings", [])
+    }
+
+    return {
+        document_id: counts_by_doc_entity.get(iri, (0, 0))
+        for document_id, iri in document_entities.items()
+    }
+
+
 def get_current_candidate_statement(
     stmt_id: str,
     graph: str,

@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     max_text_length: int | None = None
     max_output_tokens: int | None = None
     wikimedia_user_agent: str = ""
+    cors_allow_origins: list[str] = [
+        "http://localhost:5173",
+        "https://ontocurate.app",
+        "https://www.ontocurate.app",
+    ]
 
     model_config = ConfigDict(env_file="secrets.env")
     debug: bool = True

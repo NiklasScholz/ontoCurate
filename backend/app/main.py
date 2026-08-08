@@ -5,11 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.routes.auth import router as auth_router
-from app.routes.debug import router as debug_router
 from app.routes.documents import router as documents_router
 from app.routes.extraction import router as extractions_router
 from app.routes.graph import router as graph_router
@@ -43,11 +43,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://ontocurate.app",
-        "https://www.ontocurate.app",
-    ],
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +53,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth_router)
-app.include_router(debug_router)
 app.include_router(documents_router)
 app.include_router(extractions_router)
 app.include_router(graph_router)
