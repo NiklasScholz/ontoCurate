@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftIcon } from "lucide-react";
 import { client, getErrorMessage } from "../client";
 import Spinner from "../components/Spinner";
@@ -72,12 +72,16 @@ export default function QueryPage() {
             .then((res) => setCurationPrefixes(res.data));
     }, [wsId, ws?.role]);
 
-    const defaultQuery = prefixes
-        ? `${Object.entries(prefixes)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([prefix, uri]) => `PREFIX ${prefix}: <${uri}>`)
-              .join("\n")}\n\nSELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 50`
-        : "";
+    const defaultQuery = useMemo(
+        () =>
+            prefixes
+                ? `${Object.entries(prefixes)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([prefix, uri]) => `PREFIX ${prefix}: <${uri}>`)
+                      .join("\n")}\n\nSELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 50`
+                : "",
+        [prefixes],
+    );
     const displayedQuery = queryEdited ? query : defaultQuery;
 
     // Scroll down to bottom of textarea where default query is displayed, so users don't have to scroll past all the defined prefixes.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { client } from "../client";
+import { client, getErrorMessage } from "../client";
 import InviteMembersSection, {
     type PendingInvite,
 } from "../components/InviteMembersPanel";
@@ -42,10 +42,7 @@ export default function WorkspaceCreationPage() {
         });
 
         if (error || !ws) {
-            setSubmitError(
-                (error as { detail?: string })?.detail ??
-                    "Failed to create workspace",
-            );
+            setSubmitError(getErrorMessage(error, "Failed to create workspace"));
             setSubmitting(false);
             return;
         }

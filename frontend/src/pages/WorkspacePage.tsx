@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl, client } from "../client";
+import { apiUrl, client, getErrorMessage } from "../client";
 import { useEffect, useState } from "react";
 import {
     ArrowLeftIcon,
@@ -87,9 +87,7 @@ export default function WorkspacePage() {
         );
 
         if (error) {
-            setInviteError(
-                (error as { detail?: string }).detail ?? "Failed to add member",
-            );
+            setInviteError(getErrorMessage(error, "Failed to add member"));
         } else {
             setInviteError(null);
             setPendingInvites([]);
@@ -106,10 +104,7 @@ export default function WorkspacePage() {
         );
 
         if (error) {
-            setInviteError(
-                (error as { detail?: string }).detail ??
-                    "Failed to remove member",
-            );
+            setInviteError(getErrorMessage(error, "Failed to remove member"));
         } else {
             setInviteError(null);
             fetchMembers(ws.id);
@@ -196,10 +191,7 @@ export default function WorkspacePage() {
             params: { path: { document_id: doc.id } },
         });
         if (error) {
-            setDocActionError(
-                (error as { detail?: string }).detail ??
-                    "Failed to delete document",
-            );
+            setDocActionError(getErrorMessage(error, "Failed to delete document"));
             return;
         }
         setDocActionError(null);
@@ -221,10 +213,7 @@ export default function WorkspacePage() {
             },
         );
         if (error) {
-            setDocActionError(
-                (error as { detail?: string }).detail ??
-                    "Failed to retry document",
-            );
+            setDocActionError(getErrorMessage(error, "Failed to retry document"));
             return;
         }
         setDocActionError(null);

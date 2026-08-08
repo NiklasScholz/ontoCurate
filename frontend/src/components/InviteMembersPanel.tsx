@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
 import Spinner from "./Spinner";
-import { client } from "../client";
+import { client, getErrorMessage } from "../client";
 
 export type PendingInvite = { user_info: string; role: "owner" | "editor" };
 export type ExistingMember = { id: string; email: string; name: string | null; role: string };
@@ -34,7 +34,7 @@ export default function InviteMembersSection({ invites, onChange, currentUserEma
         setChecking(false);
 
         if (error) {
-            setLookupError((error as { detail?: string }).detail ?? "User not found");
+            setLookupError(getErrorMessage(error, "User not found"));
             return;
         }
 

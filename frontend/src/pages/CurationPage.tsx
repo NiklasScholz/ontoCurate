@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { apiUrl, client } from "../client";
 import Spinner from "../components/Spinner";
 import { TableSkeleton } from "../components/Skeleton";
@@ -73,6 +73,14 @@ function StatementsView({
                   );
     }, [statements, threshold]);
 
+    const acceptableStatements = useMemo(
+        () =>
+            filteredStatements.filter(
+                ({ stm }) => stm.current.curation_status !== PACO_ACCEPTED,
+            ),
+        [filteredStatements],
+    );
+
     return statements ? (
         <div className="flex min-h-0 flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -104,17 +112,19 @@ function StatementsView({
                 />
                 <div>%</div>
                 <button
-                    disabled={bulkAcceptInProgress}
+                    disabled={
+                        bulkAcceptInProgress || acceptableStatements.length === 0
+                    }
                     className="bg-nord8 rounded px-2 py-1"
                     onClick={() => {
-                        const clone = [...filteredStatements];
+                        const clone = [...acceptableStatements];
                         setBulkAcceptInProgress(true);
                         client
                             .POST("/statements/{workspace_id}/bulk_accept", {
                                 params: {
                                     path: { workspace_id: workspaceId },
                                 },
-                                body: filteredStatements.map(
+                                body: acceptableStatements.map(
                                     ({ stm }) => stm.current.id,
                                 ),
                             })
@@ -131,7 +141,7 @@ function StatementsView({
                             });
                     }}
                 >
-                    Bulk accept {filteredStatements.length} triples
+                    Bulk accept {acceptableStatements.length} triples
                 </button>
                 <div className={!bulkAcceptInProgress && "hidden"}>
                     <Spinner />
@@ -280,13 +290,15 @@ export default function CurationPage() {
     const wsId = searchParams.get("ws");
     const docId = searchParams.get("doc");
 
-    const reloadStatements = useCallback(() => {
+    useEffect(() => {
+        let cancelled = false;
         if (docId === null) {
             client
                 .GET("/graph/{workspace_id}/deduplication", {
                     params: { path: { workspace_id: wsId } },
                 })
                 .then((statements) => {
+                    if (cancelled) return;
                     if (statements.data !== null) {
                         setStatements(statements.data);
                     }
@@ -297,6 +309,7 @@ export default function CurationPage() {
                     params: { path: { document_id: docId } },
                 })
                 .then((doc) => {
+                    if (cancelled) return;
                     if (doc.data !== null) {
                         setDoc(doc.data);
                     }
@@ -306,17 +319,17 @@ export default function CurationPage() {
                     params: { path: { document_id: docId } },
                 })
                 .then((statements) => {
+                    if (cancelled) return;
                     if (statements.data !== null) {
                         setStatements(statements.data);
                     }
                     setPage(0);
                 });
         }
+        return () => {
+            cancelled = true;
+        };
     }, [wsId, docId]);
-
-    useEffect(() => {
-        reloadStatements();
-    }, [reloadStatements]);
 
     if (wsId === null) {
         return <NotFound />;

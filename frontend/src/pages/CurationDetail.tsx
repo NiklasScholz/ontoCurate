@@ -309,6 +309,7 @@ function EntityView({
     );
 
     useEffect(() => {
+        let cancelled = false;
         client
             .GET("/graph/{workspace_id}/neighborhood", {
                 params: {
@@ -317,8 +318,12 @@ function EntityView({
                 },
             })
             .then((res) => {
+                if (cancelled) return;
                 setNeighborhood(res.data);
             });
+        return () => {
+            cancelled = true;
+        };
     }, [workspaceId, entityId, statusRefresh]);
 
     return neighborhood ? (

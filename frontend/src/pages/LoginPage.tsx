@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import Root from "../components/Root";
 import HelpButton from "../components/HelpButton";
-import { client } from "../client";
+import { client, getErrorMessage } from "../client";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/useAuth";
@@ -39,18 +39,8 @@ export default function LoginPage() {
               }
             : { login_name: formData.login_name, password: formData.password };
         const { error } = await client.POST(endpoint, { body: body as never });
-        if (error) {            
-            const detail = (error as { detail?: string | { msg: string }[] })
-                .detail;
-            if (Array.isArray(detail)) {
-                setError(
-                    detail
-                        .map((d) => d.msg.replace(/^Value error, /i, ""))
-                        .join(", "),
-                );
-            } else {
-                setError(detail ?? "Something went wrong");
-            }
+        if (error) {
+            setError(getErrorMessage(error, "Something went wrong"));
             return;
         }
         await refreshUser();
@@ -200,11 +190,13 @@ export default function LoginPage() {
                                 );
                                 if (error) {
                                     setError(
-                                        (error as { detail?: string }).detail ??    
-                                        "Google login failed",
-                                        );
-                                        return;
-                            }
+                                        getErrorMessage(
+                                            error,
+                                            "Google login failed",
+                                        ),
+                                    );
+                                    return;
+                                }
                                 await refreshUser();
                                 navigate("/workspaces");
                             }}
