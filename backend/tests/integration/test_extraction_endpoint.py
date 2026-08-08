@@ -1,6 +1,36 @@
 from test_utils import add_member, as_user, create_workspace, register_user
 
 
+async def test_get_runs_lists_uploaded_document(client):
+    _, _, owner_token = await register_user(client, "owner")
+    as_user(client, owner_token)
+    workspace_id = await create_workspace(client)
+    upload_resp = await client.post(
+        "/extraction/",
+        params={"workspace_id": workspace_id},
+        files=[("files", ("doc.md", b"# hello world", "text/markdown"))],
+    )
+    assert upload_resp.status_code == 202
+    run_id = upload_resp.json()["run_id"]
+
+    resp = await client.get(f"/extraction/{workspace_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["run_id"] == run_id
+    assert body[0]["status"]
+    assert body[0]["task_name"]
+
+
+async def test_get_runs_empty_for_workspace_without_uploads(client):
+    _, _, owner_token = await register_user(client, "owner")
+    as_user(client, owner_token)
+    workspace_id = await create_workspace(client)
+    resp = await client.get(f"/extraction/{workspace_id}")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 async def test_owner_can_upload_markdown(client):
     _, _, owner_token = await register_user(client, "owner")
     as_user(client, owner_token)

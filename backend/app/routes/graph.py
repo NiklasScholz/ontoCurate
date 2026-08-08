@@ -92,11 +92,21 @@ async def export_deduplication_graph(
     content = await asyncio.to_thread(
         export_deduplicated_graph, str(workspace_id), format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="deduplicated.{extension}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}_deduplicated.{extension}"'
+            )
         },
     )
 

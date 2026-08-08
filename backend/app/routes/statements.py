@@ -42,18 +42,12 @@ async def accept_statement_endpoint(
     """
     Accepts a statement. Returns the new CandidateStatement.
     """
-    workspace_repo = WorkspaceRepository(session)
-
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None:
-        raise NotFoundException(f"Workspace {workspace_id} not found")
-
     try:
         await asyncio.to_thread(
             accept_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
-            workspace_id=str(workspace.id),
+            workspace_id=str(workspace_id),
         )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
@@ -75,18 +69,12 @@ async def reject_statement_endpoint(
     """
     Rejects a statement. Returns the new CandidateStatement.
     """
-    workspace_repo = WorkspaceRepository(session)
-
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None:
-        raise NotFoundException(f"Workspace {workspace_id} not found")
-
     try:
         await asyncio.to_thread(
             reject_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
-            workspace_id=str(workspace.id),
+            workspace_id=str(workspace_id),
         )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
     except ValueError as exc:
@@ -109,18 +97,12 @@ async def edit_statement_endpoint(
     """
     Modifies the fields of a triple. Returns the new CandidateStatement.
     """
-    workspace_repo = WorkspaceRepository(session)
-
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None:
-        raise NotFoundException(f"Workspace {workspace_id} not found")
-
     try:
         await asyncio.to_thread(
             edit_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
-            workspace_id=str(workspace.id),
+            workspace_id=str(workspace_id),
             edit=edit,
         )
         return await get_current_statement_endpoint(workspace_id, statement_id, session)
@@ -137,25 +119,18 @@ async def edit_statement_endpoint(
 async def reset_statement_endpoint(
     workspace_id: UUID,
     statement_id: str,
-    session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """
     Rolls back a statement to its original version, and set it to reset.
     Returns the new CandidateStatement.
     """
-    workspace_repo = WorkspaceRepository(session)
-
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None:
-        raise NotFoundException(f"Workspace {workspace_id} not found")
-
     try:
         return await asyncio.to_thread(
             reset_statement,
             stmt_id=statement_id,
             triggered_by=current_user.id,
-            workspace_id=str(workspace.id),
+            workspace_id=str(workspace_id),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -170,15 +145,8 @@ async def reset_statement_endpoint(
 async def bulk_accept(
     workspace_id: UUID,
     statement_ids: list[str],
-    session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    workspace_repo = WorkspaceRepository(session)
-
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None:
-        raise NotFoundException(f"Workspace {workspace_id} not found")
-
     if not statement_ids:
         return []
 
@@ -189,7 +157,7 @@ async def bulk_accept(
             accept_statements_bulk,
             stmt_ids=statement_ids,
             triggered_by=current_user.id,
-            workspace_id=str(workspace.id),
+            workspace_id=str(workspace_id),
         )
         accepted = await asyncio.to_thread(
             load_candidate_statements_bulk,

@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -33,12 +33,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
+is_production = settings.environment == "production"
+
 app = FastAPI(
     title="OntoCurate API",
     version="0.1.0",
     description="Ontology-Guided Knowledge Extraction and Curation with LLMs",
     lifespan=lifespan,
     swagger_ui_parameters={"withCredentials": True},
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 app.add_middleware(
@@ -69,4 +74,6 @@ async def health():
 
 @app.get("/openapi", tags=["meta"])
 async def openapi():
+    if is_production:
+        raise HTTPException(status_code=404)
     return app.openapi()

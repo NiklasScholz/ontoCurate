@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
 WORKDIR /app
 
@@ -22,5 +22,13 @@ COPY alembic.ini .
 COPY config/ ./config/
 COPY ontogpt_patches/ ./ontogpt_patches/
 
-# Default command — override in docker-compose for the worker
+FROM base AS dev
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+FROM base AS prod
+
+RUN useradd --create-home --uid 1000 appuser
+USER appuser
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

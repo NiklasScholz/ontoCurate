@@ -1,8 +1,11 @@
+from typing import Literal
+
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    environment: Literal["development", "production"] = "development"
     database_url: str = "postgresql+asyncpg://onto:onto@localhost:5432/onto"
     redis_url: str = "redis://localhost:6379"
     oxigraph_url: str = "http://localhost:7878"
@@ -26,7 +29,6 @@ class Settings(BaseSettings):
     ]
 
     model_config = ConfigDict(env_file="secrets.env")
-    debug: bool = True
 
 
 settings = Settings()

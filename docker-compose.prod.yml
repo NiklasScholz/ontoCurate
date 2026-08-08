@@ -2,13 +2,13 @@ services:
   backend:
     build:
       context: ./backend
-      target: dev
+      target: prod
     volumes:
-      - ./backend:/app
       - oxigraph_data:/data/oxigraph
     ports:
       - "127.0.0.1:8000:8000"
     environment:
+      - ENVIRONMENT=production
       - DATABASE_URL=postgresql+asyncpg://onto:onto@postgres:5432/onto
       - REDIS_URL=redis://redis:6379
       - OXIGRAPH_URL=http://oxigraph:7878
@@ -19,14 +19,13 @@ services:
       - postgres
       - redis
       - oxigraph
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
 
   worker:
     build:
       context: ./backend
-      target: dev
+      target: prod
     volumes:
-      - ./backend:/app
       - oxigraph_data:/data/oxigraph
     environment:
       - DATABASE_URL=postgresql+asyncpg://onto:onto@postgres:5432/onto
@@ -40,17 +39,17 @@ services:
       - redis
       - oxigraph
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      target: dev
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      target: prod
     ports:
-      - "127.0.0.1:5173:5173"
-    command: npm run dev -- --host
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
   postgres:
     image: postgres:16
@@ -60,20 +59,19 @@ services:
       POSTGRES_DB: onto
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
 
   oxigraph:
     image: ghcr.io/oxigraph/oxigraph:latest
     volumes:
       - oxigraph_data:/data
       - ./infra/oxigraph/config.toml:/config.toml:ro
-    ports:
-      - "127.0.0.1:7878:7878"
     command: serve --location /data --bind 0.0.0.0:7878
+    restart: unless-stopped
 
 volumes:
   postgres_data:

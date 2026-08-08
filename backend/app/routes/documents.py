@@ -1,4 +1,5 @@
 import asyncio
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -393,11 +394,21 @@ async def export_document_provenance(
     content = await asyncio.to_thread(
         query_export_document_provenance, graph, document_entity, format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}_provenance.{extension}"'
+            )
         },
     )
 
@@ -418,8 +429,18 @@ async def export_document_data(
     content = await asyncio.to_thread(
         query_export_document_data, graph, document_entity, format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}_data.{extension}"'
+        },
     )

@@ -34,6 +34,41 @@ class TestQueryEndpoint:
         assert len(body["rows"]) == 1
         assert body["rows"][0]["s"]["value"] == "http://example.org/s"
 
+    async def test_non_member_cannot_query(self, client, tmp_path):
+        workspace_id, _, _ = await setup_workspace_with_statement(client, tmp_path)
+        _, _, outsider_token = await register_user(client, "outsider")
+        as_user(client, outsider_token)
+        resp = await client.post(
+            f"/workspaces/{workspace_id}/query",
+            json={"query": "SELECT * WHERE { ?s ?p ?o }"},
+        )
+        assert resp.status_code == 403
+
+    async def test_ask_query_returns_boolean(self, client, tmp_path):
+        workspace_id, stmt_id, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        await client.post(
+            f"/statements/{workspace_id}/accept", params={"statement_id": stmt_id}
+        )
+
+        resp = await client.post(
+            f"/workspaces/{workspace_id}/query",
+            json={"query": "ASK WHERE { ?s ?p ?o }"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["boolean"] is True
+        assert body["rows"] == []
+
+        resp = await client.post(
+            f"/workspaces/{workspace_id}/query",
+            json={"query": "ASK WHERE { <http://example.org/nope> ?p ?o }"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["boolean"] is False
+
     async def test_editor_curation_request_forwards_to_data_graph(
         self, client, tmp_path
     ):
