@@ -16,6 +16,7 @@ import Popup from "../components/Popup";
 import CurationDetail from "./CurationDetail";
 import {
     PACO_ACCEPTED,
+    PACO_PENDING,
     PACO_REJECTED,
     processEntityLabelWithNamespace,
 } from "../ontology";
@@ -79,7 +80,7 @@ function StatementsView({
     const acceptableStatements = useMemo(
         () =>
             filteredStatements.filter(
-                ({ stm }) => stm.current.curation_status !== PACO_ACCEPTED,
+                ({ stm }) => stm.current.curation_status === PACO_PENDING,
             ),
         [filteredStatements],
     );

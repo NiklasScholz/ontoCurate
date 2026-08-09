@@ -200,7 +200,7 @@ def build_candidate_statement_triples(
                     Literal(str(ann["confidence"]), datatype=N_XSD_FLOAT),
                 )
             )
-            if isinstance(quad.object, Literal):
+            if "span_start" in ann and "span_end" in ann:
                 candidate_triples.extend(
                     [
                         Triple(
