@@ -281,13 +281,16 @@ def zip_current_originals(
 
 
 def order_statements(
-    rows: list[tuple[str, str, str, str]],
+    rows: list[tuple[str, str, str, str, str]],
 ) -> list[StatementResponseWithOriginal]:
     grouped: dict[str, dict[str, list[str]]] = {}
     originals: dict[str, str] = {}
-    for subject, predicate, obj, original in rows:
+    object_is_uri = {}
+    for subject, predicate, obj, original, obj_type in rows:
         grouped.setdefault(subject, {}).setdefault(predicate, []).append(obj)
         originals[subject] = original
+        if predicate == PACO_OBJECT:
+            object_is_uri[subject] = obj_type == "uri"
 
     records: list[StatementResponseWithOriginal] = []
     for subject, props in grouped.items():
@@ -323,6 +326,7 @@ def order_statements(
                 subject=required(PACO_SUBJECT),
                 predicate=required(PACO_PREDICATE),
                 object=required(PACO_OBJECT),
+                object_is_uri=object_is_uri.get(subject, False),
                 origin=required(PACO_ORIGIN),
                 curation_status=required(PACO_STATUS),
                 created_at=required(PACO_CREATED_AT),

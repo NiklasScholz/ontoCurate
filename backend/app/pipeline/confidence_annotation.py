@@ -98,11 +98,14 @@ def annotate_confidence(
     graph = Graph()
     graph.parse(str(ttl_path))
     type_index = build_type_index(graph)
+    uri_literal_predicates = frozenset(exact_only_predicates)
 
     # Data Properties
     annotations = []
 
-    for subject_uri, predicate_label, obj_value in collect_literal_triples(graph):
+    for subject_uri, predicate_label, obj_value in collect_literal_triples(
+        graph, uri_literal_predicates
+    ):
         result = find_span(
             source,
             obj_value,
@@ -184,6 +187,7 @@ def annotate_confidence(
             win_distance_penalty,
             min_penalty_factor,
             doc_length=len(source),
+            exclude_predicates=uri_literal_predicates,
         )
 
     # Python string index only counts unicode code points, while javascript on the frontend indexes by UTF-16 code units

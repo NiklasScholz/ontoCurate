@@ -242,9 +242,9 @@ def get_related_spans(
 
 def get_document_statement_rows(
     workspace_id: str, document_id: str
-) -> tuple[list[tuple[str, str, str, str]], list[tuple[str, str, str, str]]]:
+) -> tuple[list[tuple[str, str, str, str, str]], list[tuple[str, str, str, str, str]]]:
     """Returns (current_rows, original_rows) for every CandidateStatement derived
-    from {document_id} as (subject, predicate, object, original) tuples."""
+    from {document_id} as (subject, predicate, object, original, object_type) tuples."""
     graph = curation_graph(workspace_id)
     document_entity = create_source_document_entity(document_id).value
 
@@ -263,7 +263,13 @@ def get_document_statement_rows(
         ORDER BY ?s ?p ?o
         """)
     rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
+        (
+            b["s"]["value"],
+            b["p"]["value"],
+            b["o"]["value"],
+            b["os"]["value"],
+            b["o"]["type"],
+        )
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
@@ -280,7 +286,13 @@ def get_document_statement_rows(
         ORDER BY ?s ?p ?o
         """)
     originals_rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        (
+            b["s"]["value"],
+            b["p"]["value"],
+            b["o"]["value"],
+            b["s"]["value"],
+            b["o"]["type"],
+        )
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
 
@@ -289,9 +301,10 @@ def get_document_statement_rows(
 
 def get_deduplication_statement_rows(
     workspace_id: str,
-) -> tuple[list[tuple[str, str, str, str]], list[tuple[str, str, str, str]]]:
+) -> tuple[list[tuple[str, str, str, str, str]], list[tuple[str, str, str, str, str]]]:
     """Returns (current_rows, original_rows) for every owl:sameAs CandidateStatement
-    produced by alignment/lookups as (subject, predicate, object, original) tuples (like above).
+    produced by alignment/lookups as (subject, predicate, object, original, object_type)
+    tuples (like above).
     """
     graph = curation_graph(workspace_id)
 
@@ -317,7 +330,13 @@ def get_deduplication_statement_rows(
         ORDER BY ?s ?p ?o
         """)
     rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
+        (
+            b["s"]["value"],
+            b["p"]["value"],
+            b["o"]["value"],
+            b["os"]["value"],
+            b["o"]["type"],
+        )
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
@@ -334,7 +353,13 @@ def get_deduplication_statement_rows(
         ORDER BY ?s ?p ?o
         """)
     originals_rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
+        (
+            b["s"]["value"],
+            b["p"]["value"],
+            b["o"]["value"],
+            b["s"]["value"],
+            b["o"]["type"],
+        )
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
 

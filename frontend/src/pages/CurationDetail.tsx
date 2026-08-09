@@ -598,7 +598,9 @@ export default function CurationDetail({
                                             statement_id: statement.current.id,
                                         },
                                     },
-                                    body: { object_value: newValue },
+                                    body: statement.current.object_is_uri
+                                        ? { object_iri: newValue }
+                                        : { object_value: newValue },
                                 })
                                 .then((stm) =>
                                     onChange(

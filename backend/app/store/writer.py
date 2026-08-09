@@ -1087,6 +1087,10 @@ def edit_statement(
     if edit.object_iri is not None:
         new_object = NamedNode(edit.object_iri)
     elif edit.object_value is not None:
+        if isinstance(object_node, NamedNode):
+            raise ValueError(
+                f"This statement requires a URI object. Use object_iri instead of object_value."
+            )
         new_object = Literal(edit.object_value)
     else:
         new_object = object_node
@@ -1427,6 +1431,7 @@ def reset_statement(
         subject=original_subject,
         predicate=original_predicate,
         object=object,
+        object_is_uri=isinstance(original_object_node, NamedNode),
         confidence=original_confidence_score,
         text_span_start=original_text_span_start,
         text_span_end=original_text_span_end,

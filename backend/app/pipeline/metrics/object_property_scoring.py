@@ -221,6 +221,7 @@ def annotate_object_properties(
     win_distance_penalty: float,
     min_penalty_factor: float,
     doc_length: int,
+    exclude_predicates: frozenset[str] = frozenset(),
 ) -> None:
     """Score all object property triples and append annotations in-place.
     Strategy is selected per predicate via obj_prop_config['predicates'][predicate]['strategy'].
@@ -246,7 +247,9 @@ def annotate_object_properties(
     outlier_predicates: set[str] = set()
 
     # Iterate over all triples that belong to entities
-    for subject_uri, predicate, object_uri in collect_entity_triples(graph):
+    for subject_uri, predicate, object_uri in collect_entity_triples(
+        graph, exclude_predicates
+    ):
         config = predicate_cfgs.get(predicate, {})  # get config for current predicate
         strategy = config.get("strategy", default_strategy)
 

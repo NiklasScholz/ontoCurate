@@ -90,123 +90,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/debug/ping": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Trigger Ping
-         * @description Enqueues a ping task and return the task id and queued status.
-         */
-        post: operations["trigger_ping_debug_ping_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug/slow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Trigger Slow
-         * @description Enqueues a task that sleep for N secodns
-         */
-        post: operations["trigger_slow_debug_slow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug/task/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Task Status
-         * @description Poll celery task status
-         */
-        get: operations["get_task_status_debug_task__task_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug/db": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Db
-         * @description Verifies database connection by writing a row to Workspace table, retrieving it and deleting it again.
-         */
-        get: operations["check_db_debug_db_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug/oxigraph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Oxigraph
-         * @description Verifies the triple store connection, write, and query are all working.
-         */
-        get: operations["check_oxigraph_debug_oxigraph_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug/seed-statement/{workspace_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Seed Statement For Testing */
-        post: operations["seed_statement_for_testing_debug_seed_statement__workspace_id__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/documents/": {
         parameters: {
             query?: never;
@@ -287,9 +170,8 @@ export interface paths {
          * Get Document Statements
          * @description Returns all statements associated entirely with the given document.
          *
-         *     The order of statements is as follows (coarsest to finest grouping):
-         *     - Data type properties are listed before object properties.
-         *     - Finally, sort triples lexicographically.
+         *     Statements are grouped by their (immutable) original subject, and subjects
+         *     with more outgoing relations are listed first so main document occurs first making it more suitable for reviewing.
          *
          *     owl:sameAs triples that connect entities from different documents are not listed.
          *
@@ -458,8 +340,7 @@ export interface paths {
         };
         /**
          * Export Deduplication Graph
-         * @description Exports the data graph with entities confirmed identical via internal
-         *     cross-document alignment merged onto a single canonical URI each.
+         * @description Exports the data graph by merging entities, that were accepted as aligned, onto a single URI.
          */
         get: operations["export_deduplication_graph_graph__workspace_id__deduplication_export_get"];
         put?: never;
@@ -1050,6 +931,8 @@ export interface components {
             predicate: string;
             /** Object */
             object: string;
+            /** Object Is Uri */
+            object_is_uri: boolean;
             /** Origin */
             origin: string;
             /** Curation Status */
@@ -1298,170 +1181,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    trigger_ping_debug_ping_post: {
-        parameters: {
-            query?: {
-                message?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    trigger_slow_debug_slow_post: {
-        parameters: {
-            query?: {
-                seconds?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_task_status_debug_task__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    check_db_debug_db_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    check_oxigraph_debug_oxigraph_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    seed_statement_for_testing_debug_seed_statement__workspace_id__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

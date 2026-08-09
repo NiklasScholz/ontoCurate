@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { apiUrl, client } from "../client";
+import { apiUrl, client, getErrorMessage } from "../client";
 import Spinner from "../components/Spinner";
 import { TableSkeleton } from "../components/Skeleton";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
@@ -60,6 +60,9 @@ function StatementsView({
 }) {
     const [threshold, setThreshold] = useState<number>(0);
     const [bulkAcceptInProgress, setBulkAcceptInProgress] = useState(false);
+    const [bulkAcceptError, setBulkAcceptError] = useState<string | null>(
+        null,
+    );
 
     const filteredStatements = useMemo(() => {
         return statements === undefined
@@ -119,6 +122,7 @@ function StatementsView({
                     onClick={() => {
                         const clone = [...acceptableStatements];
                         setBulkAcceptInProgress(true);
+                        setBulkAcceptError(null);
                         client
                             .POST("/statements/{workspace_id}/bulk_accept", {
                                 params: {
@@ -128,15 +132,31 @@ function StatementsView({
                                     ({ stm }) => stm.current.id,
                                 ),
                             })
-                            .then((newStatements) => {
+                            .then(({ data, error }) => {
+                                if (error || !data) {
+                                    setBulkAcceptError(
+                                        getErrorMessage(
+                                            error,
+                                            "Failed to bulk accept statements",
+                                        ),
+                                    );
+                                    return;
+                                }
                                 onChange(
                                     Object.fromEntries(
-                                        newStatements.data.map((s, i) => [
+                                        data.map((s, i) => [
                                             clone[i].stm.original.id,
                                             s,
                                         ]),
                                     ),
                                 );
+                            })
+                            .catch(() => {
+                                setBulkAcceptError(
+                                    "Failed to bulk accept statements",
+                                );
+                            })
+                            .finally(() => {
                                 setBulkAcceptInProgress(false);
                             });
                     }}
@@ -146,6 +166,11 @@ function StatementsView({
                 <div className={!bulkAcceptInProgress && "hidden"}>
                     <Spinner />
                 </div>
+                {bulkAcceptError && (
+                    <div className="text-nord11 text-sm">
+                        {bulkAcceptError}
+                    </div>
+                )}
             </div>
             <div className="flex min-h-0 flex-col">
                 <div className="bg-nord3 text-nord6 grid grid-cols-[30px_1fr_1fr_1fr_1fr] gap-5 font-bold">

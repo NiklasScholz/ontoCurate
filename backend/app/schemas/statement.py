@@ -6,6 +6,7 @@ class StatementResponse(BaseModel):
     subject: str
     predicate: str
     object: str
+    object_is_uri: bool
     origin: str
     curation_status: str
     created_at: str

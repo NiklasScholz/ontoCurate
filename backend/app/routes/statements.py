@@ -2,6 +2,7 @@ import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pyoxigraph import NamedNode
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -177,6 +178,7 @@ async def bulk_accept(
                 subject=statement["subject"],
                 predicate=statement["predicate"],
                 object=statement["object_node"].value,
+                object_is_uri=isinstance(statement["object_node"], NamedNode),
                 origin=statement["origin"],
                 curation_status=statement["status"],
                 created_at=statement["created_at"],
@@ -221,6 +223,7 @@ async def get_current_statement_endpoint(
             subject=statement["subject"],
             predicate=statement["predicate"],
             object=statement["object_node"].value,
+            object_is_uri=isinstance(statement["object_node"], NamedNode),
             origin=statement["origin"],
             curation_status=statement["status"],
             created_at=statement["created_at"],

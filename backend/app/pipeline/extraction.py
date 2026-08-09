@@ -160,6 +160,13 @@ def default_prefix_from_schema(schema_path: Path | None) -> str:
 INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
 
 
+def transform_to_ascii(value: str) -> str:
+    """Fold accented letters (š, ū, ė, ...) to their closest ASCII form so
+    they are not silently deleted."""
+    decomposed = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
 def fallback_id(
     obj: dict, name_fields: tuple[str, ...], doc_name: str = "", prefix: str = "smo"
 ) -> str:
@@ -167,18 +174,30 @@ def fallback_id(
     value = obj.get("name") if "name" in name_fields else None
     if value and isinstance(value, str):
         parts = value.strip().split()
+        name_suffixes = {"jr", "sr", "ii", "iii", "iv", "prof", "dr", "phd"}
+        while len(parts) > 1 and parts[-1].strip(".").lower() in name_suffixes:
+            parts.pop()
+        surname_idx = len(parts) - 1
         if len(parts) >= 2:
-            initials = "".join(p[0] for p in parts[:-1])
-            local = f"{parts[-1]}_{initials}"
+            cleaned_last = INVALID_LOCAL_RE.sub("", transform_to_ascii(parts[-1]))
+            if len(cleaned_last) < 2:
+                # longest token is better choice for id (e.g., typically surname)
+                surname_idx = max(range(len(parts)), key=lambda i: len(parts[i]))
+        surname = parts[surname_idx] if parts else value.strip()
+        if len(parts) >= 2:
+            initials = "".join(p[0] for i, p in enumerate(parts) if i != surname_idx)
+            local = f"{surname}_{initials}"
         else:
-            local = value.strip()
-        local = INVALID_LOCAL_RE.sub("", local.replace(" ", "_"))
+            local = surname
+        local = INVALID_LOCAL_RE.sub("", transform_to_ascii(local).replace(" ", "_"))
     else:
         local = "entity"
         for field in name_fields:
             name = obj.get(field)
             if name and isinstance(name, str):
-                local = INVALID_LOCAL_RE.sub("", name.replace(" ", "_"))
+                local = INVALID_LOCAL_RE.sub(
+                    "", transform_to_ascii(name).replace(" ", "_")
+                )
                 if len(local) > 40:
                     truncated = local[:40]
                     last_underscore = truncated.rfind("_")

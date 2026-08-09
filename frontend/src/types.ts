@@ -22,6 +22,7 @@ export type Statement = {
     subject: string;
     predicate: string;
     object: string;
+    object_is_uri: boolean;
     origin: string;
     curation_status: string;
     created_at: string;

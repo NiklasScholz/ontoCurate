@@ -30,7 +30,9 @@ export default function WorkspacesPage() {
                             key={ws.name}
                             className="bg-nord4 relative flex h-32 items-center justify-center rounded-lg"
                         >
-                            <div>{ws.name}</div>
+                            <div className="line-clamp-3 max-w-full px-4 text-center break-words">
+                                {ws.name}
+                            </div>
                             <span className="bg-nord8 absolute bottom-2 left-2 rounded px-2 py-0.5 text-xs text-white">
                                 {ws.role}
                             </span>

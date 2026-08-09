@@ -91,28 +91,40 @@ def load_entity_information(
     return entities
 
 
-def collect_literal_triples(graph: Graph) -> list[tuple[str, str, str]]:
-    """Return (subject_uri, predicate_local_name, object_value) for every literal triple."""
+def collect_literal_triples(
+    graph: Graph, uri_as_literal_predicates: frozenset[str] = frozenset()
+) -> list[tuple[str, str, str]]:
+    """Return (subject_uri, predicate_local_name, object_value) for every literal
+    triple and URIRef objects matching literal predicates."""
     rows = []
     for s, p, o in graph:
-        if not isinstance(s, URIRef) or not isinstance(o, Literal):
+        if not isinstance(s, URIRef):
             continue
         if p == RDF.type:
             continue
-        rows.append((str(s), local_name(p), str(o)))
+        if isinstance(o, Literal):
+            rows.append((str(s), local_name(p), str(o)))
+        elif isinstance(o, URIRef) and local_name(p) in uri_as_literal_predicates:
+            rows.append((str(s), local_name(p), str(o)))
     return rows
 
 
-def collect_entity_triples(graph: Graph) -> list[tuple[str, str, str]]:
+def collect_entity_triples(
+    graph: Graph, exclude_predicates: frozenset[str] = frozenset()
+) -> list[tuple[str, str, str]]:
     """Return (subject_uri, predicate_local_name, object_uri) for every
-    object property triple; skips blank nodes and rdf:type."""
+    object property triple; skips blank nodes, rdf:type, and any predicate in
+    `exclude_predicates` used for literal scoring instead."""
     rows = []
     for s, p, o in graph:
         if not isinstance(s, URIRef) or not isinstance(o, URIRef):
             continue
         if p == RDF.type:
             continue
-        rows.append((str(s), local_name(p), str(o)))
+        name = local_name(p)
+        if name in exclude_predicates:
+            continue
+        rows.append((str(s), name, str(o)))
     return rows
 
 
