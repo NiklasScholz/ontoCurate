@@ -200,7 +200,7 @@ def build_candidate_statement_triples(
                     Literal(str(ann["confidence"]), datatype=N_XSD_FLOAT),
                 )
             )
-            if isinstance(quad.object, Literal):
+            if "span_start" in ann and "span_end" in ann:
                 candidate_triples.extend(
                     [
                         Triple(
@@ -282,13 +282,43 @@ def load_candidate_statement(stmt_id: str, graph: str) -> dict:
         ORDER BY ?p ?o
         """)
 
-    # Process the query results
-
     bindings = payload.get("results", {}).get("bindings", [])
 
     if not bindings:
         raise ValueError(f"Statement {stmt_id} not found")
 
+    return _parse_candidate_statement_bindings(stmt_id, bindings)
+
+
+def load_candidate_statements_bulk(stmt_ids: list[str], graph: str) -> dict[str, dict]:
+    """Same as load_candidate_statement, but loads many statements at once."""
+    if not stmt_ids:
+        return {}
+    values_clause = " ".join(f"<{stmt_id}>" for stmt_id in stmt_ids)
+    payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                VALUES ?s {{ {values_clause} }}
+                ?s ?p ?o
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+
+    bindings_by_subject = {}
+    for binding in payload.get("results", {}).get("bindings", []):
+        bindings_by_subject.setdefault(binding["s"]["value"], []).append(binding)
+
+    result = {}
+    for stmt_id in stmt_ids:
+        bindings = bindings_by_subject.get(stmt_id)
+        if not bindings:
+            raise ValueError(f"Statement {stmt_id} not found")
+        result[stmt_id] = _parse_candidate_statement_bindings(stmt_id, bindings)
+    return result
+
+
+def _parse_candidate_statement_bindings(stmt_id: str, bindings: list) -> dict:
     props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
 
     # Get the subject and predicate for the statement
@@ -681,131 +711,150 @@ def delete_document_data(workspace_id: str, document_id: str) -> None:
 
 
 def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
+    return accept_statements_bulk([stmt_id], triggered_by, workspace_id)[stmt_id]
+
+
+def accept_statements_bulk(
+    stmt_ids: list[str], triggered_by: uuid.UUID, workspace_id: str
+) -> dict[str, str]:
+    """Accept many statements with 2 queries: one SELECT to load candidates and one UPDATE to adapt old statements and add new statements."""
+    if not stmt_ids:
+        return {}
+
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
 
-    # Load the candidate statement
-    candidate_statement = load_candidate_statement(stmt_id, graph)
+    candidates = load_candidate_statements_bulk(stmt_ids, graph)
 
-    # Check that the statement is the current version
-    if (
-        candidate_statement["is_current"] is None
-        or candidate_statement["is_current"].lower() != "true"
-    ):
-        raise ValueError(f"Statement {stmt_id} is not the current version")
+    for stmt_id in stmt_ids:
+        is_current = candidates[stmt_id]["is_current"]
+        if is_current is None or is_current.lower() != "true":
+            raise ValueError(f"Statement {stmt_id} is not the current version")
 
-    old_subject = candidate_statement["subject"]
-    old_predicate = candidate_statement["predicate"]
-    object_node = candidate_statement["object_node"]
-    confidence_score = candidate_statement["confidence_score"]
-    text_span_start = candidate_statement["text_span_start"]
-    text_span_end = candidate_statement["text_span_end"]
-
-    # Get the current timestamp in ISO 8601 format with UTC timezone
     accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = accepted_at
 
-    accepting_activity_id = f"{ACCEPT_ACTIVITIES}{uuid4()}"
-    accepted_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
-    # Mark the old statement as not current
-
-    set_to_not_current(stmt_id, graph)
-
-    # Create the new accepted statement with the same subject/predicate/object but with curation status accepted, and link it to the accepting activity
-
     rdf_type = NamedNode(RDF_TYPE)
-
-    new_statement = NamedNode(accepted_statement_id)
-    accepting_activity = NamedNode(accepting_activity_id)
-
     candidate_class = NamedNode(PACO_CANDIDATE)
     accepting_activity_class = NamedNode(PACO_ACCEPTING_ACTIVITY)
-
     prov_entity = NamedNode(PROV_ENTITY)
     prov_activity = NamedNode(PROV_ACTIVITY)
     prov_agent = NamedNode(PROV_AGENT)
-
     curator = curator_node(triggered_by)
     curator_class = NamedNode(PACO_CURATOR)
 
-    triples = []
+    curation_triples = [
+        Triple(curator, rdf_type, curator_class),
+        Triple(curator, rdf_type, prov_agent),
+    ]
+    data_triples = []
+    new_ids: dict[str, str] = {}
 
-    triples.extend(
-        [
-            Triple(accepting_activity, rdf_type, accepting_activity_class),
-            Triple(accepting_activity, rdf_type, prov_activity),
-            Triple(curator, rdf_type, curator_class),
-            Triple(curator, rdf_type, prov_agent),
-            Triple(accepting_activity, NamedNode(PROV_ASSOCIATED_WITH), curator),
-            Triple(accepting_activity, NamedNode(PROV_USED), NamedNode(stmt_id)),
-            Triple(
-                accepting_activity,
-                NamedNode(PACO_ACCEPTED_AT),
-                Literal(accepted_at, datatype=NamedNode(XSD_DATETIME)),
-            ),
-            Triple(new_statement, rdf_type, candidate_class),
-            Triple(new_statement, rdf_type, prov_entity),
-            Triple(new_statement, NamedNode(PACO_SUBJECT), NamedNode(old_subject)),
-            Triple(new_statement, NamedNode(PACO_PREDICATE), NamedNode(old_predicate)),
-            Triple(new_statement, NamedNode(PACO_OBJECT), object_node),
-            Triple(new_statement, NamedNode(PACO_STATUS), NamedNode(PACO_ACCEPTED)),
-            Triple(new_statement, NamedNode(PACO_CURRENT), Literal(True)),
-            Triple(
-                new_statement,
-                NamedNode(PACO_CREATED_AT),
-                Literal(created_at, datatype=NamedNode(XSD_DATETIME)),
-            ),
-            Triple(new_statement, NamedNode(PACO_ORIGIN), curator),
-            Triple(new_statement, NamedNode(PROV_GENERATED_BY), accepting_activity),
-            Triple(new_statement, NamedNode(PROV_DERIVED_FROM), NamedNode(stmt_id)),
-        ]
+    for stmt_id in stmt_ids:
+        candidate_statement = candidates[stmt_id]
+        old_subject = candidate_statement["subject"]
+        old_predicate = candidate_statement["predicate"]
+        object_node = candidate_statement["object_node"]
+        confidence_score = candidate_statement["confidence_score"]
+        text_span_start = candidate_statement["text_span_start"]
+        text_span_end = candidate_statement["text_span_end"]
+
+        accepting_activity_id = f"{ACCEPT_ACTIVITIES}{uuid4()}"
+        accepted_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
+        new_ids[stmt_id] = accepted_statement_id
+
+        new_statement = NamedNode(accepted_statement_id)
+        accepting_activity = NamedNode(accepting_activity_id)
+
+        curation_triples.extend(
+            [
+                Triple(accepting_activity, rdf_type, accepting_activity_class),
+                Triple(accepting_activity, rdf_type, prov_activity),
+                Triple(accepting_activity, NamedNode(PROV_ASSOCIATED_WITH), curator),
+                Triple(accepting_activity, NamedNode(PROV_USED), NamedNode(stmt_id)),
+                Triple(
+                    accepting_activity,
+                    NamedNode(PACO_ACCEPTED_AT),
+                    Literal(accepted_at, datatype=NamedNode(XSD_DATETIME)),
+                ),
+                Triple(new_statement, rdf_type, candidate_class),
+                Triple(new_statement, rdf_type, prov_entity),
+                Triple(new_statement, NamedNode(PACO_SUBJECT), NamedNode(old_subject)),
+                Triple(
+                    new_statement, NamedNode(PACO_PREDICATE), NamedNode(old_predicate)
+                ),
+                Triple(new_statement, NamedNode(PACO_OBJECT), object_node),
+                Triple(new_statement, NamedNode(PACO_STATUS), NamedNode(PACO_ACCEPTED)),
+                Triple(new_statement, NamedNode(PACO_CURRENT), Literal(True)),
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_CREATED_AT),
+                    Literal(created_at, datatype=NamedNode(XSD_DATETIME)),
+                ),
+                Triple(new_statement, NamedNode(PACO_ORIGIN), curator),
+                Triple(new_statement, NamedNode(PROV_GENERATED_BY), accepting_activity),
+                Triple(new_statement, NamedNode(PROV_DERIVED_FROM), NamedNode(stmt_id)),
+            ]
+        )
+
+        if confidence_score is not None:
+            curation_triples.append(
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_CONFIDENCE),
+                    Literal(confidence_score, datatype=NamedNode(XSD_FLOAT)),
+                )
+            )
+
+        if text_span_start is not None and text_span_end is not None:
+            curation_triples.append(
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_TEXT_SPAN_START),
+                    Literal(text_span_start, datatype=NamedNode(XSD_INTEGER)),
+                )
+            )
+            curation_triples.append(
+                Triple(
+                    new_statement,
+                    NamedNode(PACO_TEXT_SPAN_END),
+                    Literal(text_span_end, datatype=NamedNode(XSD_INTEGER)),
+                )
+            )
+
+        data_triples.append(
+            Triple(NamedNode(old_subject), NamedNode(old_predicate), object_node)
+        )
+
+    curation_triples_text = serialize(
+        curation_triples, format=RdfFormat.N_TRIPLES
+    ).decode("utf-8")
+    data_triples_text = serialize(data_triples, format=RdfFormat.N_TRIPLES).decode(
+        "utf-8"
     )
+    not_current_values_clause = " ".join(f"<{stmt_id}>" for stmt_id in stmt_ids)
 
-    if confidence_score is not None:
-        triples.append(
-            Triple(
-                new_statement,
-                NamedNode(PACO_CONFIDENCE),
-                Literal(confidence_score, datatype=NamedNode(XSD_FLOAT)),
-            )
-        )
-
-    if text_span_start is not None and text_span_end is not None:
-        triples.append(
-            Triple(
-                new_statement,
-                NamedNode(PACO_TEXT_SPAN_START),
-                Literal(text_span_start, datatype=NamedNode(XSD_INTEGER)),
-            )
-        )
-        triples.append(
-            Triple(
-                new_statement,
-                NamedNode(PACO_TEXT_SPAN_END),
-                Literal(text_span_end, datatype=NamedNode(XSD_INTEGER)),
-            )
-        )
-
-    triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
-
-    # write tripples to curation graph
+    # make the old statements not-current, write
+    # the new accepted statements + provenance to the curation graph, and write
+    # their bare subject/predicate/object triples to the accepted data graph.
     sparql_update(f"""
+        DELETE {{
+            GRAPH <{graph}> {{ ?stmt <{PACO_CURRENT}> true }}
+        }}
+        INSERT {{
+            GRAPH <{graph}> {{ ?stmt <{PACO_CURRENT}> false }}
+        }}
+        WHERE {{
+            GRAPH <{graph}> {{
+                VALUES ?stmt {{ {not_current_values_clause} }}
+                ?stmt <{PACO_CURRENT}> true .
+            }}
+        }} ;
         INSERT DATA {{
             GRAPH <{graph}> {{
-                {triples_text}
+                {curation_triples_text}
             }}
-        }}
-    """)
-
-    data_triples_text = serialize(
-        [
-            Triple(NamedNode(old_subject), NamedNode(old_predicate), object_node),
-        ],
-        format=RdfFormat.N_TRIPLES,
-    ).decode("utf-8")
-
-    # write tripples to data graph
-    sparql_update(f"""
+        }} ;
         INSERT DATA {{
             GRAPH <{accepted_graph}> {{
                 {data_triples_text}
@@ -813,7 +862,7 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
         }}
     """)
 
-    return accepted_statement_id
+    return new_ids
 
 
 def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -> str:
@@ -1038,6 +1087,10 @@ def edit_statement(
     if edit.object_iri is not None:
         new_object = NamedNode(edit.object_iri)
     elif edit.object_value is not None:
+        if isinstance(object_node, NamedNode):
+            raise ValueError(
+                f"This statement requires a URI object. Use object_iri instead of object_value."
+            )
         new_object = Literal(edit.object_value)
     else:
         new_object = object_node
@@ -1378,6 +1431,7 @@ def reset_statement(
         subject=original_subject,
         predicate=original_predicate,
         object=object,
+        object_is_uri=isinstance(original_object_node, NamedNode),
         confidence=original_confidence_score,
         text_span_start=original_text_span_start,
         text_span_end=original_text_span_end,

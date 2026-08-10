@@ -3,6 +3,7 @@ import uuid
 from test_utils import (
     activity_count,
     add_member,
+    add_statement,
     as_user,
     create_workspace,
     find_candidate_id,
@@ -159,6 +160,133 @@ class TestAcceptStatementEndpoint:
             }}
         """
         assert sparql_count(data_sparql) == 0
+
+
+class TestBulkAcceptEndpoint:
+    async def test_owner_can_bulk_accept_multiple_statements(self, client, tmp_path):
+        workspace_id, stmt_id_1, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        stmt_id_2 = add_statement(
+            tmp_path,
+            workspace_id,
+            "http://example.org/s2",
+            "http://example.org/p2",
+            "o2",
+        )
+
+        resp = await client.post(
+            f"/statements/{workspace_id}/bulk_accept",
+            json=[stmt_id_1, stmt_id_2],
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 2
+        # response order matches request order, and each is a new (accepted) id
+        assert body[0]["id"] != stmt_id_1
+        assert body[1]["id"] != stmt_id_2
+        assert body[0]["subject"] == "http://example.org/s"
+        assert body[1]["subject"] == "http://example.org/s2"
+
+        assert activity_count(workspace_id, "AcceptingActivity") == 2
+
+        data_sparql = f"""
+            SELECT (COUNT(*) AS ?count) WHERE {{
+                GRAPH <{data_graph(workspace_id)}> {{
+                    <{SUBJECT}> <{PREDICATE}> "{OBJECT_VALUE}"
+                }}
+            }}
+        """
+        assert sparql_count(data_sparql) == 1
+        data_sparql_2 = f"""
+            SELECT (COUNT(*) AS ?count) WHERE {{
+                GRAPH <{data_graph(workspace_id)}> {{
+                    <http://example.org/s2> <http://example.org/p2> "o2"
+                }}
+            }}
+        """
+        assert sparql_count(data_sparql_2) == 1
+
+    async def test_editor_can_bulk_accept(self, client, tmp_path):
+        workspace_id, stmt_id, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        _, editor_email, editor_token = await register_user(client, "editor")
+        as_user(client, owner_token)
+        await add_member(client, workspace_id, editor_email, "editor")
+        as_user(client, editor_token)
+        resp = await client.post(
+            f"/statements/{workspace_id}/bulk_accept",
+            json=[stmt_id],
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+    async def test_non_member_cannot_bulk_accept(self, client, tmp_path):
+        workspace_id, stmt_id, _ = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        _, _, non_member_token = await register_user(client, "no member")
+        as_user(client, non_member_token)
+        resp = await client.post(
+            f"/statements/{workspace_id}/bulk_accept",
+            json=[stmt_id],
+        )
+        assert resp.status_code == 403
+
+    async def test_unknown_workspace(self, client, tmp_path):
+        _, _, owner_token = await register_user(client, "owner")
+        as_user(client, owner_token)
+        resp = await client.post(
+            f"/statements/{uuid.uuid4()}/bulk_accept",
+            json=["https://example.org/does-not-exist"],
+        )
+        assert resp.status_code == 403
+
+    async def test_empty_list_returns_empty(self, client, tmp_path):
+        workspace_id, _, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        resp = await client.post(
+            f"/statements/{workspace_id}/bulk_accept",
+            json=[],
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_already_accepted_statement_in_batch_fails(self, client, tmp_path):
+        workspace_id, stmt_id_1, owner_token = await setup_workspace_with_statement(
+            client, tmp_path
+        )
+        as_user(client, owner_token)
+        stmt_id_2 = add_statement(
+            tmp_path,
+            workspace_id,
+            "http://example.org/s2",
+            "http://example.org/p2",
+            "o2",
+        )
+        await client.post(
+            f"/statements/{workspace_id}/accept", params={"statement_id": stmt_id_1}
+        )
+
+        resp = await client.post(
+            f"/statements/{workspace_id}/bulk_accept",
+            json=[stmt_id_1, stmt_id_2],
+        )
+        assert resp.status_code == 422
+        assert activity_count(workspace_id, "AcceptingActivity") == 1
+
+        data_sparql_2 = f"""
+            SELECT (COUNT(*) AS ?count) WHERE {{
+                GRAPH <{data_graph(workspace_id)}> {{
+                    <http://example.org/s2> <http://example.org/p2> "o2"
+                }}
+            }}
+        """
+        assert sparql_count(data_sparql_2) == 0
 
 
 class TestRejectStatementEndpoint:

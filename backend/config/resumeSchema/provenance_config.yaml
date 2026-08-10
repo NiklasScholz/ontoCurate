@@ -1,0 +1,64 @@
+settings:
+  out_of_window_penalty: 0.8 
+  win_distance_penalty: 1.0   
+  min_penalty_factor: 0.3     
+
+datatype_properties:
+  outlier_penalty: 1.0
+  min_outlier_factor: 0.2
+  outlier_pentalty_entities:
+    - Person
+    - Organization
+    - Experience
+    - Education
+
+  exact_only_predicates:
+    - email
+    - phone
+
+  windows:
+
+    name:
+      strategy: head
+      chars: 800
+
+    email:
+      strategy: head
+      chars: 800
+
+    phone:
+      strategy: head
+      chars: 800
+
+    location:
+      strategy: head
+      chars: 800
+
+    website:
+      strategy: head
+      chars: 800
+
+    summary:
+      - strategy: head
+        chars: 1500
+      - strategy: section
+        heading: "Summary"
+      - strategy: section
+        heading: "Objective"
+      - strategy: section
+        heading: "Profile"
+
+object_properties:
+  default_strategy: average_target_entity_confidence
+
+  cooccurrence_distance_penalty: 1.0
+  cooccurrence_min_factor: 0.3
+  cooccurrence_outlier_penalty: 1.0
+  cooccurrence_min_outlier_factor: 0.2
+
+  predicates:
+    employer:
+      strategy: spatial_cooccurrence
+
+    institution:
+      strategy: spatial_cooccurrence

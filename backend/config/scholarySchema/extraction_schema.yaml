@@ -152,6 +152,7 @@ classes:
     slots:
       - id
       - publication_year
+      - journal_name
       - volume
       - issue_number
       - in_journal
@@ -259,6 +260,11 @@ slots:
       The proceedings volume in which this paper was published. Give all information you have on it.
       CRITICAL: always extract the volume number (e.g. "3963" from a CEUR-WS URL like
       ceur-ws.org/Vol-3963/ or from a "Volume X" statement in the paper header).
+      This is may be mentioned in the same sentence/footnote as the workshop or conference
+      (presented_at / presented_at_workshop) - populate both fields from it, not just one.
+      If no explicit "Proceedings of ..." title is given but a workshop or conference name is,
+      infer the proceedings title from it (e.g. prefix "Proceedings of the " to the workshop/
+      conference name) rather than leaving this blank - it is not always stated verbatim.
 
   published_in_issue:
     slot_uri: dcterms:isPartOf
@@ -293,6 +299,12 @@ slots:
       a colon (e.g. "ESWC'26: TAAPAAI Workshop"), omit the prefix before the colon and use
       only the descriptive part (e.g. "TAAPAAI Workshop").
       Example: "Workshop on Knowledge Graphs 2024, Vienna, Austria, 2024-05-26, 2024-05-30, part_of_conference: ISWC 2024"
+      This is may be mentioned in the same sentence/footnote as the proceedings volume
+      (published_in_proceedings). If this is the case, populate both fields from it, not just one.
+      If no standalone workshop sentence exists but a proceedings title is given (e.g.
+      "Proceedings of the First Workshop on X @ CIKM 2025"), infer the workshop name from
+      it (strip the "Proceedings of the " prefix and any trailing "@ Conference" part) rather
+      than leaving this blank - the workshop name is not always stated separately.
 
   doi:
     slot_uri: bibo:doi
@@ -336,7 +348,10 @@ slots:
     slot_uri: foaf:givenName
     range: string
     description: >-
-      The first (given) name of the person. Optional - populated for main paper
+      The person's full given name -- every name part before the family name,
+      not just the first token. Many given names are two or more words/syllables
+      (e.g. "Ye Lim" in "Ye Lim Jung", "Hyoung Sun" in "Hyoung Sun Yoo"); include
+      all of them, not only the first. Optional - populated for main paper
       authors when confident. Do not fill if the full name is not given (e.g. J. [family name])
 
   family_name:
@@ -403,6 +418,15 @@ slots:
     inlined: true
     range: Organization
     description: The organization responsible for publishing this resource. Include all relevant information about the organization you have given.
+
+  journal_name:
+    slot_uri: smo:journalName
+    range: string
+    description: >-
+      The name of the journal this issue belongs to, exactly as it appears in the
+      source (abbreviated or full form, whichever is given). Always populate this
+      even though the journal is also captured via in_journal - it lets this issue
+      be matched against others from the same journal.
 
   volume:
     slot_uri: bibo:volume
@@ -483,7 +507,7 @@ slots:
       naming a parent event. If no such explicit mention exists, leave this field blank -
       do NOT infer or guess a parent conference.
 
-  #  Journal Issue 
+  #  Journal Issue
 
   issue_number:
     slot_uri: bibo:issue

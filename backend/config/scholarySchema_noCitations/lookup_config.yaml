@@ -83,6 +83,7 @@ wikidata_lookup:
         - Q43229  # organization
         - Q3918  # university
         - Q2085381  # publishing house
+        - Q483242  # laboratory
 
       search_queries:
         - predicates:

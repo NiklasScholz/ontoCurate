@@ -3,6 +3,17 @@ import uuid
 from test_utils import add_member, as_user, create_workspace, register_user
 
 
+class TestWorkspaceCreation:
+    async def test_unknown_schema_name_returns_400(self, client):
+        _, _, owner_token = await register_user(client, "owner")
+        as_user(client, owner_token)
+        resp = await client.post(
+            "/workspaces/",
+            json={"name": "my workspace", "schema_name": "not-a-real-schema"},
+        )
+        assert resp.status_code == 400
+
+
 class TestWorkspaces:
     async def test_owner_sees_created_workspace(self, client):
         _, _, owner_token = await register_user(client, "owner")

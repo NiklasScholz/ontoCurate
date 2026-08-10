@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { client } from "../client";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { apiUrl, client, getErrorMessage } from "../client";
 import Spinner from "../components/Spinner";
 import { TableSkeleton } from "../components/Skeleton";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
@@ -14,7 +14,12 @@ import NotFound from "./NotFound";
 import MarkdownView from "../components/MarkdownView";
 import Popup from "../components/Popup";
 import CurationDetail from "./CurationDetail";
-import { PACO_ACCEPTED, PACO_REJECTED } from "../ontology";
+import {
+    PACO_ACCEPTED,
+    PACO_PENDING,
+    PACO_REJECTED,
+    processEntityLabelWithNamespace,
+} from "../ontology";
 
 function ConfidenceBar({ percentage }: { percentage: number }) {
     return (
@@ -56,6 +61,9 @@ function StatementsView({
 }) {
     const [threshold, setThreshold] = useState<number>(0);
     const [bulkAcceptInProgress, setBulkAcceptInProgress] = useState(false);
+    const [bulkAcceptError, setBulkAcceptError] = useState<string | null>(
+        null,
+    );
 
     const filteredStatements = useMemo(() => {
         return statements === undefined
@@ -69,6 +77,14 @@ function StatementsView({
                   );
     }, [statements, threshold]);
 
+    const acceptableStatements = useMemo(
+        () =>
+            filteredStatements.filter(
+                ({ stm }) => stm.current.curation_status === PACO_PENDING,
+            ),
+        [filteredStatements],
+    );
+
     return statements ? (
         <div className="flex min-h-0 flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -77,45 +93,85 @@ function StatementsView({
                     type="range"
                     min="0"
                     max="100"
-                    defaultValue={threshold}
+                    step="0.01"
+                    value={threshold}
                     onChange={(e) =>
-                        setThreshold(Number.parseInt(e.target.value))
+                        setThreshold(Number.parseFloat(e.target.value))
                     }
                 />
-                <div>{threshold}%</div>
+                <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={threshold}
+                    onChange={(e) => {
+                        const value = Number.parseFloat(e.target.value);
+                        if (Number.isNaN(value)) {
+                            return;
+                        }
+                        setThreshold(Math.min(100, Math.max(0, value)));
+                    }}
+                    className="border-nord4 w-14 rounded border px-1 py-0.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <div>%</div>
                 <button
-                    disabled={bulkAcceptInProgress}
+                    disabled={
+                        bulkAcceptInProgress || acceptableStatements.length === 0
+                    }
                     className="bg-nord8 rounded px-2 py-1"
                     onClick={() => {
-                        const clone = [...filteredStatements];
+                        const clone = [...acceptableStatements];
                         setBulkAcceptInProgress(true);
+                        setBulkAcceptError(null);
                         client
                             .POST("/statements/{workspace_id}/bulk_accept", {
                                 params: {
                                     path: { workspace_id: workspaceId },
                                 },
-                                body: filteredStatements.map(
+                                body: acceptableStatements.map(
                                     ({ stm }) => stm.current.id,
                                 ),
                             })
-                            .then((newStatements) => {
+                            .then(({ data, error }) => {
+                                if (error || !data) {
+                                    setBulkAcceptError(
+                                        getErrorMessage(
+                                            error,
+                                            "Failed to bulk accept statements",
+                                        ),
+                                    );
+                                    return;
+                                }
                                 onChange(
                                     Object.fromEntries(
-                                        newStatements.data.map((s, i) => [
+                                        data.map((s, i) => [
                                             clone[i].stm.original.id,
                                             s,
                                         ]),
                                     ),
                                 );
+                            })
+                            .catch(() => {
+                                setBulkAcceptError(
+                                    "Failed to bulk accept statements",
+                                );
+                            })
+                            .finally(() => {
                                 setBulkAcceptInProgress(false);
                             });
                     }}
                 >
-                    Bulk accept {filteredStatements.length} triples
+                    Bulk accept {acceptableStatements.length} triples
                 </button>
                 <div className={!bulkAcceptInProgress && "hidden"}>
                     <Spinner />
                 </div>
+                {bulkAcceptError && (
+                    <div className="text-nord11 text-sm">
+                        {bulkAcceptError}
+                    </div>
+                )}
             </div>
             <div className="flex min-h-0 flex-col">
                 <div className="bg-nord3 text-nord6 grid grid-cols-[30px_1fr_1fr_1fr_1fr] gap-5 font-bold">
@@ -163,14 +219,24 @@ function StatementsView({
                                             <div className="overflow-hidden text-right text-nowrap text-ellipsis">
                                                 {i + 1}
                                             </div>
-                                            <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                {stm.current.subject}
+                                            <div
+                                                className="overflow-hidden text-nowrap text-ellipsis"
+                                                title={stm.current.subject}
+                                            >
+                                                {processEntityLabelWithNamespace(
+                                                    stm.current.subject,
+                                                )}
                                             </div>
                                             <div className="overflow-hidden text-nowrap text-ellipsis">
                                                 {stm.current.predicate}
                                             </div>
-                                            <div className="overflow-hidden text-nowrap text-ellipsis">
-                                                {stm.current.object}
+                                            <div
+                                                className="overflow-hidden text-nowrap text-ellipsis"
+                                                title={stm.current.object}
+                                            >
+                                                {processEntityLabelWithNamespace(
+                                                    stm.current.object,
+                                                )}
                                             </div>
                                             <div className="overflow-hidden text-nowrap text-ellipsis">
                                                 <ConfidenceBar
@@ -250,13 +316,15 @@ export default function CurationPage() {
     const wsId = searchParams.get("ws");
     const docId = searchParams.get("doc");
 
-    const reloadStatements = useCallback(() => {
+    useEffect(() => {
+        let cancelled = false;
         if (docId === null) {
             client
                 .GET("/graph/{workspace_id}/deduplication", {
                     params: { path: { workspace_id: wsId } },
                 })
                 .then((statements) => {
+                    if (cancelled) return;
                     if (statements.data !== null) {
                         setStatements(statements.data);
                     }
@@ -267,6 +335,7 @@ export default function CurationPage() {
                     params: { path: { document_id: docId } },
                 })
                 .then((doc) => {
+                    if (cancelled) return;
                     if (doc.data !== null) {
                         setDoc(doc.data);
                     }
@@ -276,17 +345,17 @@ export default function CurationPage() {
                     params: { path: { document_id: docId } },
                 })
                 .then((statements) => {
+                    if (cancelled) return;
                     if (statements.data !== null) {
                         setStatements(statements.data);
                     }
                     setPage(0);
                 });
         }
+        return () => {
+            cancelled = true;
+        };
     }, [wsId, docId]);
-
-    useEffect(() => {
-        reloadStatements();
-    }, [reloadStatements]);
 
     if (wsId === null) {
         return <NotFound />;
@@ -326,6 +395,38 @@ export default function CurationPage() {
                             </>
                         )}
                     </h1>
+                    {docId === null &&
+                        (statements?.some(
+                            (s) => s.current.curation_status === PACO_ACCEPTED,
+                        ) ? (
+                            <div className="bg-nord4 absolute top-0 right-0 flex h-full items-center gap-2 rounded px-3 text-sm">
+                                <span>Export merged graph:</span>
+                                <a
+                                    className="underline"
+                                    href={apiUrl(
+                                        `/graph/${wsId}/deduplication/export?format=turtle`,
+                                    )}
+                                >
+                                    Turtle
+                                </a>
+                                <a
+                                    className="underline"
+                                    href={apiUrl(
+                                        `/graph/${wsId}/deduplication/export?format=json-ld`,
+                                    )}
+                                >
+                                    JSON-LD
+                                </a>
+                            </div>
+                        ) : (
+                            <div
+                                className="bg-nord4 absolute top-0 right-0 flex h-full cursor-not-allowed items-center gap-2 rounded px-3 text-sm opacity-40"
+                                title="No owl:sameAs statements have been accepted yet"
+                                aria-disabled="true"
+                            >
+                                <span>Export merged graph</span>
+                            </div>
+                        ))}
                 </div>
 
                 <div className="mb-4 flex gap-4">

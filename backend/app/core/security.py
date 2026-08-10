@@ -32,7 +32,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         samesite="lax",
-        secure=not settings.debug,
+        secure=settings.environment == "production",
     )
 
 

@@ -1,5 +1,7 @@
 """Client for running LLM completion requests through LiteLLM."""
 
+"""Patches from ontoCurate marked with PATCH keyword in comments."""
+
 import logging
 import os
 from dataclasses import dataclass, field
@@ -16,6 +18,7 @@ from ontogpt import DEFAULT_MODEL
 logger = logging.getLogger(__name__)
 
 
+# PATCH: upstream ontoGPT calls sys.exit() on LLM API errors. We patch this to raise an exception, so that we can handle it more gracefully
 class LLMCompletionError(Exception):
     """Raised when an LLM completion request fails or returns no usable content."""
 
@@ -205,6 +208,8 @@ class LLMClient:
             }
             if self.api_key:
                 request_kwargs["api_key"] = self.api_key
+            # PATCH: upstream has no way to set output length but uses default;
+            # we add it to fix issues with long documents
             max_output_tokens = os.environ.get("ONTOGPT_MAX_OUTPUT_TOKENS")
             if max_output_tokens:
                 request_kwargs["max_tokens"] = int(max_output_tokens)
@@ -257,6 +262,7 @@ class LLMClient:
             logger.error(f"Encountered error: {type(e)}, Error: {e}")
             raise LLMCompletionError(f"Unexpected error calling LLM: {e}") from e
 
+        # PATCH: original function silently returns "" here instead of raising an error
         payload = self._extract_response_text(response)
         if not payload:
             raise LLMCompletionError("LLM call returned no completion content.")

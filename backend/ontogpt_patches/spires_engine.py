@@ -671,6 +671,8 @@ class SPIRESEngine(KnowledgeEngine):
                     else:
                         # We made it this far but may still have a continued line
                         # So parse that first, then still parse the current line
+                        # PATCH: ontoGPT originally did `line = continued_line` here instead,
+                        # which silently dropped the current line's own data.
                         if len(continued_line) > 0:
                             r_cont = self._parse_line_to_dict(continued_line, cls)
                             if r_cont is not None:
@@ -757,8 +759,9 @@ class SPIRESEngine(KnowledgeEngine):
                 for v in vals:
                     result = self._extract_from_text_to_dict(v, slot_range)  # type: ignore
                     if not result:
-                        # LLM sub-call returned empty; fall back to heuristic parsing so
-                        # that at minimum the label text is preserved in the output.
+                        # PATCH: upstream just kept the empty result here. We fall
+                        # back to heuristic parsing so that at minimum the label
+                        # text is preserved in the output.
                         # 1. Try separator-based split (mirrors the <=2-slot else-branch).
                         parsed: Optional[dict] = None
                         for sep in [" - ", ":", "/", "*", "-"]:
@@ -961,8 +964,10 @@ class SPIRESEngine(KnowledgeEngine):
                     new_ann[field] = obj
         logging.debug(f"Creating object from dict {new_ann}")
         logging.info(new_ann)
-        # Empty lists are not valid for non-multivalued (inlined) slots in Pydantic;
-        # replace [] with None — semantically identical (means "absent").
+        # PATCH: original passes new_ann to Pydantic as-is, which raises a
+        # validation error when a non-multivalued (inlined) slot ends up []
+        # instead of absent. Replace [] with None, which is semantically identical
+        # (means "absent") but valid.
         new_ann = {k: (None if v == [] else v) for k, v in new_ann.items()}
         py_cls = getattr(self._require_template_module(), class_name)
         return py_cls(**new_ann)

@@ -1,15 +1,15 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.routes.auth import router as auth_router
-from app.routes.debug import router as debug_router
 from app.routes.documents import router as documents_router
 from app.routes.extraction import router as extractions_router
 from app.routes.graph import router as graph_router
@@ -33,21 +33,22 @@ async def lifespan(app: FastAPI):
     yield
 
 
+is_production = settings.environment == "production"
+
 app = FastAPI(
     title="OntoCurate API",
     version="0.1.0",
     description="Ontology-Guided Knowledge Extraction and Curation with LLMs",
     lifespan=lifespan,
     swagger_ui_parameters={"withCredentials": True},
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://ontocurate.app",
-        "https://www.ontocurate.app",
-    ],
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +58,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth_router)
-app.include_router(debug_router)
 app.include_router(documents_router)
 app.include_router(extractions_router)
 app.include_router(graph_router)
@@ -74,4 +74,6 @@ async def health():
 
 @app.get("/openapi", tags=["meta"])
 async def openapi():
+    if is_production:
+        raise HTTPException(status_code=404)
     return app.openapi()

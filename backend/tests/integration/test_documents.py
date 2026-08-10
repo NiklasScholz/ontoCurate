@@ -5,6 +5,7 @@ from test_utils import (
     add_member,
     as_user,
     create_workspace,
+    find_candidate_id,
     register_user,
     sparql_count,
 )
@@ -222,51 +223,102 @@ class TestDocumentStatements:
         assert resp.status_code == 404
 
 
-RELATED_SPANS_TTL = """
-@prefix ex: <http://example.org/> .
-ex:entityA ex:name "Alice" .
-ex:entityA ex:email "alice@example.com" .
-ex:entityB ex:name "Bob" .
-ex:entityA ex:relatedTo ex:entityB .
-"""
+class TestDocumentTripleCounts:
+    TWO_STATEMENTS_TTL = """
+        @prefix ex: <http://example.org/> .
+        ex:s1 ex:p "o1" .
+        ex:s2 ex:p "o2" .
+    """
 
-RELATED_SPANS_PROVENANCE = {
-    "annotations": [
-        {
-            "subject": "http://example.org/entityA",
-            "predicate": "name",
-            "value": "Alice",
-            "span_start": 0,
-            "span_end": 5,
-            "span_text": "Alice",
-            "confidence": 0.9,
-            "triple_type": "literal",
-        },
-        {
-            "subject": "http://example.org/entityA",
-            "predicate": "email",
-            "value": "alice@example.com",
-            "span_start": 10,
-            "span_end": 28,
-            "span_text": "alice@example.com",
-            "confidence": 0.9,
-            "triple_type": "literal",
-        },
-        {
-            "subject": "http://example.org/entityB",
-            "predicate": "name",
-            "value": "Bob",
-            "span_start": 40,
-            "span_end": 43,
-            "span_text": "Bob",
-            "confidence": 0.9,
-            "triple_type": "literal",
-        },
-    ]
-}
+    async def test_list_documents_reports_extracted_and_pending_counts(
+        self, client, tmp_path
+    ):
+        _, _, owner_token = await register_user(client, "owner")
+        workspace_id, document_id = await create_workspace_with_document(
+            client, owner_token
+        )
+        add_candidate_statements(
+            tmp_path, workspace_id, self.TWO_STATEMENTS_TTL, document_id=document_id
+        )
+        as_user(client, owner_token)
+
+        resp = await client.get("/documents/", params={"workspace_id": workspace_id})
+        assert resp.status_code == 200
+        [doc] = resp.json()
+        assert doc["extracted_triples"] == 2
+        assert doc["pending_triples"] == 2
+
+    async def test_accepting_a_statement_moves_it_out_of_pending_only(
+        self, client, tmp_path
+    ):
+        _, _, owner_token = await register_user(client, "owner")
+        workspace_id, document_id = await create_workspace_with_document(
+            client, owner_token
+        )
+        add_candidate_statements(
+            tmp_path, workspace_id, self.TWO_STATEMENTS_TTL, document_id=document_id
+        )
+        as_user(client, owner_token)
+        stmt_id = find_candidate_id(
+            workspace_id, "http://example.org/p", subject="http://example.org/s1"
+        )
+        accept_resp = await client.post(
+            f"/statements/{workspace_id}/accept", params={"statement_id": stmt_id}
+        )
+        assert accept_resp.status_code == 200
+
+        resp = await client.get(f"/documents/{document_id}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["extracted_triples"] == 2
+        assert body["pending_triples"] == 1
 
 
 class TestDocumentRelatedSpans:
+
+    RELATED_SPANS_TTL = """
+    @prefix ex: <http://example.org/> .
+    ex:entityA ex:name "Alice" .
+    ex:entityA ex:email "alice@example.com" .
+    ex:entityB ex:name "Bob" .
+    ex:entityA ex:relatedTo ex:entityB .
+    """
+
+    RELATED_SPANS_PROVENANCE = {
+        "annotations": [
+            {
+                "subject": "http://example.org/entityA",
+                "predicate": "name",
+                "value": "Alice",
+                "span_start": 0,
+                "span_end": 5,
+                "span_text": "Alice",
+                "confidence": 0.9,
+                "triple_type": "literal",
+            },
+            {
+                "subject": "http://example.org/entityA",
+                "predicate": "email",
+                "value": "alice@example.com",
+                "span_start": 10,
+                "span_end": 28,
+                "span_text": "alice@example.com",
+                "confidence": 0.9,
+                "triple_type": "literal",
+            },
+            {
+                "subject": "http://example.org/entityB",
+                "predicate": "name",
+                "value": "Bob",
+                "span_start": 40,
+                "span_end": 43,
+                "span_text": "Bob",
+                "confidence": 0.9,
+                "triple_type": "literal",
+            },
+        ]
+    }
+
     async def test_returns_spans_by_entity(self, client, tmp_path):
         _, _, owner_token = await register_user(client, "owner")
         workspace_id, document_id = await create_workspace_with_document(
@@ -275,8 +327,8 @@ class TestDocumentRelatedSpans:
         add_candidate_statements(
             tmp_path,
             workspace_id,
-            RELATED_SPANS_TTL,
-            RELATED_SPANS_PROVENANCE,
+            self.RELATED_SPANS_TTL,
+            self.RELATED_SPANS_PROVENANCE,
             document_id=document_id,
         )
         as_user(client, owner_token)
@@ -306,8 +358,8 @@ class TestDocumentRelatedSpans:
         add_candidate_statements(
             tmp_path,
             workspace_id,
-            RELATED_SPANS_TTL,
-            RELATED_SPANS_PROVENANCE,
+            self.RELATED_SPANS_TTL,
+            self.RELATED_SPANS_PROVENANCE,
             document_id=document_id,
         )
         as_user(client, non_member_token)

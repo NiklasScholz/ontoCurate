@@ -1,4 +1,8 @@
-from app.pipeline.convert import SPACING_MODIFIER_MAP, clean_markdown
+from app.pipeline.convert import (
+    SPACING_MODIFIER_MAP,
+    clean_markdown,
+    semicolon_cleaning,
+)
 
 
 class TestCleanMarkdown:
@@ -81,3 +85,14 @@ class TestCleanMarkdown:
             normalize_whitespace=False,
         )
         assert result == f"pre{replacement}post"
+
+
+class TestSemicolonCleaning:
+    def test_unescapes_tight_semicolon_and_letter_artifact(self):
+        assert semicolon_cleaning("M&A;") == "M&A"
+        assert semicolon_cleaning("P&G;'s portfolio") == "P&G's portfolio"
+        assert semicolon_cleaning("GD&T;, FMEA") == "GD&T, FMEA"
+
+    def test_leaves_known_uppercase_html_entities_untouched(self):
+        assert semicolon_cleaning("Tom &AMP; Jerry") == "Tom &AMP; Jerry"
+        assert semicolon_cleaning("A &LT; B") == "A &LT; B"

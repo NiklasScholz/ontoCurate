@@ -6,6 +6,15 @@ export const client = createClient<paths>({
     credentials: "include",
 });
 
+client.use({
+    onResponse({ response, schemaPath }) {
+        if (response.status === 401 && !schemaPath.startsWith("/auth/")) {
+            window.location.href = "/";
+        }
+        return response;
+    },
+});
+
 export function apiUrl(path: string): string {
     return `${import.meta.env.VITE_API_URL}${path}`;
 }

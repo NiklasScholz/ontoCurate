@@ -1,0 +1,38 @@
+wikidata_lookup:
+  settings:
+    candidate_limit: 5
+    language: en
+    request_delay_seconds: 0.1
+    default_threshold: 0.85
+    default_weights:
+      syntactic: 0.8
+      semantic: 0.2
+    default_comparison_predicates:
+      - name
+    default_semantic_text_predicates:
+      - name
+    default_expand_initials: false
+
+  entity_types:
+    Organization:
+      search_queries:
+        - predicates:
+            - name
+          max_queries: 2
+
+      candidate_literals:
+        name:
+          - source: label
+          - source: aliases
+
+      scoring:
+        threshold: 0.9
+        weights:
+          syntactic: 0.75
+          semantic: 0.25
+        comparison_predicates:
+          - name
+        semantic_text_predicates:
+          - name
+        sparsity_penalty: 1.0
+        sparsity_max_fields: 1

@@ -126,6 +126,28 @@ entity_types:
     semantic_text_predicates:
       - title
 
+  # volume/issue numbers alone look identical across unrelated journals (e.g.
+  # "Vol 12, No 3" of two different journals) -- journal_name is the real
+  # anchor. hard_match_predicates vetoes the pair outright if volume/issue
+  # don't (fuzzy-)match, so a mismatched issue number on an otherwise
+  # similar-sounding journal can never sneak through; the actual score is
+  # then carried by journal_name.
+  Issue:
+    threshold: 0.85
+    weights:
+      syntactic: 0.4
+      semantic: 0.5
+      structural: 0.1
+    comparison_predicates:
+      - journalName
+      - volume
+      - issue
+    semantic_text_predicates:
+      - journalName
+    hard_match_predicates:
+      volume: 0.9
+      issue: 0.9
+
   Series:
     threshold: 0.9
     weights:

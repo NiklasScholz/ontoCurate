@@ -1,8 +1,11 @@
+from typing import Literal
+
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    environment: Literal["development", "production"] = "development"
     database_url: str = "postgresql+asyncpg://onto:onto@localhost:5432/onto"
     redis_url: str = "redis://localhost:6379"
     oxigraph_url: str = "http://localhost:7878"
@@ -18,10 +21,17 @@ class Settings(BaseSettings):
     embedding_model: str = "qwen3-embedding-8b"
     max_text_length: int | None = None
     max_output_tokens: int | None = None
+    # Low temperature favors consistently extracting every entry in a list
+    # over creative variation; ontoGPT/LLMClient's own default is 1.0.
+    extraction_temperature: float = 0.3
     wikimedia_user_agent: str = ""
+    cors_allow_origins: list[str] = [
+        "http://localhost:5173",
+        "https://ontocurate.app",
+        "https://www.ontocurate.app",
+    ]
 
     model_config = ConfigDict(env_file="secrets.env")
-    debug: bool = True
 
 
 settings = Settings()

@@ -13,7 +13,7 @@ class Run(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=False, index=True
     )
     triggered_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -33,12 +33,13 @@ class RunTask(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     run_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("runs.id"), nullable=False, index=True
     )
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     status: Mapped[str] = mapped_column(String, nullable=False, default="Queued")
     task_name: Mapped[str] = mapped_column(String, nullable=False)

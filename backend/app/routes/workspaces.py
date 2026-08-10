@@ -1,4 +1,5 @@
 import asyncio
+import re
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
@@ -12,7 +13,6 @@ from app.core.database import get_session
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
-    ForbiddenException,
     NotFoundException,
 )
 from app.deps import get_current_user, require_role
@@ -181,11 +181,21 @@ async def export_provenance_graph(
     content = await asyncio.to_thread(
         export_graph, curation_graph(workspace_id), format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}_provenance.{extension}"'
+            )
         },
     )
 
@@ -206,10 +216,20 @@ async def export_data_graph(
     content = await asyncio.to_thread(
         export_graph, data_graph(workspace_id), format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}_data.{extension}"'
+        },
     )
 
 
@@ -236,9 +256,6 @@ async def query_workspace_graph(
     role = await WorkspaceMemberRepository(session).get_role(
         workspace_id, current_user.id
     )
-    if role is None:
-        raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
-
     graph = body.graph if role == "owner" else "data"
     graph_iri = (
         curation_graph(str(workspace_id))

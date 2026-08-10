@@ -1,4 +1,5 @@
 import asyncio
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -21,34 +22,28 @@ from app.schemas.statement import (
     RelatedSpansResponse,
     StatementResponseWithOriginal,
 )
-from app.store.client import (
-    EXPORT_FORMAT_MEDIA_TYPES,
-    ExportFormat,
-    curation_graph,
-    sparql_select,
-)
+from app.store.client import EXPORT_FORMAT_MEDIA_TYPES, ExportFormat, curation_graph
 from app.store.queries import export_document_data as query_export_document_data
 from app.store.queries import (
     export_document_provenance as query_export_document_provenance,
 )
-from app.store.queries import get_related_spans
+from app.store.queries import (
+    get_document_statement_rows,
+    get_related_spans,
+    get_triple_counts_bulk,
+)
 from app.store.utils import (
     PACO_CANDIDATE,
     PACO_CONFIDENCE,
     PACO_CREATED_AT,
     PACO_CURRENT,
-    PACO_EXTRACTION_ACTIVITY,
     PACO_OBJECT,
     PACO_ORIGIN,
-    PACO_PENDING,
     PACO_PREDICATE,
     PACO_STATUS,
     PACO_SUBJECT,
     PACO_TEXT_SPAN_END,
     PACO_TEXT_SPAN_START,
-    PROV_DERIVED_FROM,
-    PROV_GENERATED_BY,
-    PROV_USED,
     RDF_TYPE,
     build_prefix_map,
     create_source_document_entity,
@@ -72,18 +67,25 @@ async def list_documents(
     if not role:
         raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
 
+    docs = await DocumentRepository(session).list_by_workspace(workspace_id)
+
+    counts = await asyncio.to_thread(
+        get_triple_counts_bulk,
+        document_ids=[str(doc.id) for doc in docs],
+        workspace_id=str(workspace_id),
+    )
+
     return [
-        # TODO: Return extracted/pending triples
         DocumentResponse(
             id=doc.id,
             filename=doc.filename,
             file_type=doc.file_type,
             title=doc.title,
-            extracted_triples=await get_triple_count(doc.id, session, False),
-            pending_triples=await get_triple_count(doc.id, session, True),
+            extracted_triples=counts[str(doc.id)][0],
+            pending_triples=counts[str(doc.id)][1],
             created_at=doc.created_at,
         )
-        for doc in await DocumentRepository(session).list_by_workspace(workspace_id)
+        for doc in docs
     ]
 
 
@@ -101,51 +103,24 @@ async def get_document(
     )
     if not role:
         raise ForbiddenException(f"You do not have access to document {document_id}")
+
+    counts = await asyncio.to_thread(
+        get_triple_counts_bulk,
+        document_ids=[str(document_id)],
+        workspace_id=str(doc.workspace_id),
+    )
+    extracted_triples, pending_triples = counts[str(document_id)]
+
     return DocumentDetailResponse(
         id=doc.id,
         filename=doc.filename,
         file_type=doc.file_type,
         title=doc.title,
-        extracted_triples=await get_triple_count(document_id, session, False),
-        pending_triples=await get_triple_count(document_id, session, True),
+        extracted_triples=extracted_triples,
+        pending_triples=pending_triples,
         created_at=doc.created_at,
         markdown=str(doc.source_content),
     )
-
-
-async def get_triple_count(
-    document_id: UUID, session: AsyncSession, pending_only: bool
-):
-    document = await DocumentRepository(session).get_by_id(document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    workspace_id = document.workspace_id
-
-    graph = curation_graph(str(workspace_id))
-
-    document_entity = create_source_document_entity(str(document_id)).value
-
-    payload = await asyncio.to_thread(
-        sparql_select,
-        f"""
-        SELECT (COUNT(*) AS ?count) WHERE {{
-            GRAPH <{graph}> {{
-                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
-                ?s <{PACO_CURRENT}> true .
-                ?s <{PROV_DERIVED_FROM}>* ?os .
-                ?os <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
-                {f"?s <{PACO_STATUS}> <{PACO_PENDING}> ." if pending_only else ""}
-            }}
-        }}
-        ORDER BY ?s ?p ?o
-        """,
-    )
-
-    rows = [b["count"]["value"] for b in payload.get("results", {}).get("bindings", [])]
-
-    return rows[0]
 
 
 @router.get("/{document_id}/markdown")
@@ -233,9 +208,8 @@ async def get_document_statements(
     """
     Returns all statements associated entirely with the given document.
 
-    The order of statements is as follows (coarsest to finest grouping):
-    - Data type properties are listed before object properties.
-    - Finally, sort triples lexicographically.
+    Statements are grouped by their (immutable) original subject, and subjects
+    with more outgoing relations are listed first so main document occurs first making it more suitable for reviewing.
 
     owl:sameAs triples that connect entities from different documents are not listed.
 
@@ -252,56 +226,12 @@ async def get_document_statements(
     if not role:
         raise ForbiddenException(f"You do not have access to document {document_id}")
 
-    graph = curation_graph(str(workspace_id))
-
-    document_entity = create_source_document_entity(str(document_id)).value
-
-    payload = await asyncio.to_thread(
-        sparql_select,
-        f"""
-        SELECT ?s ?p ?o ?os WHERE {{
-            GRAPH <{graph}> {{
-                ?s ?p ?o .
-                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
-                ?s <{PACO_CURRENT}> true .
-                ?s <{PROV_DERIVED_FROM}>* ?os .
-                ?os <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
-            }}
-        }}
-        ORDER BY ?s ?p ?o
-        """,
+    rows, originals_rows = await asyncio.to_thread(
+        get_document_statement_rows, str(workspace_id), str(document_id)
     )
 
-    rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["os"]["value"])
-        for b in payload.get("results", {}).get("bindings", [])
-    ]
-
-    originals_payload = await asyncio.to_thread(
-        sparql_select,
-        f"""
-        SELECT ?s ?p ?o WHERE {{
-            GRAPH <{graph}> {{
-                ?s ?p ?o .
-                ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
-                ?s <{PROV_GENERATED_BY}> ?e .
-                ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
-            }}
-        }}
-        ORDER BY ?s ?p ?o
-        """,
-    )
-
-    originals_rows = [
-        (b["s"]["value"], b["p"]["value"], b["o"]["value"], b["s"]["value"])
-        for b in originals_payload.get("results", {}).get("bindings", [])
-    ]
-
-    return zip_current_originals(
-        order_statements(rows), order_statements(originals_rows)
+    return sort_by_relation_count(
+        zip_current_originals(order_statements(rows), order_statements(originals_rows))
     )
 
 
@@ -351,13 +281,16 @@ def zip_current_originals(
 
 
 def order_statements(
-    rows: list[tuple[str, str, str, str]],
+    rows: list[tuple[str, str, str, str, str]],
 ) -> list[StatementResponseWithOriginal]:
     grouped: dict[str, dict[str, list[str]]] = {}
     originals: dict[str, str] = {}
-    for subject, predicate, obj, original in rows:
+    object_is_uri = {}
+    for subject, predicate, obj, original, obj_type in rows:
         grouped.setdefault(subject, {}).setdefault(predicate, []).append(obj)
         originals[subject] = original
+        if predicate == PACO_OBJECT:
+            object_is_uri[subject] = obj_type == "uri"
 
     records: list[StatementResponseWithOriginal] = []
     for subject, props in grouped.items():
@@ -393,6 +326,7 @@ def order_statements(
                 subject=required(PACO_SUBJECT),
                 predicate=required(PACO_PREDICATE),
                 object=required(PACO_OBJECT),
+                object_is_uri=object_is_uri.get(subject, False),
                 origin=required(PACO_ORIGIN),
                 curation_status=required(PACO_STATUS),
                 created_at=required(PACO_CREATED_AT),
@@ -403,9 +337,30 @@ def order_statements(
             )
         )
 
-    # TODO: The sorting order must be stable. Since subject/predicate/object can be changed by the user, we currently can't really use them as the sort key!
-    records.sort(key=lambda s: s.original)
     return records
+
+
+def sort_by_relation_count(
+    statements: list[CurrentAndOriginalStatement],
+) -> list[CurrentAndOriginalStatement]:
+    """
+    Orders statements by the outgoing relation count of their (immutable) original
+    subject.
+    Ties are broken by the original subject/predicate/object which stay stable.
+    """
+    counts = {}
+    for stm in statements:
+        counts[stm.original.subject] = counts.get(stm.original.subject, 0) + 1
+
+    return sorted(
+        statements,
+        key=lambda stm: (
+            -counts[stm.original.subject],
+            stm.original.subject,
+            stm.original.predicate,
+            stm.original.object,
+        ),
+    )
 
 
 async def _get_document_or_403(
@@ -443,11 +398,21 @@ async def export_document_provenance(
     content = await asyncio.to_thread(
         query_export_document_provenance, graph, document_entity, format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="provenance.{extension}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}_provenance.{extension}"'
+            )
         },
     )
 
@@ -468,8 +433,18 @@ async def export_document_data(
     content = await asyncio.to_thread(
         query_export_document_data, graph, document_entity, format, prefixes
     )
+    filename = (
+        re.sub(
+            r'[\\/:"*?<>|\r\n]+',
+            "_",
+            (workspace.name if workspace else "workspace").strip(),
+        )
+        or "workspace"
+    )
     return Response(
         content=content,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="data.{extension}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}_data.{extension}"'
+        },
     )

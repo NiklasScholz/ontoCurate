@@ -39,6 +39,19 @@ def fix_spacing_modifiers(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
 
+def semicolon_cleaning(text: str) -> str:
+    """Cleans up when & is immediately followed by ; to avoid parsing issues; caused by HTML elements"""
+    html_entities = {"AMP", "LT", "GT", "QUOT", "APOS", "NBSP", "COPY", "REG"}
+
+    def repl(match: re.Match) -> str:
+        letters = match.group(1)
+        if letters.upper() in html_entities:
+            return match.group(0)
+        return f"&{letters}"
+
+    return re.compile(r"&([A-Za-z]{1,4});").sub(repl, text)
+
+
 def clean_markdown(
     md_text: str,
     remove_placeholders: bool = True,
@@ -69,6 +82,7 @@ def clean_markdown(
         md_text = re.sub(r"[ \t]{2,}", " ", md_text)
 
     md_text = fix_spacing_modifiers(md_text)
+    md_text = semicolon_cleaning(md_text)
 
     return md_text
 

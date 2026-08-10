@@ -6,6 +6,7 @@ class StatementResponse(BaseModel):
     subject: str
     predicate: str
     object: str
+    object_is_uri: bool
     origin: str
     curation_status: str
     created_at: str
@@ -33,11 +34,13 @@ class StatementEdit(BaseModel):
 class IncomingEdge(BaseModel):
     predicate: str
     subject: str
+    status: str
 
 
 class OutgoingEdge(BaseModel):
     predicate: str
     object: str
+    status: str
 
 
 class EntityNeighborhoodResponse(BaseModel):
