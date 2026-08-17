@@ -387,7 +387,7 @@ def find_original_candidate_statement(
     graph: str,
 ) -> str:
     payload = sparql_select(f"""
-        SELECT ?originalStatement
+        SELECT DISTINCT ?originalStatement
         WHERE {{
             GRAPH <{graph}> {{
                 <{stmt_id}>
