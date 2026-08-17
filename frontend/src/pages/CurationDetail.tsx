@@ -351,7 +351,7 @@ function TextField({
 }: {
     current: string;
     original: string;
-    onChange: (newValue: string) => void;
+    onChange: (newValue: string) => Promise<void>;
     edgeClassName?: string;
     onFocusChange?: (focused: boolean) => void;
 }) {
@@ -367,10 +367,15 @@ function TextField({
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     onFocus={() => onFocusChange?.(true)}
-                    onBlur={() => {
-                        onFocusChange?.(false);
+                    onBlur={async () => {
                         if (value !== current) {
-                            onChange(value);
+                            try {
+                                await onChange(value);
+                            } finally {
+                                onFocusChange?.(false);
+                            }
+                        } else {
+                            onFocusChange?.(false);
                         }
                     }}
                 />
@@ -552,7 +557,7 @@ export default function CurationDetail({
                         original={statement.original.subject}
                         edgeClassName="border-nord15"
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -562,13 +567,13 @@ export default function CurationDetail({
                                     },
                                     body: { subject: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
                         onFocusChange={(f) => setEditing(f)}
                     />
@@ -577,7 +582,7 @@ export default function CurationDetail({
                         current={statement.current.predicate}
                         original={statement.original.predicate}
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -587,13 +592,13 @@ export default function CurationDetail({
                                     },
                                     body: { predicate: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
                         onFocusChange={(f) => setEditing(f)}
                     />
@@ -603,7 +608,7 @@ export default function CurationDetail({
                         original={statement.original.object}
                         edgeClassName="border-nord13"
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -615,13 +620,13 @@ export default function CurationDetail({
                                         ? { object_iri: newValue }
                                         : { object_value: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
                         onFocusChange={(f) => setEditing(f)}
                     />
