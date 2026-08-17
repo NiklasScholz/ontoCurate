@@ -80,7 +80,9 @@ function StatementsView({
     const acceptableStatements = useMemo(
         () =>
             filteredStatements.filter(
-                ({ stm }) => stm.current.curation_status === PACO_PENDING,
+                ({ stm }) =>
+                    stm.current.curation_status === PACO_PENDING &&
+                    !stm.original.origin.endsWith("wikidata-lookup"),
             ),
         [filteredStatements],
     );
