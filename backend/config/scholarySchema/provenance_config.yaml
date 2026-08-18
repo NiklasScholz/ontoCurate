@@ -24,13 +24,14 @@ datatype_properties:
     - Workshop
 
   # Predicates for which fuzzy fallback is disabled - only exact/case-insensitive/normalized
-  # matches are accepted. If the value is not found verbatim it is left unannotated (conf=None)
+  # matches are accepted. If the value is not found it gets confidence 0
   # rather than getting a misleading fuzzy score against unrelated digit sequences.
   exact_only_predicates:
     - issn
     - eissn
     - doi
     - identifier
+    - url
 
   # Languages to use for date matching
   date_languages:
@@ -38,7 +39,7 @@ datatype_properties:
 
   windows:
 
-    title_paper:
+    title:
       - strategy: head
         chars: 400
       - strategy: section
@@ -56,13 +57,13 @@ datatype_properties:
 
     name:
       - strategy: head
-        chars: 1000
+        chars: 1200
       - strategy: section
         heading: "References"
       - strategy: section
         heading: "Bibliography"
 
-    given_name:
+    givenName:
       - strategy: head
         chars: 1000
       - strategy: section
@@ -70,7 +71,7 @@ datatype_properties:
       - strategy: section
         heading: "Bibliography"
 
-    family_name:
+    familyName:
       - strategy: head
         chars: 1000
       - strategy: section
@@ -81,14 +82,6 @@ datatype_properties:
     email:
       strategy: head
       chars: 3000
-
-    org_name:
-      - strategy: head
-        chars: 1200
-      - strategy: section
-        heading: "References"
-      - strategy: section
-        heading: "Bibliography"
 
 
 
