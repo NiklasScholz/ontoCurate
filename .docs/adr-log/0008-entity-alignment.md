@@ -54,20 +54,22 @@ Much recent research has been put into LLM-based frameworks checking whether two
 
 
 ## Decision Outcome
-**Option 4: Custom Blocking + Fuzzy Matching** is chosen. It is the only option that provides full control, transparency and does not require additional computational resources or API calls.
+**Option 4: Custom Blocking + Fuzzy Matching** is chosen as the primary mechanism. It provides full control, transparency and does not require additional computational resources or API calls.
 Alignment decisions will be added to the Provenance Graph as `owl:sameAs` links with associated confidence scores for the user to review.
 Theoretically, the linking module can easily be extended, as it will be implemented as its own module. 
 
+### Update: Embedding-based similarity additionally added.
+Option 2 (Embedding-based Similarity) was initially ruled out, but was reintroduced in our implementation as an additional *optional* signal rather than a replacement for fuzzy matching. In our implementation, this helped in particular in matching different name representations of conferences or organizations. For pure syntactic name representations, such as for persons, embedding-based similarity is not used. 
 
 ## Consequences
 
 ### Positive Consequences
-- Fully deterministic entity alignment that can be reproduced 
-- Hard guards to avoid dangerous failures
+- Fully deterministic and reproducible for entity types where `semantic` weight is 0
+- Hard guards (unique-key matches, hard-match predicates) to avoid dangerous failures
 - No silent merges, but human-in-the-loop verification
-- No model, runtime, or API dependency beyond Python standard
+- Semantic similarity component can catch paraphrasing/abbreviation cases that fuzzy matching alone misses without using it for every entity class.
 
 ### Negative Consequences
 - Threshold tuning may become complex $\rightarrow$ possible FPs or FNs on different schemas or untested documents
 - Potential misses in matches due to blocking
-- No semantic understanding
+- Entity types configured with `semantic` weight > 0 now depend on an external embedding model/API (`EMBEDDING_MODEL`, `OPENAI_API_BASE`) and our alignment code is no longer fully self-contained.
