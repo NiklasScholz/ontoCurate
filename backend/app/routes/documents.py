@@ -231,7 +231,9 @@ async def get_document_statements(
     )
 
     return sort_by_relation_count(
-        zip_current_originals(order_statements(rows), order_statements(originals_rows, current_only=False))
+        zip_current_originals(
+            order_statements(rows), order_statements(originals_rows, current_only=False)
+        )
     )
 
 
