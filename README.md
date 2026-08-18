@@ -1,4 +1,4 @@
-![ontoCurate logo](docs/logo.png)
+![ontoCurate logo](.docs/logo.png)
 ![pipeline](https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate/badges/main/pipeline.svg)
 
 ## Table of Contents
