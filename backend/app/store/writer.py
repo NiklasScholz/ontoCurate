@@ -159,10 +159,6 @@ def build_candidate_statement_triples(
     index_lookup = provenance_index or {}
 
     for index, quad in enumerate(parsed_quads):
-        if quad.predicate.value == rdf_type_uri:
-            key = (quad.subject.value, "type", quad.object.value)
-            if index_lookup.get(key) is None:
-                continue
         fingerprint = sha256(
             f"{workspace_key}|{run_key}|{document_key}|{index}|{quad.subject}|{quad.predicate}|{quad.object}".encode(
                 "utf-8"
