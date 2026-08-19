@@ -4,15 +4,15 @@
 ## Table of Contents
 
 - [About](#about)
-- [How to install](#install)
+- [How to install](#how-to-install)
 - [How to deploy to production environments](#deployment-production)
 - [Documentation](#documentation)
 - [Extending the Application](#extending-the-application)
     - [Onboarding a new schema](#onboarding-a-new-schema)
-    - [Onboarding a new pipeline strategy](#onboarding-a-new-pipeline-strategy)
+    - [Onboarding a new pipeline strategy](#onboarding-new-pipeline-strategies)
 - [Development Practices](#development-practices)
   - [Pre-commit hooks](#pre-commit-hooks)
-  - [Running tests](#running-tests)
+  - [Running tests](#testing)
 - [Acknowledgements](#acknowledgements)
 
 ## About
@@ -62,7 +62,7 @@ This starts the following services accessible in your local environment for test
 
 ## Deployment (production)
 
-Run `docker compose -f docker-compose.prod.yml up --build -d` to deploy the production image, which switches to a non-root backend and a static frontend. Ensure to set `ENVIRONMENT=production` in `backend/secrets.env`, so no user can access the swagger page and authentication cookies become secure. Additionally, add a real `SECRET_KEY`, and the correct `CORS_ALLOW_ORIGINS` based on your deployment to the secrets file.
+Run `docker compose -f docker-compose.prod.yml up --build -d` to deploy the production image, which switches to a non-root backend and a static frontend. Set `ENVIRONMENT=production` in `backend/secrets.env`, so no user can access the swagger page and authentication cookies become secure. Additionally, add a real `SECRET_KEY`, and the correct `CORS_ALLOW_ORIGINS` based on your deployment to the secrets file.
 
 In the production environment users have no way of accessing Oxigraph, Postgres or Redis without being directed through and authenticated on the FastAPI layer. 
 
@@ -81,9 +81,9 @@ In the production environment users have no way of accessing Oxigraph, Postgres 
 
 A schema is a folder under `backend/config/<schema_name>/` containing exactly four files: `extraction_schema.yaml` (a LinkML ontology defining the classes/slots the LLM extracts, e.g. `Person`, `AcademicArticle`), `provenance_config.yaml` (confidence-scoring and text-span-matching settings), `alignment_config.yaml` (similarity thresholds/weights used to propose duplicate-entity alignments), `lookup_config.yaml` (settings for the lookup services). Once all four files are present, the folder name automatically becomes selectable in the workspace-creation UI and can be used by users. 
 
-### Onboarding a new pipeline strategy
+### Onboarding new pipeline strategies
 
-To onboard new provenance or alignment strategies, add respective functions to the pipeline directory under the appropriate file and add an explicit call site in the pipeline stage file (potentially through a new key added to configs). 
+To onboard new provenance or alignment strategies, add respective functions to the entry points of provenance annotation, entity alignment or lookup. The schema-agnostic architecture of ontoCurate enables onboarding without having to change logic for already onboarded schemas utilizing distinct keys for new strategies. 
 
 ## Development Practices
 ### Pre-commit hooks
@@ -119,6 +119,6 @@ pytest tests/ -v
 
 ## Acknowledgements
 
-Our Ontology-guided triple extraction is built around [OntoGPT](https://github.com/monarch-initiative/ontogpt). If you use this project, make sure to cite their work: 
+Our Ontology-guided triple extraction is built around [OntoGPT](https://github.com/monarch-initiative/ontogpt):
 
-> Caufield JH, Hegde H, Emonet V, Harris NL, Joachimiak MP, Matentzoglu N, et al. Structured prompt interrogation and recursive extraction of semantics (SPIRES): A method for populating knowledge bases using zero-shot learning. *Bioinformatics*, Volume 40, Issue 3, March 2024, btae104, https://doi.org/10.1093/bioinformatics/btae104
+> [1] Caufield, J. H., Hegde, H., Emonet, V ., Harris, N. L., Joachimiak, M. P ., Matentzoglu, N., Kim, H., Moxon, S. A. T., Reese, J. T., Haendel, M. A., Robinson, P . N.& Mungall, C. J. (2026). OntoGPT (Version v1.1.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19446792
