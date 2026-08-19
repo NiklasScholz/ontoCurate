@@ -249,19 +249,25 @@ def get_document_statement_rows(
     document_entity = create_source_document_entity(document_id).value
 
     payload = sparql_select(f"""
-        SELECT ?s ?p ?o ?os WHERE {{
+        SELECT DISTINCT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PACO_CURRENT}> true .
+
                 ?s <{PROV_DERIVED_FROM}>* ?os .
+
+                ?os <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?os <{PROV_DERIVED_FROM}> <{document_entity}> .
                 ?os <{PROV_GENERATED_BY}> ?e .
+
                 ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
+                <{document_entity}> <{RDF_TYPE}> <{PACO_SOURCE_DOCUMENT}> .
             }}
         }}
         ORDER BY ?s ?p ?o
         """)
+
     rows = [
         (
             b["s"]["value"],
@@ -274,17 +280,20 @@ def get_document_statement_rows(
     ]
 
     originals_payload = sparql_select(f"""
-        SELECT ?s ?p ?o WHERE {{
+        SELECT DISTINCT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_DERIVED_FROM}> <{document_entity}> .
                 ?s <{PROV_GENERATED_BY}> ?e .
+
                 ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
+                <{document_entity}> <{RDF_TYPE}> <{PACO_SOURCE_DOCUMENT}> .
             }}
         }}
         ORDER BY ?s ?p ?o
         """)
+
     originals_rows = [
         (
             b["s"]["value"],

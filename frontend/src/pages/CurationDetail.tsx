@@ -11,9 +11,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { client } from "../client.ts";
 import Spinner from "../components/Spinner.tsx";
 import type { CurrentAndOriginalStatement, Statement } from "../types.ts";
-import MarkdownView, {
-    type HighlightSpan,
-} from "../components/MarkdownView.tsx";
+import MarkdownView, { type HighlightSpan } from "../components/MarkdownView.tsx";
 import {
     INTERNAL_NAMESPACE,
     PACO_ACCEPTED,
@@ -349,11 +347,13 @@ function TextField({
     original,
     onChange,
     edgeClassName = "border-transparent",
+    onFocusChange,
 }: {
     current: string;
     original: string;
-    onChange: (newValue: string) => void;
+    onChange: (newValue: string) => Promise<void>;
     edgeClassName?: string;
+    onFocusChange?: (focused: boolean) => void;
 }) {
     const [value, setValue] = useState<string>(current);
 
@@ -366,9 +366,16 @@ function TextField({
                     className="h-full w-full"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    onBlur={() => {
+                    onFocus={() => onFocusChange?.(true)}
+                    onBlur={async () => {
                         if (value !== current) {
-                            onChange(value);
+                            try {
+                                await onChange(value);
+                            } finally {
+                                onFocusChange?.(false);
+                            }
+                        } else {
+                            onFocusChange?.(false);
                         }
                     }}
                 />
@@ -422,6 +429,12 @@ export default function CurationDetail({
     docId: string | null;
 }) {
     const relatedSpans = useRelatedSpans(docId, statement.current);
+    const [editing, setEditing] = useState(false);
+    const isChanged =
+        statement.current.subject !== statement.original.subject ||
+        statement.current.predicate !== statement.original.predicate ||
+        statement.current.object !== statement.original.object ||
+        statement.current.curation_status !== statement.original.curation_status;
 
     return (
         <div
@@ -465,6 +478,7 @@ export default function CurationDetail({
             <div className="bg-nord4 rounded p-4">
                 <div className="mb-4 flex justify-center gap-2">
                     <button
+                        disabled={editing}
                         className="bg-nord14 flex h-7 w-12 items-center justify-center rounded"
                         onClick={() => {
                             client
@@ -488,6 +502,7 @@ export default function CurationDetail({
                         <CheckIcon size={16} />
                     </button>
                     <button
+                        disabled={editing || !isChanged}
                         className="bg-nord4 flex h-7 w-12 items-center justify-center rounded"
                         onClick={() => {
                             client
@@ -511,6 +526,7 @@ export default function CurationDetail({
                         <RotateCcwIcon size={16} />
                     </button>
                     <button
+                        disabled={editing}
                         className="bg-nord11 flex h-7 w-12 items-center justify-center rounded"
                         onClick={() => {
                             client
@@ -541,7 +557,7 @@ export default function CurationDetail({
                         original={statement.original.subject}
                         edgeClassName="border-nord15"
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -551,21 +567,22 @@ export default function CurationDetail({
                                     },
                                     body: { subject: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
+                        onFocusChange={(f) => setEditing(f)}
                     />
                     <TextField
                         key={statement.current.predicate}
                         current={statement.current.predicate}
                         original={statement.original.predicate}
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -575,14 +592,15 @@ export default function CurationDetail({
                                     },
                                     body: { predicate: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
+                        onFocusChange={(f) => setEditing(f)}
                     />
                     <TextField
                         key={statement.current.object}
@@ -590,7 +608,7 @@ export default function CurationDetail({
                         original={statement.original.object}
                         edgeClassName="border-nord13"
                         onChange={(newValue: string) => {
-                            client
+                            return client
                                 .PATCH("/statements/{workspace_id}/edit", {
                                     params: {
                                         path: { workspace_id: workspaceId },
@@ -602,14 +620,15 @@ export default function CurationDetail({
                                         ? { object_iri: newValue }
                                         : { object_value: newValue },
                                 })
-                                .then((stm) =>
+                                .then((stm) => {
                                     onChange(
                                         Object.fromEntries([
                                             [statement.original.id, stm.data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                });
                         }}
+                        onFocusChange={(f) => setEditing(f)}
                     />
                 </div>
                 <div className="grid grid-cols-3 gap-4">

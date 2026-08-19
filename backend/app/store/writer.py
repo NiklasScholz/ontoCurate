@@ -159,10 +159,6 @@ def build_candidate_statement_triples(
     index_lookup = provenance_index or {}
 
     for index, quad in enumerate(parsed_quads):
-        if quad.predicate.value == rdf_type_uri:
-            key = (quad.subject.value, "type", quad.object.value)
-            if index_lookup.get(key) is None:
-                continue
         fingerprint = sha256(
             f"{workspace_key}|{run_key}|{document_key}|{index}|{quad.subject}|{quad.predicate}|{quad.object}".encode(
                 "utf-8"
@@ -192,34 +188,35 @@ def build_candidate_statement_triples(
             quad.object.value,
         )
         ann = index_lookup.get(key)
-        if ann is not None:
-            candidate_triples.append(
-                Triple(
-                    candidate,
-                    N_PACO_CONFIDENCE,
-                    Literal(str(ann["confidence"]), datatype=N_XSD_FLOAT),
-                )
+        confidence = ann["confidence"] if ann is not None else 0.0
+
+        candidate_triples.append(
+            Triple(
+                candidate,
+                N_PACO_CONFIDENCE,
+                Literal(str(confidence), datatype=N_XSD_FLOAT),
             )
-            if "span_start" in ann and "span_end" in ann:
-                candidate_triples.extend(
-                    [
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN,
-                            Literal(ann["span_text"], datatype=N_XSD_STRING),
-                        ),
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN_START,
-                            Literal(str(ann["span_start"]), datatype=N_XSD_INTEGER),
-                        ),
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN_END,
-                            Literal(str(ann["span_end"]), datatype=N_XSD_INTEGER),
-                        ),
-                    ]
-                )
+        )
+        if ann is not None and "span_start" in ann and "span_end" in ann:
+            candidate_triples.extend(
+                [
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN,
+                        Literal(ann["span_text"], datatype=N_XSD_STRING),
+                    ),
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN_START,
+                        Literal(str(ann["span_start"]), datatype=N_XSD_INTEGER),
+                    ),
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN_END,
+                        Literal(str(ann["span_end"]), datatype=N_XSD_INTEGER),
+                    ),
+                ]
+            )
 
         triples.extend(candidate_triples)
 
@@ -387,7 +384,7 @@ def find_original_candidate_statement(
     graph: str,
 ) -> str:
     payload = sparql_select(f"""
-        SELECT ?originalStatement
+        SELECT DISTINCT ?originalStatement
         WHERE {{
             GRAPH <{graph}> {{
                 <{stmt_id}>

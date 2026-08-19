@@ -231,7 +231,9 @@ async def get_document_statements(
     )
 
     return sort_by_relation_count(
-        zip_current_originals(order_statements(rows), order_statements(originals_rows))
+        zip_current_originals(
+            order_statements(rows), order_statements(originals_rows, current_only=False)
+        )
     )
 
 
@@ -269,19 +271,23 @@ def zip_current_originals(
     current: list[StatementResponseWithOriginal],
     original: list[StatementResponseWithOriginal],
 ) -> list[CurrentAndOriginalStatement]:
+    originals_by_id = {stm.id: stm for stm in original}
+
     result = []
     for stm in current:
-        matches = [x for x in original if x.id == stm.original]
         result.append(
             CurrentAndOriginalStatement(
-                current=stm, original=matches[0] if len(matches) >= 1 else stm
+                current=stm,
+                original=originals_by_id[stm.original],
             )
         )
+
     return result
 
 
 def order_statements(
     rows: list[tuple[str, str, str, str, str]],
+    current_only: bool = True,
 ) -> list[StatementResponseWithOriginal]:
     grouped: dict[str, dict[str, list[str]]] = {}
     originals: dict[str, str] = {}
@@ -309,7 +315,9 @@ def order_statements(
                 )
             return value
 
-        if first(PACO_CURRENT) is None or first(PACO_CURRENT) == "false":
+        if current_only and (
+            first(PACO_CURRENT) is None or first(PACO_CURRENT) == "false"
+        ):
             continue
 
         confidence_str = first(PACO_CONFIDENCE)
