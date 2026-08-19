@@ -289,7 +289,7 @@ def write_alignment_results(
     run_id: str | None = None,
     document_ids: list[str] | None = None,
 ) -> None:
-    """Writes owl:sameAs CandidateStatements for proposed entity alignments."""
+    """Writes owl:sameAs CandidateStatements for proposed entity alignments produced between {document_ids}."""
     if not alignments:
         return
 

@@ -43,12 +43,13 @@ def derive_lookup_literals(entities: list[dict], lookup_file_config: dict) -> No
         for rule in rules:
             target = rule["as"]
             if "from_literal" in rule:
+                # derive lookup identifier (e.g., orcid) from a literal on the entity itself
                 derived = [
                     value.rsplit("/", 1)[-1]
                     for value in literals.get(rule["from_literal"], [])
                 ]
             else:
-                # Walk backwards/forward to find related literal
+                # Walk backwards/forward to find related literal required for querying the external service
                 relation_in = rule.get("from_relation_in")
                 if relation_in:
                     related_uris = entity.get("relations_in", {}).get(relation_in, [])
@@ -74,10 +75,9 @@ def build_lookup_config(
     source_key: str,
 ) -> dict:
     """
-    Build lookup scoring config
+    Builds the scoring config for lookup.
     """
     source_config = lookup_file_config.get(source_key, {})
-
     return {
         "settings": source_config.get("settings", {}),
         "entity_types": {
@@ -96,7 +96,10 @@ def score_and_write_results(
     run_id: str,
     document_ids: list[str],
 ) -> list[tuple[str, str, float, str | None]]:
-    """Score one lookup source's candidates against local entities and write matches above threshold to oxigraph."""
+    """
+    Score one lookup source's candidates against local entities and write matches above threshold to oxigraph.
+    Reuses the similarity scoring logic from entity alignment, but with its own weights and thresholds.
+    """
     candidate_pairs = [
         (entities_by_uri[local_uri], candidate)
         for local_uri, candidates in candidates_map.items()
@@ -139,8 +142,9 @@ def score_and_write_results(
                 embedding_lookup=embedding_lookup,
             )
 
-            if candidate.get("orcid_unresolved"):
+            if candidate.get("orcid_unresolved"):  # penalty for unresolved orcid
                 score *= 1.0 - unresolved_orcid_penalty
+
             if score >= type_cfg["threshold"]:
                 if candidate.get(
                     "fuzzy_match"
@@ -170,6 +174,7 @@ def score_and_write_results(
         len(lookup_results),
         source,
     )
+    # Write results to oxigraph
     write_lookup_results(
         [
             (local_uri, candidate_uri, score)
@@ -180,7 +185,6 @@ def score_and_write_results(
         run_id=run_id,
         document_ids=document_ids,
     )
-
     return lookup_results
 
 
@@ -198,7 +202,7 @@ def run_entity_lookup(
     """
     derive_lookup_literals(
         entities, lookup_file_config
-    )  # add additional relevant information to entities
+    )  # add additional relevant information to entities from neighborhood
     entities_by_uri = {entity["uri"]: entity for entity in entities}
     total_results = 0
 
@@ -248,7 +252,7 @@ def run_entity_lookup(
             )
             total_results += len(orcid_results)
 
-            # Puts each confirmed ORCID into the corresponding entity's literal, so wikidata can attempt to narrow down its candidates based on that ORCID.
+            # Puts each found ORCID into the corresponding entity's literal, so wikidata can attempt to narrow down its candidates based on that ORCID.
             for local_uri, _, _, possible_orcid in orcid_results:
                 if not possible_orcid:
                     continue

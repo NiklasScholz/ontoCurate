@@ -2,8 +2,6 @@
 See .docs/technical-logic-document/0001-extraction-confidence-score-logic.md for detailed description of the logic and rules used.
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -57,15 +55,17 @@ def load_config(
 
 
 def _utf16_offset_table(text: str) -> list[int]:
-    """Returns a table mapping every Python string index to the corresponding UTF-16 code unit index.
-    Needed for alignment between backend and frontend.
+    """
+    Returns a table mapping every Python string index to the corresponding UTF-16
+    code unit index. Needed for string matching alignment between Python indexing
+    through unicode codepoints and frontend javascript utf-16 units.
     """
     table = [0] * (len(text) + 1)
     offset = 0
     for i, ch in enumerate(text):
         table[i] = offset
         offset += 2 if ord(ch) > 0xFFFF else 1
-    table[len(text)] = offset  # Include end-of-string index so it is
+    table[len(text)] = offset
     return table
 
 
@@ -77,9 +77,10 @@ def annotate_confidence(
     *,
     config_path: Path,
 ) -> Path:
-    """Annotate every literal triple in ttl_path with a source span and
+    """
+    Annotate every literal triple in ttl_path with a source span and
     confidence score, writing xx_provenance.json to output_dir.
-    Uses config from {config_path}
+    Uses config from {config_path}.
     """
     (
         windows_config,
@@ -100,9 +101,9 @@ def annotate_confidence(
     type_index = build_type_index(graph)
     uri_literal_predicates = frozenset(exact_only_predicates)
 
-    # Data Properties
+    # Annotate Literals / Data Properties
+    # For future refactoring, we could move this into a entry function in datatype_property_scoring.py, as done for object_property_scoring.py
     annotations = []
-
     for subject_uri, predicate_label, obj_value in collect_literal_triples(
         graph, uri_literal_predicates
     ):
@@ -199,6 +200,7 @@ def annotate_confidence(
         if "span_end" in ann:
             ann["span_end"] = utf16_offset[ann["span_end"]]
 
+    # Write provenance JSON to output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = ttl_path.stem.replace("_extraction", "")
     out_path = output_dir / f"{stem}_provenance.json"

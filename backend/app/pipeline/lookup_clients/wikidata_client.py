@@ -1,5 +1,3 @@
-"""Wikidata entity lookup and query module."""
-
 import logging
 import re
 import time
@@ -73,9 +71,7 @@ def search_wikidata(
             response = client.get(WIKIDATA_SEARCH_API, params=params)
             response.raise_for_status()
             data = response.json()
-
             api_error = data.get("error")
-
             if api_error:
                 logger.error(
                     "Wikidata API error for query %r: "
@@ -87,7 +83,6 @@ def search_wikidata(
                     response.headers.get("MediaWiki-API-Error"),
                 )
                 return []
-
             search_items = data.get("search", [])
 
     except httpx.HTTPStatusError as exc:
@@ -108,12 +103,10 @@ def search_wikidata(
         return []
 
     results = []
-
     for item in search_items:
         qid = item.get("id")
         if not qid:
             continue
-
         results.append(
             {
                 "uri": f"https://www.wikidata.org/entity/{qid}",
@@ -122,15 +115,14 @@ def search_wikidata(
                 "wikidata_id": qid,
             }
         )
-
     return results
 
 
 def search_wikidata_by_orcid(orcid_id: str, language: str = "en") -> dict | None:
     """
-    Look up the Wikidata entity that claims a given ORCID iD (P496) via a
+    Look up the Wikidata entity with given ORCID iD (P496) via a
     direct SPARQL query, rather than a fuzzy label search.
-    Returns None if no entity claims that ORCID, or if the ORCID is invalid.
+    Returns None if no entity claims that ORCID.
     """
     orcid_regex = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
     if not orcid_id or not orcid_regex.match(orcid_id.strip()):
@@ -200,9 +192,7 @@ def fetch_wikidata_entity_details(wikidata_id: str) -> dict:
     """
     if not wikidata_id:
         return {}
-
     url = f"{WIKIDATA_ENTITY_API}/{wikidata_id}.json"
-
     try:
         with create_wikimedia_client() as client:
             response = client.get(url)
@@ -225,9 +215,7 @@ def fetch_wikidata_entity_details(wikidata_id: str) -> dict:
             exc,
         )
         return {}
-
     entity = data.get("entities", {}).get(wikidata_id, {})
-
     return {
         "uri": f"https://www.wikidata.org/entity/{wikidata_id}",
         "labels": entity.get("labels", {}),
@@ -240,32 +228,24 @@ def fetch_wikidata_entity_details(wikidata_id: str) -> dict:
 def claim_entity_ids(details: dict, property_id: str) -> list[str]:
     """Extract Wikidata entity IDs from item-valued claims."""
     ids = []
-
     claims = details.get("properties", {}).get(property_id, [])
-
     for claim in claims:
         value = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
-
         if isinstance(value, dict):
             qid = value.get("id")
             if qid:
                 ids.append(qid)
-
     return ids
 
 
 def claim_string_values(details: dict, property_id: str) -> list[str]:
     """Extract string values from Wikidata claims."""
     values = []
-
     claims = details.get("properties", {}).get(property_id, [])
-
     for claim in claims:
         value = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
-
         if isinstance(value, str) and value.strip():
             values.append(value.strip())
-
     return values
 
 
@@ -276,7 +256,6 @@ def fetch_label(
 ) -> str:
     """Fetch and cache a label of a Wikidata item."""
     details = fetch_wikidata_entity_details(wikidata_id)
-
     return details.get("labels", {}).get(language, {}).get("value", "").strip()
 
 
@@ -286,43 +265,35 @@ def _extract_candidate_values(
     details: dict,
     language: str,
 ) -> list[str]:
-    """Extract candidate literal values from one configured Wikidata source."""
+    """
+    Extract candidate literal values from configured Wikidata source.
+    Defined in config as candidate_literals rule mapping wikidata source type and property to local predicate.
+    """
     source = source_config.get("source")
-
     if source == "label":
         values = [result.get("label", "")]
-
     elif source == "aliases":
         aliases = details.get("aliases", {}).get(language, [])
-
         values = [
             alias.get("value", "") for alias in aliases if isinstance(alias, dict)
         ]
-
     elif source == "string_claims":
         property_id = source_config.get("property")
-
         if not property_id:
             raise ValueError("Candidate source 'string_claims' requires a property")
-
         values = claim_string_values(
             details,
             property_id,
         )
-
     elif source == "item_claim_labels":
         property_id = source_config.get("property")
-
         if not property_id:
             raise ValueError("Candidate source 'item_claim_labels' requires a property")
-
         entity_ids = claim_entity_ids(
             details,
             property_id,
         )
-
         values = [fetch_label(entity_id, language) for entity_id in entity_ids]
-
     else:
         raise ValueError(f"Unknown candidate literal source: {source!r}")
 
@@ -343,15 +314,12 @@ def _build_candidate_literals(
 ) -> dict[str, list[str]]:
     """Build candidate literals according to the entity-type configuration."""
     literals: dict[str, list[str]] = {}
-
     candidate_literal_config = type_config.get(
         "candidate_literals",
         {},
     )
-
     for local_predicate, source_configs in candidate_literal_config.items():
-        values: list[str] = []
-
+        values = []
         for source_config in source_configs:
             values.extend(
                 _extract_candidate_values(
@@ -361,12 +329,9 @@ def _build_candidate_literals(
                     language,
                 )
             )
-
         unique_values = list(dict.fromkeys(values))
-
         if unique_values:
             literals[local_predicate] = unique_values
-
     return literals
 
 
@@ -392,7 +357,6 @@ def _result_to_wikidata_candidate(
     a candidate dict, or None if it fails the configured class filter.
     """
     details = fetch_wikidata_entity_details(result["wikidata_id"])
-
     if not _passes_class_filter(details, type_config):
         logger.debug(
             "Rejecting Wikidata candidate %s: not an instance of %s",
@@ -407,7 +371,6 @@ def _result_to_wikidata_candidate(
         type_config,
         language=language,
     )
-
     return {
         "uri": result["uri"],
         "wikidata_id": result["wikidata_id"],
@@ -427,7 +390,7 @@ def _search_wikidata_candidates(
     request_delay_seconds: float,
     type_config: dict,
 ) -> list[dict]:
-    """Fuzzy label-based Wikidata search"""
+    """Fuzzy label-based Wikidata search through wikidata search api"""
     entity_types = entity.get("types", [])
     entity_type = entity_types[0] if entity_types else None
     candidates = []
@@ -446,6 +409,7 @@ def _search_wikidata_candidates(
                 continue
             seen_queries.add(query)
             search_results = search_wikidata(query, limit=limit, language=language)
+
             for result in search_results:
                 if result["uri"] in seen_uris:
                     continue
@@ -464,7 +428,6 @@ def _search_wikidata_candidates(
 
             if request_delay_seconds > 0:
                 time.sleep(request_delay_seconds)
-
     return candidates[:limit]
 
 
@@ -477,11 +440,11 @@ def generate_wikidata_candidates(
 ) -> list[dict]:
     """
     Generate Wikidata candidates for a local entity. If entity carries orcid verify against wikidata P496 claim.
-    If this fails, falls back to fuzzy label search with class filtering.
+    If this fails, falls back to fuzzy label search with class filtering in wikidata entity search API.
     """
     type_config = type_config or {}
     known_orcid_ids = entity.get("literals", {}).get("orcid", [])
-    # If entity has known ORCID verify against wikidata through SPARQL query
+    # If entity has found ORCID verify against wikidata through SPARQL query
     if known_orcid_ids:
         candidates = []
         for orcid_id in known_orcid_ids[:limit]:
@@ -492,7 +455,6 @@ def generate_wikidata_candidates(
                     candidates.append(candidate)
             if request_delay_seconds > 0:
                 time.sleep(request_delay_seconds)
-
         if candidates:
             return candidates
 
@@ -502,6 +464,7 @@ def generate_wikidata_candidates(
         for candidate in fallback_candidates:
             candidate["orcid_unresolved"] = True
         return fallback_candidates
+
     return _search_wikidata_candidates(
         entity, limit, language, request_delay_seconds, type_config
     )
@@ -519,14 +482,11 @@ def query_wikidata_for_entities(
     """
     results = {}
     entity_type_configs = entity_type_configs or {}
-
     for entity in entities:
         uri = entity.get("uri")
         literals = entity.get("literals", {})
-
         if not uri or not literals:
             continue
-
         entity_types = entity.get("types", [])
         entity_type = entity_types[0] if entity_types else None
         type_config = entity_type_configs.get(entity_type)
@@ -537,7 +497,6 @@ def query_wikidata_for_entities(
                 entity_type,
             )
             continue
-
         if not literals.get("orcid") and not has_sufficient_data(literals, type_config):
             logger.debug(
                 "Skipping Wikidata lookup for %s: none of %s available to disambiguate",
@@ -553,14 +512,11 @@ def query_wikidata_for_entities(
             request_delay_seconds=request_delay_seconds,
             type_config=type_config,
         )
-
         if candidates:
             results[uri] = candidates
-
     logger.info(
         "Generated Wikidata candidates for %d of %d local entities",
         len(results),
         len(entities),
     )
-
     return results

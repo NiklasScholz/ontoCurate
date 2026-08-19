@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_weights(weights: dict, label: str) -> None:
-    """Raise Exception if values do not sum to approximately 1.0"""
+    """Raise Exception if values do not sum to approximately 1.0."""
     if not weights:
         return
     total = sum(weights.values())
@@ -30,25 +30,23 @@ def validate_weights(weights: dict, label: str) -> None:
 def load_alignment_config(
     config_path: Path,
 ) -> dict:
-    """Load and validate the alignment yaml config.
-    Returns settings dict
+    """
+    Loads and validates the alignment yaml config.
+    Returns settings dict.
     """
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
     settings = config.get("settings", {})
-
     validate_weights(settings.get("default_weights", {}), "settings.default_weights")
-
     for type_name, type_cfg in config.get("entity_types", {}).items():
         if "weights" in type_cfg:
             validate_weights(type_cfg["weights"], f"entity_types.{type_name}.weights")
-
     return config
 
 
 def resolve_type_config(config: dict, entity_type: str) -> dict:
-    """Return relevant parts of config for an entity type"""
+    """Return relevant parts of config for an entity type."""
     settings = config.get("settings", {})
     overrides = config.get("entity_types", {}).get(entity_type, {})
 
@@ -95,12 +93,13 @@ def generate_candidate_pairs(
     entities: list[dict],
     config: dict,
 ) -> list[tuple[dict, dict]]:
-    """Produce candidate pairs for alignment by grouping entities of the same type.
+    """
+    Produce candidate pairs for alignment by grouping entities of the same type.
     Buckets entities by their type and applies strict-identifier blocking rules
     - If any strict-identifier value is shared between the two entities pair is always kept
     - If both entities have values for the same strict-identifier field and those
       values do not overlap -> pair is always dropped
-    -everything else is passed to scoring
+    - everything beyond this is passed to scoring
     """
 
     global_unique_keys = set(config.get("settings", {}).get("unique_keys", []))
@@ -109,10 +108,8 @@ def generate_candidate_pairs(
     for entity in entities:
         if entity["types"]:
             buckets[entity["types"][0]].append(entity)
-
     seen = set()
     pairs = []
-
     for type_name, bucket in buckets.items():
         if len(bucket) < 2:
             continue
@@ -121,7 +118,7 @@ def generate_candidate_pairs(
             config.get("entity_types", {}).get(type_name, {}).get("unique_keys", [])
         )
         hard_id_fields = global_unique_keys | type_unique_keys
-
+        # Generate all pairs within the bucket and apply strict-identifier rules
         for i, a in enumerate(bucket):
             for b in bucket[i + 1 :]:
                 if a["uri"] == b["uri"]:
@@ -143,13 +140,10 @@ def generate_candidate_pairs(
                             break
                         else:
                             hard_conflict = True
-
                 if hard_conflict and not hard_match:
                     continue
-
                 seen.add(pair_id)
                 pairs.append((a, b))
-
     return pairs
 
 
@@ -157,7 +151,11 @@ def precompute_embeddings(
     candidates: list[tuple[dict, dict]],
     config: dict,
 ) -> dict[str, list[float]]:
-    """Precomputes embeddings for all candidate pairs where semantic similarity is enabled and returns a lookup dict {text: embedding}"""
+    """
+    Precomputes embeddings for all candidate pairs where semantic similarity
+    is enabled and returns a lookup dict {text: embedding}.
+    Entity Embedding is computed on a joint string of all literals appearing in both entities.
+    """
     texts = set()
     for a, b in candidates:
         type_cfg = resolve_type_config(config, a["types"][0])
@@ -166,7 +164,6 @@ def precompute_embeddings(
         pair_texts = semantic_text_pair(a, b, type_cfg["semantic_text_predicates"])
         if pair_texts:
             texts.update(pair_texts)
-
     if not texts:
         return {}
     return get_embeddings_batch(list(texts))
@@ -176,7 +173,8 @@ def similarity_computation(
     candidates: list[tuple[dict, dict]],
     config: dict,
 ) -> list[tuple[dict, dict, float]]:
-    """Compute a combined similarity score for every candidate pair.
+    """
+    Compute a combined similarity score for every candidate pair with given config.
     Skips metrics with configured weight 0.0
     """
     embedding_lookup = precompute_embeddings(candidates, config)
@@ -205,7 +203,7 @@ def candidate_filtering(
     candidates: list[tuple[dict, dict, float]],
     config: dict,
 ) -> list[tuple[dict, dict, float]]:
-    """Discars candidate pairs whose similarity score falls below threshold"""
+    """Discards candidate pairs whose similarity score falls below threshold"""
     return [
         (a, b, score)
         for a, b, score in candidates
@@ -232,13 +230,10 @@ def write_same_as_triples(
     output_path: Path,
 ) -> Path:
     """Append owl:sameAs triples to a Turtle file for each aligned pair (so it can be used in further processes without accessing oxigraph)"""
-
     g = Graph()
     g.parse(ttl_path, format="turtle")
-
     for uri_a, uri_b, score in alignments:
         g.add((URIRef(uri_a), OWL.sameAs, URIRef(uri_b)))
-
     g.serialize(destination=output_path, format="turtle")
     return output_path
 
@@ -250,33 +245,30 @@ def run_inner_document_alignment(
     config_path: Path,
     document_id: str | None = None,
 ) -> Path:
-    """Inner document alignment. Writes its results back into its ttl, as well as to oxigraph"""
-
+    """
+    Inner document alignment.
+    Writes its results back into its ttl, as well as to oxigraph
+    """
     config = load_alignment_config(config_path)
     entities = load_entity_information(ttl_path)
-
     if not entities:
         return ttl_path
-
     candidates = generate_candidate_pairs(entities, config)
-
     if not candidates:
         logger.info("[%s] No candidate pairs found, skipping alignment", run_id)
         return ttl_path
-
     alignments = score_and_filter(candidates, config)
-
     if not alignments:
         logger.info("[%s] No pairs above threshold, skipping alignment", run_id)
         return ttl_path
 
     logger.info("[%s] Writing %d owl:sameAs triple(s)", run_id, len(alignments))
+    # Write results to local ttl and oxigraph
     triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
     write_same_as_triples(ttl_path, triples, ttl_path)
     write_alignment_results(
         triples, workspace_id, run_id, [document_id] if document_id else None
     )
-
     return ttl_path
 
 
@@ -290,10 +282,7 @@ def run_cross_document_alignment(
     Cross document entity alignment loading all per-document aligned ttls and performing entity alignment between them again.
     Additionally, it checks for entities from previous runs and aligns them with the current run.
     """
-
-    # Exclude merged.ttl: it's this function's own output (written below) and
-    # persists in working_dir across retries of the same run. Re-reading it
-    # here would load every entity a second time and pair it against itself.
+    # merged.ttl is output of this function and will be used by further tasks
     ttl_files = [p for p in working_dir.glob("*.ttl") if p.name != "merged.ttl"]
 
     entities = []
@@ -302,7 +291,7 @@ def run_cross_document_alignment(
             entity["source_document"] = ttl_path.stem
             entity["is_prior"] = False
             entities.append(entity)
-
+    # Get entities from prior runs (excluding current run documents)
     prior_entities = get_prior_entities(
         workspace_id, exclude_document_ids=[p.stem for p in ttl_files]
     )
@@ -312,12 +301,17 @@ def run_cross_document_alignment(
     candidates = [
         (a, b)
         for a, b in generate_candidate_pairs(entities, config)
-        if not (a.get("is_prior") and b.get("is_prior"))
-        and a.get("source_document") != b.get("source_document")
+        if not (
+            a.get("is_prior") and b.get("is_prior")
+        )  # exclude pairs of entities that are both from prior runs
+        and a.get("source_document")
+        != b.get(
+            "source_document"
+        )  # exclude pairs of the same document running in inner-document alignment
     ]
 
+    # Resolve existing alignment pairs to avoid duplicates
     alignments = score_and_filter(candidates, config)
-
     existing_pairs = get_existing_alignment_pairs(workspace_id)
     alignments = [
         (uri_a, uri_b, score, src_a, src_b)
@@ -335,7 +329,6 @@ def run_cross_document_alignment(
     )
 
     # Merge all per-document TTLs into a single graph and append sameAs triples
-    # used by further tasks
     triples = [(uri_a, uri_b, score) for uri_a, uri_b, score, *_ in alignments]
     merged_graph = Graph()
     for ttl_path in ttl_files:
@@ -345,6 +338,7 @@ def run_cross_document_alignment(
     merged_path = working_dir / "merged.ttl"
     merged_graph.serialize(destination=merged_path, format="turtle")
 
+    # Write alignment results to oxigraph
     grouped = defaultdict(list)
     for uri_a, uri_b, score, src_a, src_b in alignments:
         key = tuple(sorted([src_a or "unknown", src_b or "unknown"]))

@@ -9,20 +9,24 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 def normalize_tokens(s: str) -> str:
-    """Sort tokens alphabetically after stripping punctuation and lowercasing.
-    Sorting is used so e.g. name order is always the same and matches get higher conf scores
+    """
+    Sort tokens alphabetically after stripping punctuation and lowercasing.
+    Sorting is used so e.g. name order is always the same and matches get higher confidence scores.
     """
     tokens = sorted(re.sub(r"[^\w]", " ", s.lower()).split())
     return " ".join(tokens)
 
 
 def fuzz_score(a: str, b: str) -> float:
-    """Ratio fuzzy matching score on normalized words"""
+    """Ratio fuzzy matching score on normalized words."""
     return fuzz.ratio(normalize_tokens(a), normalize_tokens(b)) / 100.0
 
 
 def initial_expanded_score(a: str, b: str) -> float:
-    """Like fuzz_score but treats single-character tokens as initials. (Helps match J. Doe with John Doe with higher confidence)"""
+    """
+    Like fuzz_score but treats single-character tokens as initials.
+    Helps match J. Doe with John Doe with higher confidence.
+    """
     base = fuzz_score(a, b)
     if base >= 0.96:
         return base
@@ -36,27 +40,29 @@ def initial_expanded_score(a: str, b: str) -> float:
         return base
 
     def _has_full_given(tokens: list[str]) -> bool:
+        # check if any token has more than 1 character (likely not an initial)
         return any(len(t) > 1 for t in tokens[1:])
 
     if not (
         _has_full_given(tokens_a) or _has_full_given(tokens_b)
-    ):  # only initials are available and no token with more than 1 char
-        # If both sides have single-char given-name tokens that differ, it's an explicit
-        # conflict and return a near-zero score
+    ):  # If both sides have single longest token + rest initials, we need to check whether the initials are intersecting.
+        # J. Doe should never be similiar to K. Doe.
         initials_a = {t for t in tokens_a if len(t) == 1}
         initials_b = {t for t in tokens_b if len(t) == 1}
         if initials_a and initials_b and initials_a.isdisjoint(initials_b):
             return 0.05
         return base
-
+    # One side has another full token (e.g. surname + given name)
     shorter, longer = (
         (tokens_a, tokens_b) if len(tokens_a) <= len(tokens_b) else (tokens_b, tokens_a)
     )
     multi_shorter = [
         t for t in shorter if len(t) > 1
     ]  # picks all non-initial tokens from the shorter list as anchors
-    if not multi_shorter:  # no initial token available
+
+    if not multi_shorter:  # shorter side is only intials
         return base
+
     # Pick the first multi-char token that also appears in the longer list.
     longer_set = set(longer)
     anchor = next((t for t in multi_shorter if t in longer_set), multi_shorter[0])
@@ -78,24 +84,24 @@ def initial_expanded_score(a: str, b: str) -> float:
             (
                 i
                 for i, lt in enumerate(longer)
-                if i not in used
+                if i not in used  # must not be matched token already
                 and (
-                    lt == tok
-                    or (len(lt) == 1 and tok.startswith(lt))
+                    lt == tok  # exact match
+                    or (len(lt) == 1 and tok.startswith(lt))  # initial match
                     or (len(tok) == 1 and lt.startswith(tok))
                 )
             ),
             None,
         )
         if match is None:
-            # explicit initial conflict yields low score
+            # initial conflicts yield low score
             if len(tok) == 1 and any(
                 len(longer[i]) == 1 and i not in used for i in range(len(longer))
             ):
                 return 0.05
             return base
         used.add(match)
-    return 1.0
+    return 0.98  # slightly reduce confidence to avoid posible issues with bulk accept
 
 
 def syntactic_similarity(
@@ -106,13 +112,13 @@ def syntactic_similarity(
     sparsity_penalty: float = 1.0,
     sparsity_max_fields: int = 1,
 ) -> float:
-    """Compute similarity based on string surface forms of entity property values.
+    """
+    Compute similarity based on string surface forms of entity property values.
 
-    For each field of comparison_predicates returns the average syntactic similarity score
+    For each field of comparison_predicates returns the avg syntactic similarity score
     If expand_initials is True, single-character tokens are treated as initials and match any token with the same prefix, boosting scores for abbreviated names.
     Otherwise, fuzz ratio score on normalised names is used.
-    sparsity_penalty is applied when the number of matched fields is <= sparsity_max_fields
-    (and at least one more predicate was configured)
+    sparsity_penalty is applied when the number of matched fields is <= sparsity_max_fields and at least one more predicate is configured.
     """
     score_fn = initial_expanded_score if expand_initials else fuzz_score
 
@@ -141,7 +147,8 @@ def syntactic_similarity(
 def get_embeddings_batch(
     texts: list[str], batch_size: int = 100, retries: int = 3
 ) -> dict[str, list[float]]:
-    """Get embeddings for {batch_size} texts from configured OpenAI endpoint.
+    """
+    Get embeddings for {batch_size} texts from configured OpenAI endpoint.
     Duplicate texts are only sent once.  Returns dictionary of form {text: embedding}
     On failures of API call it retries with exponential backoff up to {retries} times.
     Missing embeddings or text after retries are silently omitted for the stake of usability.
@@ -192,16 +199,16 @@ def get_embeddings_batch(
             continue
         for idx, item in enumerate(data["data"]):
             result[batch[item.get("index", idx)]] = item["embedding"]
-
     return result
 
 
 def semantic_text_pair(
     entity1: dict, entity2: dict, predicates: list[str]
 ) -> tuple[str, str] | None:
-    """Builds the joined embedding-input text for both entities from fields
-    present on both sides or
-    None if no shared field has a value on both entities."""
+    """
+    Builds the joined embedding-input text for both entities from fields
+    present on both sides or None if no shared field has a value on both entities.
+    """
     parts1, parts2 = [], []
     for field in predicates:
         vals1 = [v for v in entity1["literals"].get(field, []) if v.strip()]
@@ -220,9 +227,10 @@ def semantic_similarity(
     semantic_text_predicates: list[str] | None = None,
     embedding_lookup: dict[str, list[float]] | None = None,
 ) -> float:
-    """Computes semantic similarity using embeddings from configured OpenAI endpoint
+    """
+    Computes semantic similarity using embeddings from configured OpenAI endpoint.
     Uses text values from specified semantic_text_predicates (if both entities contain it).
-    Embeddings are looked up from {embedding_lookup} (built from precomputaiton)
+    Embeddings are looked up from {embedding_lookup} (built from precomputation to avoid duplicate API calls).
     """
     predicates = semantic_text_predicates or ["name"]
     pair_texts = semantic_text_pair(entity1, entity2, predicates)
@@ -241,7 +249,8 @@ def semantic_similarity(
 
 
 def structural_similarity(entity1: dict, entity2: dict) -> float:
-    """Compute structural similarity based on predicate containment.
+    """
+    Compute structural similarity based on predicate containment.
     Returns default=0.4 if no literals are available
     """
     default = 0.4
@@ -272,7 +281,12 @@ def combined_similarity(
 
     if hard_match_predicates:
         score_fn = initial_expanded_score if expand_initials else fuzz_score
-        for key, min_score in hard_match_predicates.items():
+        for (
+            key,
+            min_score,
+        ) in (
+            hard_match_predicates.items()
+        ):  # checks for predicates that must match with at least min_score, otherwise returns 0.0 -> no alignment.
             vals_a = [v for v in entity1["literals"].get(key, []) if v.strip()]
             vals_b = [v for v in entity2["literals"].get(key, []) if v.strip()]
             if vals_a and vals_b:
@@ -280,8 +294,8 @@ def combined_similarity(
                 if best < min_score:
                     return 0.0
 
+    # Compute scores based on weights defined in config
     score = 0.0
-
     w_structural = w.get("structural", 0.0)
     if w_structural > 0:
         score += w_structural * structural_similarity(entity1, entity2)
@@ -302,5 +316,4 @@ def combined_similarity(
         score += w_semantic * semantic_similarity(
             entity1, entity2, semantic_text_predicates, embedding_lookup
         )
-
     return score

@@ -94,7 +94,6 @@ orcid_lookup:
         - predicates: [givenName, familyName]
           require_all: true
           join_with: " "
-          fallback_predicates: [name]
       scoring:
         threshold: 0.9
         weights: { syntactic: 1.0, semantic: 0.0 }
@@ -133,7 +132,7 @@ For each entity, candidates are only generated if its type has an `entity_types`
 ### Search query construction
 Both clients build search queries from the `search_queries` rule list:
 - Each rule declares `predicates`, i.e. the literal names to get values from, and, optionally, `optional_predicates` (added to the query only if present and desired, but never required).
-- **`require_all: true`** means the rule only triggers if every listed predicate has at least one value. If not, and a `fallback_predicates` list is given, that list is retried as a `require_all` rule instead.
+- **`require_all: true`** means the rule only triggers if every listed predicate has at least one value; otherwise it yields no queries and the next rule in `search_queries` is tried instead.
 - Rules are tried in the order declared, and each yields zero or more queries; all of them are issued with duplicate queries being surpressed through a set keeping track of all seen queries.
 - `request_delay_seconds` is slept between each query issued, as desired by API providers. 
 

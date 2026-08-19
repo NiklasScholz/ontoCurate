@@ -1,9 +1,3 @@
-"""Datatype property (literal) confidence scoring.
-Window resolution, span matching, outlier penalty for literal triples.
-"""
-
-from __future__ import annotations
-
 import re
 from collections import defaultdict
 from datetime import date
@@ -14,7 +8,9 @@ from rapidfuzz import fuzz
 
 # Window Resolution
 def extract_section(source: str, heading_name: str) -> tuple[str, int] | None:
-    """Finds Sections by matching heading text (section strategy). Requires Markdown headings to work"""
+    """
+    Finds Sections by matching heading text (section strategy). Requires Markdown headings to work
+    """
     heading_reg = re.compile(r"^(#{1,6})\s+\**\s*(.+?)\s*\**\s*$", re.MULTILINE)
     for m in heading_reg.finditer(source):
         if m.group(2).strip().lower() == heading_name.strip().lower():
@@ -46,7 +42,8 @@ def resolve_window(source: str, entry: dict) -> tuple[str, int] | None:
 def get_windows(
     source: str, predicate: str, windows_config: dict
 ) -> list[tuple[str, int]]:
-    """Retrieves windows for a given predicate based on the config.
+    """
+    Retrieves windows for a given predicate based on the config.
     Multiple windows can be declared for a single predicate, then all are returned.
     """
     entry = windows_config.get(predicate)
@@ -64,14 +61,15 @@ def get_windows(
 
 # Search Span Logic
 def build_norm_map(text: str, strip_markdown: bool = False) -> tuple[str, list[int]]:
-    """Collapse whitespace runs to a single space, optionally stripping markdown inline
+    """
+    Collapse whitespace runs to a single space, optionally stripping markdown inline
     markers (* _ ` and em/en dashes replaced with hyphen).
     Returns (norm_text, pos_map) where pos_map[i] is the original index of norm_text[i].
     """
     MD_CHARS = frozenset("*_`")
     EM_DASHES = frozenset("—–")
-    norm_chars: list[str] = []
-    pos_map: list[int] = []
+    norm_chars = []
+    pos_map = []
     i = 0
     while i < len(text):
         ch = text[i]
@@ -95,7 +93,8 @@ def build_norm_map(text: str, strip_markdown: bool = False) -> tuple[str, list[i
 
 
 def build_intraword_pattern(value: str) -> str:
-    """Build a regex that allows optional whitespace anywhere between characters
+    """
+    Build a regex that allows optional whitespace anywhere between characters
     within a token and between tokens.
     E.g. 'Know\nledge' in value matches 'Knowledge' in source
     """
@@ -106,8 +105,10 @@ def build_intraword_pattern(value: str) -> str:
 
 
 def try_abbreviation_match(text: str, value: str) -> tuple[int, int] | None:
-    """Match value against text when it appears as an acronym, optionally followed by
-    any of the expanded words.  E.g. 'KG Graph' is found for value 'Knowledge Graph'."""
+    """
+    Match value against text when it appears as an acronym, optionally followed by
+    any of the expanded words.  E.g. 'ESWC' is found for value 'European Semantic Web Conference' if the LLM expanded these initials (and no other stage is better).
+    """
     value_words = re.sub(r"\s+", " ", value).strip().split()
     if len(value_words) < 2:
         return None
@@ -129,7 +130,8 @@ def try_abbreviation_match(text: str, value: str) -> tuple[int, int] | None:
 
 
 def year_windows(text: str, year: int) -> list[tuple[str, int]]:
-    """Returns (window_text, window_offset) for every occurrence of {year} as a
+    """
+    Returns (window_text, window_offset) for every occurrence of {year} as a
     standalone 4-digit number in {text}, padded with +-30 characters to ensure proper date extraction
     """
     date_window_radius = 30
@@ -144,7 +146,8 @@ def year_windows(text: str, year: int) -> list[tuple[str, int]]:
 def find_date_span_in(
     text: str, value: str, languages: list[str] | None = None
 ) -> tuple[int, int, float] | None:
-    """Locates the source span for a date {value} of format YYYY-MM-DD even when
+    """
+    Locates the source span for a date {value} of format YYYY-MM-DD even when
     the source expresses it differently. (For example, "10th May 2026" for "2026-05-10")
     Returns None if {value} isn't a valid date or no matching date expression is found.
     {languages} restricts which langauges dateparser tries to improve performance
@@ -157,7 +160,6 @@ def find_date_span_in(
         target = date.fromisoformat(value)
     except ValueError:
         return None
-
     languages = languages or ["en"]
 
     def is_full_match(parsed: date | None) -> bool:
@@ -175,7 +177,7 @@ def find_date_span_in(
         return None
     full_date_components = ["day", "month", "year"]
     partial_date_components = ["month", "year"]
-    # Loop through all confidence possibilities (Full vs. partial match -> Day First vs. Month First)
+    # Loop through all match possibilities (Full vs. partial match -> Day First vs. Month First)
     for require_parts, matches_target, confidence in (
         (full_date_components, is_full_match, 0.95),
         (partial_date_components, is_partial_match, 0.75),
@@ -207,19 +209,19 @@ def find_span_in(
     exact_only: bool = False,
     date_languages: list[str] | None = None,
 ) -> tuple[int, int, float] | None:
-    """Finds the best matching span of {value} in {text}, returning (start, end, confidence).
+    """
+    Finds the best matching span of {value} in {text}, returning (start, end, confidence).
+
     Confidence is based on the type of match:
     - 1.0 exact match
     - 0.95 case-insensitive match
     - 0.95/0.75 date-aware match (only tried when value is a date of format YYYY-MM-DD)
-    - 0.9 Normalized Match (any whitespace noise in source or value, inter- or intra-word)
+    - 0.9 Normalized Match (any whitespace noise in source or value)
     - 0.85 URL suffix match (value is a URL and only its last path segment appears in text,
       e.g. "0000-0000-0000-0000" for value "https://orcid.org/0000")
-    - 0.0-0.94 partial match based on fuzzy string similarity (may yield higher scores than other matches)
+    - 0.0-0.94 partial match based on fuzzy string similarity
 
-    When exact_only=True, fuzzy and abbreviation fallbacks are skipped — useful for
-    identifier predicates (issn, doi, …) where a fuzzy match against unrelated digit
-    sequences would produce a misleading confidence score.
+    When exact_only=True, fuzzy and abbreviation fallbacks are skipped.
     """
     if not value.strip():
         return None
@@ -251,6 +253,7 @@ def find_span_in(
         orig_start = pos_map[idx]
         orig_end = pos_map[idx + len(norm_value) - 1] + 1
         return offset + orig_start, offset + orig_end, 0.9
+
     pattern = build_intraword_pattern(value)
     m = re.search(pattern, text, re.IGNORECASE)
     if m:
@@ -286,11 +289,11 @@ def find_span_in(
     if abbrev:
         return offset + abbrev[0], offset + abbrev[1], 0.75
 
+    # Fuzzy String Matching on Sentences within the text
     sentences = split_sentences(text)
     if not sentences:
         return None
 
-    # Fuzzy String Matching on Sentences within the text (Take ratio) -> ensures no highly confident matches because of words simply occuring in a window (e.g. Author of Paper2 for Paper3)
     best_score = 0.0
     best_sent_start = 0
     best_sent_text = ""
@@ -307,7 +310,7 @@ def find_span_in(
             best_sent_start = sent_start
             best_sent_text = sent_text
     min_score = 50
-    if best_score < min_score:  # ensure that partial match exists
+    if best_score < min_score:  # ensure that good enough partial match exists
         return None
 
     local_start, local_end = best_window(
@@ -327,13 +330,13 @@ def find_span(
     exact_only: bool = False,
     date_languages: list[str] | None = None,
 ) -> tuple[int, int, float, bool] | None:
-    """Search for {value} in {source}, going through all declared windows first.
+    """
+    Search for {value} in {source}, going through all declared windows first.
     The following rules are being used (highest confidence wins):
         - Any match found inside a declared window is returned with in_window=True.
         - If no declared window matched, the full document is searched with the
         out-of-window penalty (+ optional distance penalty from the nearest window).
         - If no declared windows exist the full document is searched with no penalty.
-
     When exact_only=True, fuzzy and abbreviation fallbacks are disabled in find_span_in.
     {date_languages} is forwarded to find_span_in for the date-aware match tier.
     """
@@ -364,7 +367,7 @@ def find_span(
             # No declared windows -> no penalty
             best_full = (start, end, conf, True)
         else:
-            # find distance to nearest window
+            # Window penalty through weighted distance from nearest window end (if any)
             nearest_window_end = (
                 min(
                     win_off + len(win_txt)
@@ -373,10 +376,9 @@ def find_span(
                 )
                 if any(start >= win_off + len(win_txt) for win_txt, win_off in windows)
                 else (min(win_off + len(win_txt) for win_txt, win_off in windows))
-            )  # checks if our match is after at least one window, if so calculates distance to nearest window end, otherwise distance to nearest window start
+            )  # checks if our match is after at least one window, so it calculates distance to nearest window end, otherwise distance to nearest window start
             distance = max(0, start - nearest_window_end)
             relative_distance = distance / len(source) if source else 0.0
-            # apply distance penalty
             decay_factor = max(
                 min_penalty_factor, 1.0 - win_distance_penalty * relative_distance
             )
@@ -403,7 +405,13 @@ ABBREV_RE = re.compile(
 
 
 def split_sentences(text: str) -> list[tuple[int, str]]:
-    pattern = re.compile(r"(?<=[.!?])\s+|(?:\n\s*\n)+")
+    """
+    Returns list of (start_index, sentence_text) tuples
+    for each sentence in the text detected through regex.
+    """
+    pattern = re.compile(
+        r"(?<=[.!?])\s+|(?:\n\s*\n)+"
+    )  # blank line or punctuation followed by whitespace
     result: list[tuple[int, str]] = []
     last = 0
     for m in pattern.finditer(text):
@@ -425,7 +433,10 @@ def split_sentences(text: str) -> list[tuple[int, str]]:
 
 
 def best_window(sentence: str, value: str, offset: int = 0) -> tuple[int, int]:
-    """Find the best matching window of {value} in {sentence} based on fuzzy matching, returning (start, end)."""
+    """
+    Find the best matching sliding window of {value} in {sentence}
+    based on fuzzy matching, returning (start, end).
+    """
     val_len = len(value)
     sent_len = len(sentence)
 
@@ -441,13 +452,10 @@ def best_window(sentence: str, value: str, offset: int = 0) -> tuple[int, int]:
         if score > best_score:
             best_score = score
             best_i = i
-
     return offset + best_i, offset + best_i + val_len
 
 
 # Span Relocation
-
-
 def find_all_exact_spans(source: str, value: str) -> list[int]:
     """Return start positions of every exact (case-insensitive) occurrence of value in source."""
     lower_source = source.lower()
@@ -471,11 +479,16 @@ def relocate_ambiguous_spans(
     type_index: dict[str, set[str]] | None = None,
     max_value_len: int = 20,
 ) -> None:
-    """We relocate all occurances for short values by checking all their occurances in the documents and taking the cloest to the median position of the other literals"""
+    """
+    We relocate all occurances for short values by checking all their
+    occurances in the documents and taking the cloest to the median position
+    of the other entity literals.
+    """
     if doc_length == 0:
         return
 
     def is_target_entity(subject_uri: str) -> bool:
+        # check if entity is part of outlier_pentalty_entities
         if not entity_types or type_index is None:
             return False
         return bool(type_index.get(subject_uri, set()) & set(entity_types))
@@ -538,8 +551,11 @@ def apply_entity_outlier_penalty(
     entity_types: list[str] | None = None,
     type_index: dict[str, set[str]] | None = None,
 ) -> None:
-    """Adds a penalty to literal triples whose span is a spatial outlier in contrast to the other triples of the same entity.
-    Intuition: If an entity has multiple literal annotations, we expect them to be mentioned in roughly the same area of the document (e.g. all affiliations of a paper are likely mentioned in the header). If one annotation is far away from the others, it's more likely to be a spurious match and should be penalized.
+    """
+    Adds a penalty to literal triples whose span is a spatial outlier in contrast to the other triples of the same entity.
+    Intuition: If an entity has multiple literal annotations, we expect them to be mentioned in roughly the same area of the document
+    (e.g. all affiliations of a paper are likely mentioned in the header). If one annotation is far away from the others,
+    it's more likely to be a wrong match and should be penalized.
 
     Groups by subject URI, computes the median span_start of the group, then
     scales each annotation's confidence by:
@@ -552,12 +568,13 @@ def apply_entity_outlier_penalty(
         return
 
     def is_target_entity(subject_uri: str) -> bool:
+        # check if entity is part of outlier_pentalty_entities
         if not entity_types or type_index is None:
-            return False  # no filter provided implies it should not be used at all
+            return False
         subject_types = type_index.get(subject_uri, set())
         return bool(subject_types & set(entity_types))
 
-    # Group by Subject URI (literal triples only, filtered by rdf:type)
+    # Group by Subject URI (literal triples only)
     groups = defaultdict(list)
     for ann in annotations:
         if ann.get("triple_type") == "literal" and is_target_entity(ann["subject"]):

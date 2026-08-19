@@ -40,14 +40,14 @@ def fix_spacing_modifiers(text: str) -> str:
 
 
 def semicolon_cleaning(text: str) -> str:
-    """Cleans up when & is immediately followed by ; to avoid parsing issues; caused by HTML elements"""
+    """Cleans up when & is immediately followed by ; to avoid ontoGPT parsing issues; caused by HTML elements"""
     html_entities = {"AMP", "LT", "GT", "QUOT", "APOS", "NBSP", "COPY", "REG"}
 
     def repl(match: re.Match) -> str:
         letters = match.group(1)
         if letters.upper() in html_entities:
             return match.group(0)
-        return f"&{letters}"
+        return f"&{letters}"  # strips ;
 
     return re.compile(r"&([A-Za-z]{1,4});").sub(repl, text)
 
@@ -60,6 +60,10 @@ def clean_markdown(
     remove_table_captions: bool = False,
     normalize_whitespace: bool = True,
 ) -> str:
+    """
+    Cleans up Markdown text extracted from PDF by removing placeholders, picture text, figure captions, table captions, and normalizing whitespace.
+    Could be configured what should be removed based on specific use cases.
+    """
     if remove_placeholders:
         md_text = re.sub(r"\*\*==> picture.*?<==\*\*", "", md_text, flags=re.DOTALL)
 
