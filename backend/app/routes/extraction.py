@@ -41,7 +41,12 @@ class GetRunsResponse(BaseModel):
     task_name: str
 
 
-@router.get("/{workspace_id}", status_code=200, response_model=list[GetRunsResponse])
+@router.get(
+    "/{workspace_id}",
+    status_code=200,
+    response_model=list[GetRunsResponse],
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def get_runs(workspace_id: UUID, session: AsyncSession = Depends(get_session)):
     run_repo = RunRepository(session)
     return await run_repo.list(workspace_id)
@@ -58,6 +63,7 @@ async def create_documents(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    """Starts a new extraction run for the given workspace with the provided files. Returns the run ID and status."""
     run_repo = RunRepository(session)
     doc_repo = DocumentRepository(session)
     workspace_repo = WorkspaceRepository(session)
@@ -79,6 +85,7 @@ async def create_documents(
                 f"'{filename}' has already been uploaded to this workspace"
             )
         file_payloads.append((filename, content, content_hash))
+
     run = await run_repo.create(
         workspace_id=workspace_id, triggered_by=current_user.id, model=model
     )
@@ -120,6 +127,7 @@ async def retry_document(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    """Retries a failed document extraction. Only allowed if the document is in a failed state."""
     run_repo = RunRepository(session)
     run = await run_repo.get_by_id(run_id)
     if run is None:
@@ -150,6 +158,7 @@ async def retry_document(
     task_name = "Conversion" if doc.file_type == "pdf" else "Extraction"
     await run_repo.reset_document_for_retry(run.id, document_id, task_name)
 
+    # schedule new pipeline run for this document
     build_retry_pipeline(
         str(document_id), doc.file_type, str(run.id), str(run.workspace_id)
     ).delay()

@@ -17,13 +17,11 @@ TMP_BASE = Path("/tmp/ontocurate")
 
 
 @celery_app.task(bind=True, name="runs.align_document")
-def align_document_task(self, extract_result: tuple) -> str:
+def align_document_task(self, extraction_result: tuple) -> str:
     """
-    Per-Document Entity Alignment Postprocessing
+    Entity Alignment within the same document.
     """
-    model, document_id, run_id, tmp_dir, ttl_path, provenance_path, workspace_id = (
-        extract_result
-    )
+    _, document_id, run_id, tmp_dir, ttl_path, _, workspace_id = extraction_result
 
     if ttl_path is None:
         # Skip document failed in the extraction stage
@@ -65,11 +63,13 @@ def align_document_task(self, extract_result: tuple) -> str:
 
             working_dir = TMP_BASE / run_id
             working_dir.mkdir(parents=True, exist_ok=True)
+            # only keep relevant ttl file and clean irrelevant files for next stages
             shutil.copy2(ttl_path, working_dir / f"{document_id}.ttl")
 
             async with AsyncSessionLocal() as session:
                 tasks = await RunRepository(session).get_tasks_by_run(UUID(run_id))
 
+            # Check status of other tasks in the run to set correct status
             other_tasks = [t for t in tasks if str(t.document_id) != document_id]
             all_others_finished = all(
                 t.status in {"Waiting", "Done", "Failed"} for t in other_tasks
@@ -79,6 +79,7 @@ def align_document_task(self, extract_result: tuple) -> str:
             else:
                 await update_status("Waiting", task_name="Cross-Document Alignment")
             logger.info("[%s] Alignment complete: document=%s", run_id, document_id)
+
         except Exception:
             await update_status("Failed")
             logger.exception("[%s] Alignment failed: document=%s", run_id, document_id)

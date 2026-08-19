@@ -12,7 +12,6 @@ class DocumentResponse(BaseModel):
     extracted_triples: int
     pending_triples: int
     created_at: datetime
-
     model_config = {"from_attributes": True}
 
 

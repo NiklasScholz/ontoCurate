@@ -9,6 +9,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# can be removed if there is verification mechanism in place for emails (e.g., by sending confirmation code)
 ALLOWED_EMAIL_DOMAINS = {"rwth-aachen.de"}
 
 
@@ -25,6 +26,8 @@ class RegisterRequest(BaseModel):
         v = v.strip()
         if " " in v:
             raise ValueError("Username must not contain spaces")
+        if not v.isprintable():
+            raise ValueError("Username contains invalid characters")
         return v
 
     @field_validator("email", mode="before")

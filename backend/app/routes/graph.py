@@ -92,6 +92,7 @@ async def export_deduplication_graph(
     content = await asyncio.to_thread(
         export_deduplicated_graph, str(workspace_id), format, prefixes
     )
+    # clean up file name to avoid invalid characters replacing with underscores.
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',
