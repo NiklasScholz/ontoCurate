@@ -430,6 +430,25 @@ export default function CurationDetail({
 }) {
     const relatedSpans = useRelatedSpans(docId, statement.current);
     const [editing, setEditing] = useState(false);
+
+    function refreshCurrent() {
+        client
+            .GET("/statements/{workspace_id}/statements/{statement_id}/current", {
+                params: {
+                    path: {
+                        workspace_id: workspaceId,
+                        statement_id: statement.current.id,
+                    },
+                },
+            })
+            .then(({ data }) => {
+                if (data) {
+                    onChange(
+                        Object.fromEntries([[statement.original.id, data]]),
+                    );
+                }
+            });
+    }
     const isChanged =
         statement.current.subject !== statement.original.subject ||
         statement.current.predicate !== statement.original.predicate ||
@@ -490,13 +509,18 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then((stm) =>
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                })
+                                .catch(() => refreshCurrent());
                         }}
                     >
                         <CheckIcon size={16} />
@@ -514,13 +538,18 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then((stm) =>
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                })
+                                .catch(() => refreshCurrent());
                         }}
                     >
                         <RotateCcwIcon size={16} />
@@ -538,13 +567,18 @@ export default function CurationDetail({
                                         },
                                     },
                                 })
-                                .then((stm) =>
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
-                                    ),
-                                );
+                                    );
+                                })
+                                .catch(() => refreshCurrent());
                         }}
                     >
                         <XIcon size={16} />
@@ -567,10 +601,14 @@ export default function CurationDetail({
                                     },
                                     body: { subject: newValue },
                                 })
-                                .then((stm) => {
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
                                     );
                                 });
@@ -592,10 +630,14 @@ export default function CurationDetail({
                                     },
                                     body: { predicate: newValue },
                                 })
-                                .then((stm) => {
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
                                     );
                                 });
@@ -620,10 +662,14 @@ export default function CurationDetail({
                                         ? { object_iri: newValue }
                                         : { object_value: newValue },
                                 })
-                                .then((stm) => {
+                                .then(({ data, error }) => {
+                                    if (error || !data) {
+                                        refreshCurrent();
+                                        return;
+                                    }
                                     onChange(
                                         Object.fromEntries([
-                                            [statement.original.id, stm.data],
+                                            [statement.original.id, data],
                                         ]),
                                     );
                                 });
