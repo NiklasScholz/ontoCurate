@@ -101,7 +101,7 @@ def initial_expanded_score(a: str, b: str) -> float:
                 return 0.05
             return base
         used.add(match)
-    return 0.98  # slightly reduce confidence to avoid posible issues with bulk accept
+    return 1.0
 
 
 def syntactic_similarity(
