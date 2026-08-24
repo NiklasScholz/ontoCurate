@@ -4,7 +4,7 @@ import { useLocation, useSearchParams } from "react-router-dom";
 import { client } from "../client";
 
 const REPO_URL =
-    "https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate";
+    "https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate";
 
 const STEPS = [
     "Create or open a shared workspace with a configured ontology",

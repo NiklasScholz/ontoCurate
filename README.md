@@ -1,5 +1,5 @@
 ![ontoCurate logo](.docs/logo.png)
-![pipeline](https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate/badges/main/pipeline.svg)
+![pipeline](https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate/badges/main/pipeline.svg)
 
 ## Table of Contents
 
@@ -103,7 +103,7 @@ Afterwards, the following checks run automatically on `git commit` ensuring that
 - **eslint**: lints frontend TypeScript/React files
 
 
-### Testing ![coverage](https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate/badges/main/coverage.svg)
+### Testing ![coverage](https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate/badges/main/coverage.svg)
 
 We test all components of our backend, which do not require heavy mocking, using `pytest`. 
  
