@@ -50,7 +50,7 @@ async def get_deduplication(workspace_id: UUID):
     )
 
     statements = zip_current_originals(
-        order_statements(rows), order_statements(originals_rows)
+        order_statements(rows), order_statements(originals_rows, current_only=False)
     )
     return sort_by_relation_count(statements)
 
