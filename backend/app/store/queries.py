@@ -1,5 +1,6 @@
 import re
 
+from pyoxigraph import Literal, NamedNode
 from rdflib import Graph, URIRef
 
 from app.pipeline.utils.turtle_utils import (
@@ -21,7 +22,8 @@ from app.store.utils import *
 def get_prior_entities(
     workspace_id: str, exclude_document_ids: list[str]
 ) -> list[dict]:
-    """Gets entities from all current-version, non-rejected CandidateStatements in {workspaceid} provenance graph.
+    """
+    Gets entities from all current-version, non-rejected CandidateStatements in {workspaceid} provenance graph from prior runs.
     Additionally excludes {exclude_document_ids} from the results, so that a new run's entities are not compared against themselves.
     Used to perform cross-document cross-run entity alignment.
     """
@@ -67,18 +69,20 @@ def get_prior_entities(
             doc_uri = b["doc"]["value"]
             subject_doc_map[b["s"]["value"]] = doc_uri.rsplit("/", 1)[-1]
 
+    # load entity dictionaries and add flags required for alignment
     entities = load_entity_information(g)
     for entity in entities:
         entity["source_document"] = subject_doc_map.get(entity["uri"])
         entity["is_prior"] = True
-
     return entities
 
 
 def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
-    """Returns already aligned pairs of entities in provenance graph to ensure no duplicate comparison"""
+    """
+    Returns already aligned pairs of entities in provenance graph
+    to remove unnecessary, duplicated alignment triples.
+    """
     graph = curation_graph(workspace_id)
-
     query = f"""
         SELECT ?duplicateSubject ?duplicateTarget WHERE {{
             GRAPH <{graph}> {{
@@ -93,7 +97,6 @@ def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
 
     payload = sparql_select(query)
     bindings = payload.get("results", {}).get("bindings", [])
-
     return {
         frozenset({b["duplicateSubject"]["value"], b["duplicateTarget"]["value"]})
         for b in bindings
@@ -103,6 +106,7 @@ def get_existing_alignment_pairs(workspace_id: str) -> set[frozenset[str]]:
 def get_accepted_alignment_pairs(workspace_id: str) -> set[tuple[str, str]]:
     """
     Returns accepted owl:sameAs candidatestatments produced by the alignment stage.
+    Used for deduplicated export of data graph.
     """
     graph = curation_graph(workspace_id)
     query = f"""
@@ -127,13 +131,12 @@ def get_accepted_alignment_pairs(workspace_id: str) -> set[tuple[str, str]]:
 
 def hash_stripping_rewrite(entity_uris: set[str]) -> dict[str, str]:
     """
-    Maps each fallback-hashed entity URI to its hash-free form ensuring no conflicts
+    Maps each fallback-hashed entity URI to its hash-free form ensuring no conflicts.
     """
     stripped_groups = {}
     for uri in entity_uris:
         match = re.compile(r"^(.*)_[0-9a-f]{6}$").match(uri)
         stripped_groups.setdefault(match.group(1) if match else uri, []).append(uri)
-
     return {
         uris[0]: stripped
         for stripped, uris in stripped_groups.items()
@@ -199,6 +202,7 @@ def export_deduplicated_graph(
     merged = Graph()
     for s, p, o in aligned:
         merged.add((rewrite_hash(s), p, rewrite_hash(o)))
+
     return serialize_export(merged.serialize(format="turtle"), format, prefixes)
 
 
@@ -208,9 +212,10 @@ def get_related_spans(
     subject: str,
     object: str | None,
 ) -> tuple[list[TextSpan], list[TextSpan]]:
-    """Returns the text spans of every current, literal-valued CandidateStatement
-    in {document_id} whose subject is {subject} or {object}, split into two lists.
-    We use this to display relevant info to the curator when looking at triples.
+    """
+    Returns the text spans of every current, literal-valued CandidateStatement
+    in {document_id} whose subject is {subject} or {object}, split into two lists (subject, object).
+    We use this to display relevant info to the curator when reviewing triples.
     """
     graph = curation_graph(workspace_id)
     document_entity = create_source_document_entity(document_id).value
@@ -243,25 +248,30 @@ def get_related_spans(
 def get_document_statement_rows(
     workspace_id: str, document_id: str
 ) -> tuple[list[tuple[str, str, str, str, str]], list[tuple[str, str, str, str, str]]]:
-    """Returns (current_rows, original_rows) for every CandidateStatement derived
-    from {document_id} as (subject, predicate, object, original, object_type) tuples."""
+    """
+    Returns (current_rows, original_rows) for every CandidateStatement derived
+    from {document_id} as (subject, predicate, object, original, object_type) tuples.
+    """
     graph = curation_graph(workspace_id)
     document_entity = create_source_document_entity(document_id).value
-
+    # current statement information
     payload = sparql_select(f"""
-        SELECT ?s ?p ?o ?os WHERE {{
+        SELECT DISTINCT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
                 ?s <{PACO_CURRENT}> true .
                 ?s <{PROV_DERIVED_FROM}>* ?os .
+                ?os <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?os <{PROV_DERIVED_FROM}> <{document_entity}> .
                 ?os <{PROV_GENERATED_BY}> ?e .
                 ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
+                <{document_entity}> <{RDF_TYPE}> <{PACO_SOURCE_DOCUMENT}> .
             }}
         }}
         ORDER BY ?s ?p ?o
         """)
+
     rows = [
         (
             b["s"]["value"],
@@ -273,14 +283,16 @@ def get_document_statement_rows(
         for b in payload.get("results", {}).get("bindings", [])
     ]
 
+    # original statement information so we can track changes on frontend
     originals_payload = sparql_select(f"""
-        SELECT ?s ?p ?o WHERE {{
+        SELECT DISTINCT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
                 ?s ?p ?o .
                 ?s <{RDF_TYPE}> <{PACO_CANDIDATE}> .
+                ?s <{PROV_DERIVED_FROM}> <{document_entity}> .
                 ?s <{PROV_GENERATED_BY}> ?e .
                 ?e <{RDF_TYPE}> <{PACO_EXTRACTION_ACTIVITY}> .
-                ?e <{PROV_USED}> <{document_entity}> .
+                <{document_entity}> <{RDF_TYPE}> <{PACO_SOURCE_DOCUMENT}> .
             }}
         }}
         ORDER BY ?s ?p ?o
@@ -295,16 +307,16 @@ def get_document_statement_rows(
         )
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
-
     return rows, originals_rows
 
 
 def get_deduplication_statement_rows(
     workspace_id: str,
 ) -> tuple[list[tuple[str, str, str, str, str]], list[tuple[str, str, str, str, str]]]:
-    """Returns (current_rows, original_rows) for every owl:sameAs CandidateStatement
+    """
+    Returns (current_rows, original_rows) for every owl:sameAs CandidateStatement
     produced by alignment/lookups as (subject, predicate, object, original, object_type)
-    tuples (like above).
+    tuples (see above).
     """
     graph = curation_graph(workspace_id)
 
@@ -314,7 +326,7 @@ def get_deduplication_statement_rows(
             <{PACO_LOOKUP_ACTIVITY}>
         }}
     """
-
+    # current statement information
     payload = sparql_select(f"""
         SELECT ?s ?p ?o ?os WHERE {{
             GRAPH <{graph}> {{
@@ -339,7 +351,7 @@ def get_deduplication_statement_rows(
         )
         for b in payload.get("results", {}).get("bindings", [])
     ]
-
+    # original statement information to track changes
     originals_payload = sparql_select(f"""
         SELECT ?s ?p ?o WHERE {{
             GRAPH <{graph}> {{
@@ -352,6 +364,7 @@ def get_deduplication_statement_rows(
         }}
         ORDER BY ?s ?p ?o
         """)
+
     originals_rows = [
         (
             b["s"]["value"],
@@ -362,13 +375,14 @@ def get_deduplication_statement_rows(
         )
         for b in originals_payload.get("results", {}).get("bindings", [])
     ]
-
     return rows, originals_rows
 
 
 def get_deduplication_counts(workspace_id: str) -> tuple[int, int]:
-    """Returns (total_count, pending_count) of owl:sameAs CandidateStatements
-    produced by alignment/lookup."""
+    """
+    Returns (total_count, pending_count) of owl:sameAs CandidateStatements
+    produced by alignment/lookup.
+    """
     graph = curation_graph(workspace_id)
     payload = sparql_select(f"""
         SELECT (COUNT(*) AS ?total) (SUM(?is_pending) AS ?pending) WHERE {{
@@ -397,10 +411,12 @@ def get_deduplication_counts(workspace_id: str) -> tuple[int, int]:
 def get_entity_neighborhood(
     workspace_id: str, entity_id: str
 ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-    """Returns (incoming, outgoing) edges for {entity_id}'s local neighborhood,
-    as (predicate, other_entity, status) tuples."""
+    """
+    Returns (incoming, outgoing) edges for {entity_id}'s local neighborhood,
+    as (predicate, other_entity, status) tuples.
+    """
     graph = curation_graph(workspace_id)
-
+    # get incoming edges (other_entity -> entity_id)
     incoming_payload = sparql_select(f"""
         SELECT ?s ?p ?status WHERE {{
             GRAPH <{graph}> {{
@@ -419,6 +435,7 @@ def get_entity_neighborhood(
         for b in incoming_payload.get("results", {}).get("bindings", [])
     ]
 
+    # get outgoing edges (entity_id -> other_entity)
     outgoing_payload = sparql_select(f"""
         SELECT ?p ?o ?status WHERE {{
             GRAPH <{graph}> {{
@@ -443,8 +460,10 @@ def get_entity_neighborhood(
 def get_triple_counts_bulk(
     document_ids: list[str], workspace_id: str
 ) -> dict[str, tuple[int, int]]:
-    """Returns {document_id: (extracted_count, pending_count)} for every document
-    in {document_ids}."""
+    """
+    Returns {document_id: (extracted_count, pending_count)} for every document
+    in {document_ids}.
+    """
     if not document_ids:
         return {}
 
@@ -490,6 +509,9 @@ def get_current_candidate_statement(
     stmt_id: str,
     graph: str,
 ) -> str:
+    """
+    Returns the current version of a {stmt_id}.
+    """
     payload = sparql_select(f"""
         SELECT DISTINCT ?currentStatement
         WHERE {{
@@ -497,11 +519,9 @@ def get_current_candidate_statement(
                 <{stmt_id}>
                     (^<{PROV_DERIVED_FROM}>)* 
                     ?currentStatement .
-
                 ?currentStatement
                     <{RDF_TYPE}>
                     <{PACO_CANDIDATE}> .
-
                 ?currentStatement
                     <{PACO_CURRENT}>
                     true .
@@ -528,10 +548,12 @@ def export_document_data(
     format: ExportFormat = ExportFormat.turtle,
     prefixes: dict[str, str] = BASE_PREFIXES,
 ) -> str:
-    """Return the accepted (subject, predicate, object) triples derived from one
+    """
+    Return the accepted (subject, predicate, object) triples derived from one
     document, serialized in the given format with URIs abbreviated per
     `prefixes`, reconstructed from the curation graph since the data graph
-    itself carries no document linkage."""
+    itself carries no document linkage.
+    """
     ttl = sparql_construct(f"""
         CONSTRUCT {{ ?subject ?predicate ?object }}
         WHERE {{
@@ -558,10 +580,12 @@ def export_document_provenance(
     format: ExportFormat = ExportFormat.turtle,
     prefixes: dict[str, str] = BASE_PREFIXES,
 ) -> str:
-    """Return the full provenance history for one document, serialized in the
+    """
+    Return the full provenance history for one document, serialized in the
     given format: every CandidateStatement version derived from it, the
     activities that generated those versions, and the agents associated with
-    those activities."""
+    those activities.
+    """
     payload = sparql_select(f"""
         SELECT DISTINCT ?candidate ?activity ?agent
         WHERE {{
@@ -597,3 +621,163 @@ def export_document_provenance(
         }}
         """)
     return serialize_export(ttl, format, prefixes)
+
+
+def load_candidate_statement(stmt_id: str, graph: str) -> dict:
+    """
+    Returns a dict containing the properties of a CandidateStatement with the given {stmt_id} in {graph}.
+    """
+    # Retrieve the statement via the statement id
+    payload = sparql_select(f"""
+        SELECT ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}> ?p ?o
+            }}
+        }}
+        ORDER BY ?p ?o
+        """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    if not bindings:
+        raise ValueError(f"Statement {stmt_id} not found")
+
+    return _parse_candidate_statement_bindings(stmt_id, bindings)
+
+
+def load_candidate_statements_bulk(stmt_ids: list[str], graph: str) -> dict[str, dict]:
+    """
+    Same as load_candidate_statement, but loads many statements at once.
+    """
+    if not stmt_ids:
+        return {}
+    values_clause = " ".join(f"<{stmt_id}>" for stmt_id in stmt_ids)
+    payload = sparql_select(f"""
+        SELECT ?s ?p ?o WHERE {{
+            GRAPH <{graph}> {{
+                VALUES ?s {{ {values_clause} }}
+                ?s ?p ?o
+            }}
+        }}
+        ORDER BY ?s ?p ?o
+        """)
+
+    bindings_by_subject = {}
+    for binding in payload.get("results", {}).get("bindings", []):
+        bindings_by_subject.setdefault(binding["s"]["value"], []).append(binding)
+
+    result = {}
+    for stmt_id in stmt_ids:
+        bindings = bindings_by_subject.get(stmt_id)
+        if not bindings:
+            raise ValueError(f"Statement {stmt_id} not found")
+        result[stmt_id] = _parse_candidate_statement_bindings(stmt_id, bindings)
+    return result
+
+
+def _parse_candidate_statement_bindings(stmt_id: str, bindings: list) -> dict:
+    """Parses the SPARQL bindings for a candidate statement."""
+    props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
+
+    # Get the subject and predicate for the statement
+    old_subject = props.get(PACO_SUBJECT)
+    old_predicate = props.get(PACO_PREDICATE)
+
+    # Get the object binding for the statement (can be either a URI or a literal)
+    old_object_binding = next(
+        (b["o"] for b in bindings if b["p"]["value"] == PACO_OBJECT),
+        None,
+    )
+
+    if old_subject is None or old_predicate is None or old_object_binding is None:
+        raise ValueError(f"Statement {stmt_id} is missing subject/predicate/object")
+
+    old_object_value = old_object_binding.get("value")
+    old_object_type = old_object_binding.get("type")
+
+    if old_object_value is None:
+        raise ValueError(f"Statement {stmt_id} is missing object value")
+
+    if old_object_type == "uri":
+        object_node = NamedNode(old_object_value)
+    else:
+        old_object_datatype = old_object_binding.get("datatype")
+        object_node = Literal(
+            old_object_value,
+            language=old_object_binding.get("xml:lang"),
+            datatype=NamedNode(old_object_datatype) if old_object_datatype else None,
+        )
+
+    # Get confidence score
+    confidence_score = props.get(PACO_CONFIDENCE)
+
+    # Get text span if exists
+    text_span_start = None
+    text_span_end = None
+    if PACO_TEXT_SPAN_START in props:
+        text_span_start = props[PACO_TEXT_SPAN_START]
+    if PACO_TEXT_SPAN_END in props:
+        text_span_end = props[PACO_TEXT_SPAN_END]
+
+    # Get is_current, status, origin, and created_at properties
+    is_current = props.get(PACO_CURRENT)
+    status = props.get(PACO_STATUS)
+    origin = props.get(PACO_ORIGIN)
+    created_at = props.get(PACO_CREATED_AT)
+
+    return {
+        "props": props,
+        "subject": old_subject,
+        "predicate": old_predicate,
+        "object_node": object_node,
+        "confidence_score": confidence_score,
+        "text_span_start": text_span_start,
+        "text_span_end": text_span_end,
+        "is_current": is_current,
+        "status": status,
+        "origin": origin,
+        "created_at": created_at,
+    }
+
+
+def find_original_candidate_statement(
+    stmt_id: str,
+    graph: str,
+) -> str:
+    """
+    Returns the original extracted CandidateStatement from which {stmt_id} was derived.
+    """
+    payload = sparql_select(f"""
+        SELECT DISTINCT ?originalStatement
+        WHERE {{
+            GRAPH <{graph}> {{
+                <{stmt_id}>
+                    <{PROV_DERIVED_FROM}>*
+                    ?originalStatement .
+                ?originalStatement
+                    <{RDF_TYPE}>
+                    <{PACO_CANDIDATE}> .
+                ?originalStatement
+                    <{PROV_DERIVED_FROM}>
+                    ?sourceDocument .
+                ?sourceDocument
+                    <{RDF_TYPE}>
+                    <{PACO_SOURCE_DOCUMENT}> .
+            }}
+        }}
+        """)
+
+    bindings = payload.get("results", {}).get("bindings", [])
+
+    if len(bindings) == 0:
+        raise ValueError(
+            f"No original CandidateStatement found for statement {stmt_id}"
+        )
+
+    if len(bindings) > 1:
+        raise ValueError(
+            f"Expected exactly one original CandidateStatement for {stmt_id}, "
+            f"found {len(bindings)}"
+        )
+
+    return bindings[0]["originalStatement"]["value"]

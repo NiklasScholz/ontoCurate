@@ -82,7 +82,11 @@ async def create_workspace(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """Creates workspace with schema path assuming the schema path exists (and was selected through the schema endpoint). We expect schemas to follow the format: extraction_schema.yaml, alignment_config.yaml and provenance_config.yaml within the schema path folder."""
+    """
+    Creates workspace with schema path assuming the schema path exists.
+    We expect schemas to follow the format: extraction_schema.yaml, alignment_config.yaml,
+    provenance_config.yaml, and lookup_config.yaml within the schema path folder.
+    """
     base = Path(__file__).parent.parent.parent / "config" / data.schema_name
     schema_path = str(base / "extraction_schema.yaml")
     provenance_path = str(base / "provenance_config.yaml")
@@ -105,11 +109,14 @@ async def create_workspace(
     )
     if not workspace:
         raise BadRequestException("Failed to create workspace")
+
     workspace_mem = await WorkspaceMemberRepository(session).add_member(
         workspace.id, user.id, "owner"
     )
     if not workspace_mem:
         raise BadRequestException("Failed to add user as workspace member")
+
+    # add curator to the curation graph for the workspace
     await asyncio.to_thread(
         upsert_curator, str(workspace.id), user.id, user.name, user.email, user.username
     )
@@ -152,8 +159,10 @@ async def get_workspace_prefixes(
     graph: Literal["data", "curation"] = "data",
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
-    """Returns the prefix map of the workspace (including fixed and schema-specific
-    prefixes), scoped to the given graph. Used to fill in prefixes for query view."""
+    """
+    Returns the prefix map of the workspace (including fixed and schema-specific
+    prefixes), scoped to the given graph. Used to fill in prefixes for query view.
+    """
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
     return {
@@ -175,12 +184,17 @@ async def export_provenance_graph(
     format: ExportFormat = ExportFormat.turtle,
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Exports the provenance graph of the workspace in the requested format with prefix abbreviations.
+    Requires owner role.
+    """
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
     content = await asyncio.to_thread(
         export_graph, curation_graph(workspace_id), format, prefixes
     )
+    # clean filename for export, replacing invalid characters with underscores
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',
@@ -210,12 +224,17 @@ async def export_data_graph(
     format: ExportFormat = ExportFormat.turtle,
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Exports the data graph of the workspace in the requested format with prefix abbreviations.
+    Requires owner or editor role.
+    """
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
     content = await asyncio.to_thread(
         export_graph, data_graph(workspace_id), format, prefixes
     )
+    # clean filename for export, replacing invalid characters with underscores
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',
@@ -248,10 +267,8 @@ async def query_workspace_graph(
     Runs a user-supplied SPARQL SELECT/ASK query against one of the workspace's
     graphs. Owners may query either the data or curation graph; editors are
     always restricted to the data graph regardless of what they request.
-
-    The query's dataset is pinned to that single graph at the Oxigraph protocol
-    level, so an explicit GRAPH clause in the submitted query cannot be used to
-    read triples outside of it.
+    The query is pinned to this graph to ensure that users cannot access
+    restricted data.
     """
     role = await WorkspaceMemberRepository(session).get_role(
         workspace_id, current_user.id
@@ -272,11 +289,13 @@ async def query_workspace_graph(
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=422, detail=exc.response.text) from exc
 
+    # Replace result URIs with prefixes
     workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
     prefixes = build_prefix_map(workspace.schema_path if workspace else None)
     prefixes = {**prefixes, **extract_query_prefixes(body.query)}
     prefixes = dict(sorted(prefixes.items(), key=lambda item: -len(item[0])))
     formatted = format_sparql_response(shorten_sparql_results(payload, prefixes))
+    # Differentiate between ASK and SELECT results
     if isinstance(formatted, bool):
         return QueryResultResponse(boolean=formatted)
     return QueryResultResponse(**formatted)
@@ -289,6 +308,7 @@ async def delete_workspace(
     workspace_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
+    """Deletes the given workspace and all its associated data."""
     await asyncio.to_thread(drop_workspace_graphs, str(workspace_id))
     await RunRepository(session).delete_all_for_workspace(workspace_id)
     await DocumentRepository(session).delete_all_for_workspace(workspace_id)
@@ -304,6 +324,7 @@ async def list_workspace_members(
     workspace_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
+    """Retrieves all members and their info of the given workspace."""
     members = await WorkspaceMemberRepository(session).list_members_with_users(
         workspace_id
     )
@@ -331,6 +352,11 @@ async def add_workspace_member(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Adds a member to the given workspace with the specified role.
+    The user_info field can be either the email or username of the user.
+    Requires owner role.
+    """
     user_repo = UserRepository(session)
     user = await user_repo.get_by_email(
         body.user_info
@@ -361,6 +387,7 @@ async def remove_workspace_member(
     user_id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
+    """Removes a member from the given workspace. Requires owner role. Cannot remove the last owner."""
     member_repo = WorkspaceMemberRepository(session)
     role = await member_repo.get_role(workspace_id, user_id)
     if role is None:

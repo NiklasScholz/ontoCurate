@@ -83,7 +83,7 @@ class TestAcceptStatementEndpoint:
             f"/statements/{uuid.uuid4()}/accept",
             params={"statement_id": "https://example.org/does-not-exist"},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 404
 
     async def test_unknown_statement(self, client, tmp_path):
         _, _, owner_token = await register_user(client, "owner")
@@ -242,7 +242,7 @@ class TestBulkAcceptEndpoint:
             f"/statements/{uuid.uuid4()}/bulk_accept",
             json=["https://example.org/does-not-exist"],
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 404
 
     async def test_empty_list_returns_empty(self, client, tmp_path):
         workspace_id, _, owner_token = await setup_workspace_with_statement(

@@ -12,13 +12,15 @@ from app.models.user import User
 from app.repositories.workspace import WorkspaceRepository
 from app.schemas.statement import StatementEdit, StatementResponse
 from app.store.client import curation_graph
-from app.store.queries import get_current_candidate_statement
+from app.store.queries import (
+    get_current_candidate_statement,
+    load_candidate_statement,
+    load_candidate_statements_bulk,
+)
 from app.store.writer import (
     accept_statement,
     accept_statements_bulk,
     edit_statement,
-    load_candidate_statement,
-    load_candidate_statements_bulk,
     reject_statement,
     reset_statement,
 )
@@ -148,6 +150,9 @@ async def bulk_accept(
     statement_ids: list[str],
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Accepts multiple statements in bulk. Returns the new CandidateStatements.
+    """
     if not statement_ids:
         return []
 
@@ -193,18 +198,18 @@ async def bulk_accept(
 @router.get(
     "/{workspace_id}/statements/{statement_id:path}/current",
     response_model=StatementResponse,
+    dependencies=[Depends(require_role("owner", "editor"))],
 )
 async def get_current_statement_endpoint(
     workspace_id: UUID, statement_id: str, session: AsyncSession = Depends(get_session)
 ):
+    """Retrieves the current version of a statement. Also used as a shared helper for other endpoints that modify statements."""
     workspace_repo = WorkspaceRepository(session)
-
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
         raise NotFoundException(f"Workspace {workspace_id} not found")
 
     graph = curation_graph(str(workspace_id))
-
     try:
         current_statement_id = await asyncio.to_thread(
             get_current_candidate_statement,

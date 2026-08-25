@@ -35,7 +35,7 @@ TTL_CONTENT = """\
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 ex:paper1 rdf:type ex:AcademicArticle ;
-          ex:title_paper "Example paper" ;
+          ex:title "Example paper" ;
           ex:abstract "This is the abstract of the paper. It summarizes the main contributions and findings." .
 
 ex:author1 rdf:type ex:Person ;
@@ -110,7 +110,7 @@ class TestAnnotateConfidenceLiteralAnnotations:
         title_anns = [
             a
             for a in annotation_outputs["annotations"]
-            if a.get("triple_type") == "literal" and a.get("predicate") == "title_paper"
+            if a.get("triple_type") == "literal" and a.get("predicate") == "title"
         ]
         assert len(title_anns) >= 1
         assert title_anns[0]["confidence"] >= 0.9

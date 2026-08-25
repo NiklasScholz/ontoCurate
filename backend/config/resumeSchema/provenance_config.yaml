@@ -14,7 +14,8 @@ datatype_properties:
 
   exact_only_predicates:
     - email
-    - phone
+    - telephone
+    - url
 
   windows:
 
@@ -26,19 +27,19 @@ datatype_properties:
       strategy: head
       chars: 800
 
-    phone:
+    telephone:
       strategy: head
       chars: 800
 
-    location:
+    address:
       strategy: head
       chars: 800
 
-    website:
+    url:
       strategy: head
       chars: 800
 
-    summary:
+    description:
       - strategy: head
         chars: 1500
       - strategy: section
@@ -57,7 +58,7 @@ object_properties:
   cooccurrence_min_outlier_factor: 0.2
 
   predicates:
-    employer:
+    worksFor:
       strategy: spatial_cooccurrence
 
     institution:

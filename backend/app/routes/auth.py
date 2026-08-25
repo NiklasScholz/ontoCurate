@@ -36,6 +36,10 @@ async def google_auth(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Authenticates a user using a Google OAuth2 token. If the user does not yet exist, they are created.
+    Returns the user information and sets an authentication cookie.
+    """
     try:
         user_info = id_token.verify_oauth2_token(
             body.credential, google_requests.Request(), settings.google_client_id
@@ -64,6 +68,10 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Standard login endpoint for local users. Validates the provided email/username
+    and password, and returns the user information along with an authentication cookie.
+    """
     user = await UserRepository(session).get_by_email(
         body.login_name
     ) or await UserRepository(session).get_by_username(body.login_name)
@@ -90,6 +98,10 @@ async def register(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Registers a new local user. Validates given information
+    and returns the user information along with an authentication cookie."
+    """
     if await UserRepository(session).get_by_email(body.email):
         raise BadRequestException("User with this email already exists")
     if body.username and await UserRepository(session).get_by_username(body.username):
@@ -122,6 +134,7 @@ async def delete_me(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Deletes the currently authenticated user and anonymizes their data in workspace curation graphs."""
     await asyncio.to_thread(anonymize_curator, current_user.id)
     await UserRepository(session).delete(current_user)
     response.delete_cookie("access_token")

@@ -1,8 +1,3 @@
-"""Runs ontoGPT extraction via subprocess.
-Also cleans the extraction output to remove potentially ill-formed entities.
-Used by celery extraction.py
-"""
-
 import hashlib
 import json
 import logging
@@ -33,21 +28,9 @@ def extract_document(
     temperature: float = 0.3,
 ) -> tuple[Path, Path]:
     """
-    Stage 1: Call `ontogpt extract` as a subprocess, clean the YAML output,
-    and convert to Turtle RDF via linkml-runtime.
-
+    Call `ontogpt extract` as a subprocess, clean the YAML output,
+    and convert to Turtle RDF via linkml
     Requires apply_patches() to have been called before any OntoGPT import.
-    Inputs:
-    - input_path: Path to input document (txt, md, etc.)
-    - schema_path: Path to LinkML schema defining the target ontology structure
-    - output_dir: Directory to write outputs to (YAML and TTL)
-    - model: OntoGPT model to use for extraction (e.g. "gpt-oss-120b")
-    - api_base: Base URL for KI Connect NRW API (e.g. "https://chat.kiconnect.nrw/api/v1")
-    - api_key: API key for KI Connect NRW
-    - max_text_length: Optional max text length to pass to ontoGPT for internal chunking
-    - max_output_tokens: Optional max completion tokens per LLM call (see ontogpt_patches/llm_client.py)
-    - temperature: Sampling temperature for the LLM completion; low values favor
-      consistently extracting every list entry over creative variation
     Returns:
         (yaml_path, ttl_path)
     """
@@ -73,7 +56,6 @@ def extract_document(
     )
     clean_extraction(yaml_out, schema_path, doc_name=input_path.stem)
     yaml_to_turtle(yaml_out, ttl_out, schema_path)
-
     return yaml_out, ttl_out
 
 
@@ -90,6 +72,7 @@ def extract_onto(
     max_output_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> None:
+    """Calls ontogpt extract as a subprocess."""
     env = os.environ.copy()
     if api_base:
         env["OPENAI_API_BASE"] = api_base
@@ -98,7 +81,6 @@ def extract_onto(
     if max_output_tokens is not None:
         env["ONTOGPT_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
     base_url = env.get("OPENAI_API_BASE", "")
-
     cmd = ["ontogpt"]
     if verbose:
         cmd += ["-vvv"]
@@ -129,7 +111,7 @@ def extract_onto(
 
 
 def uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
-    "Returns all uri fields in the schema to be cleaned (ensuring no errors in ttl conversion)"
+    "Returns all uri fields in the schema."
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     return frozenset(
         name
@@ -139,7 +121,7 @@ def uri_fields_from_schema(schema_path: Path) -> frozenset[str]:
 
 
 def name_fields_from_schema(schema_path: Path) -> tuple[str, ...]:
-    "Returns all string fields in the schema that are likely to be names, to be cleaned for better ID generation and ttl conversion."
+    "Returns all string fields in the schema that could be used for better ID generation."
     raw = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
     slots = raw.get("slots", {})
     return tuple(
@@ -161,8 +143,10 @@ INVALID_LOCAL_RE = re.compile(r"[^\w\-.]", re.ASCII)
 
 
 def transform_to_ascii(value: str) -> str:
-    """Fold accented letters (š, ū, ė, ...) to their closest ASCII form so
-    they are not silently deleted."""
+    """
+    Fold non-ASCII letters (š, ū, ė, ...) to their closest ASCII form so
+    they are not silently deleted.
+    """
     decomposed = unicodedata.normalize("NFKD", value)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
@@ -173,24 +157,39 @@ def fallback_id(
     """Generates a stable, TTL-safe URI for an entity that lacks one."""
     value = obj.get("name") if "name" in name_fields else None
     if value and isinstance(value, str):
+        # specific `name`` attribute exists
         parts = value.strip().split()
-        name_suffixes = {"jr", "sr", "ii", "iii", "iv", "prof", "dr", "phd"}
+        name_suffixes = {
+            "jr",
+            "sr",
+            "ii",
+            "iii",
+            "iv",
+            "prof",
+            "dr",
+            "phd",
+        }  # should not be used for ids
         while len(parts) > 1 and parts[-1].strip(".").lower() in name_suffixes:
             parts.pop()
-        surname_idx = len(parts) - 1
+        longest_idx = (
+            len(parts) - 1
+        )  # assumes last token is most meaningful one for id (e.g. surname)
         if len(parts) >= 2:
             cleaned_last = INVALID_LOCAL_RE.sub("", transform_to_ascii(parts[-1]))
             if len(cleaned_last) < 2:
-                # longest token is better choice for id (e.g., typically surname)
-                surname_idx = max(range(len(parts)), key=lambda i: len(parts[i]))
-        surname = parts[surname_idx] if parts else value.strip()
-        if len(parts) >= 2:
-            initials = "".join(p[0] for i, p in enumerate(parts) if i != surname_idx)
-            local = f"{surname}_{initials}"
+                # pick longest if last token is too short
+                longest_idx = max(range(len(parts)), key=lambda i: len(parts[i]))
+        token = parts[longest_idx] if parts else value.strip()
+        if (
+            len(parts) >= 2
+        ):  # if more than one token existed add remaining tokens as index
+            initials = "".join(p[0] for i, p in enumerate(parts) if i != longest_idx)
+            local = f"{token}_{initials}"
         else:
-            local = surname
+            local = token
         local = INVALID_LOCAL_RE.sub("", transform_to_ascii(local).replace(" ", "_"))
     else:
+        # no name field found, fallback to generic entity id with other string fields
         local = "entity"
         for field in name_fields:
             name = obj.get(field)
@@ -198,22 +197,24 @@ def fallback_id(
                 local = INVALID_LOCAL_RE.sub(
                     "", transform_to_ascii(name).replace(" ", "_")
                 )
+                # Take at maximum 40 characters
                 if len(local) > 40:
                     truncated = local[:40]
                     last_underscore = truncated.rfind("_")
                     local = (
-                        truncated[:last_underscore]
+                        truncated[
+                            :last_underscore
+                        ]  # trunctuate at last underscore if possible
                         if last_underscore > 0
                         else truncated
                     )
                 break
-    digest = hashlib.md5(
+    fingerprint = hashlib.md5(
         json.dumps({**obj, "_doc": doc_name}, sort_keys=True, default=str).encode()
     ).hexdigest()[
         :6
-        # ensures no conflicts during conversion. Same entities will be linked later during alignment phases.
-    ]
-    return f"{prefix}:{local}_{digest}"
+    ]  # unique fingerprint based on document and entity content. Ensures no implicit alignment when information differs.
+    return f"{prefix}:{local}_{fingerprint}"
 
 
 # Cleaning of results so ttl conversion does not fail
@@ -244,9 +245,9 @@ def clean_result(
     doc_name: str = "",
     prefix: str = "smo",
 ) -> object:
-    """Recursively clean the extraction result to ensure TTL conversion does not fail."""
+    """Recursively clean and merge the extraction result to ensure TTL conversion does not fail."""
     if isinstance(obj, dict):
-        cleaned: dict = {}
+        cleaned = {}
         for k, v in obj.items():
             v = clean_result(
                 v, uri_fields, name_fields, counters, doc_name=doc_name, prefix=prefix
@@ -261,7 +262,7 @@ def clean_result(
             if v == [] or (isinstance(v, dict) and v.keys() == {"id"}):
                 continue
             cleaned[k] = v
-
+        # Generate fallback id if no valid id exists
         if "id" in cleaned and isinstance(cleaned["id"], str):
             raw_id = cleaned["id"].strip()
             if (
@@ -293,7 +294,7 @@ def clean_result(
             for item in obj
         ]
         merged: dict[str, dict] = {}
-        no_id: list = []
+        no_id = []
         for item in cleaned_list:
             if (
                 item is None
@@ -301,10 +302,13 @@ def clean_result(
                 or item == {}
                 or (isinstance(item, dict) and item.keys() == {"id"})
             ):
+                # drop empty items without information
                 continue
             if isinstance(item, str) and item.startswith("AUTO:"):
+                # drop AUTO: ids that were not replaced by a fallback id
                 continue
             if isinstance(item, dict):
+                # merge items with the same id, preferring non-empty values
                 item_id = item.get("id")
                 if item_id:
                     if item_id in merged:
@@ -316,11 +320,12 @@ def clean_result(
                 else:
                     no_id.append(item)
             else:
-                no_id.append(item)
+                no_id.append(item)  # plain literals
         return list(merged.values()) + no_id
 
     if isinstance(obj, str):
         return normalize_unicode(obj)
+
     return obj
 
 
@@ -356,15 +361,17 @@ def clean_extraction(
 def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
     """Converts cleaned YAML output to Turtle RDF file using linkML"""
     logger.info(f"[yaml_to_turtle] YAML path: {yaml_path}")
+
+    # Build Python module from schema to use for loading YAML
     schema_path = Path(schema_path).resolve()
     python_module = PythonGenerator(str(schema_path)).compile_module()
-
     sv = SchemaView(str(schema_path))
     root_class_name = next(name for name, c in sv.all_classes().items() if c.tree_root)
     py_target_class = python_module.__dict__[root_class_name]
 
     raw = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
     logger.info(f"[yaml_to_turtle] Raw YAML: {raw}")
+    # Get extraction result relevant for TTL conversion.
     extracted = raw.get("extracted_object")
     data = (
         extracted
@@ -382,12 +389,13 @@ def yaml_to_turtle(yaml_path: Path, ttl_path: Path, schema_path: Path) -> None:
             }
         }
     )
-
     yaml_str = yaml.dump(data, allow_unicode=True, sort_keys=False)
-    logger.info("[yaml_to_turtle] YAML string before preprocessing: %s", yaml_str)
+    logger.debug("[yaml_to_turtle] YAML string before preprocessing: %s", yaml_str)
+    # remove empty list and dict entries from YAML string to avoid linkml conversion errors
     yaml_str = re.sub(r"(?m)^(\s*)- null\s*$\n?", "", yaml_str)
     yaml_str = re.sub(r"(?m)^(\s*)- \{\}\s*$\n?", "", yaml_str)
-    logger.info("[yaml_to_turtle] YAML output: %s", yaml_str)
+    logger.debug("[yaml_to_turtle] YAML output: %s", yaml_str)
+    # Convert to TTL using linkml
     obj = get_loader("yaml").load(source=yaml_str, target_class=py_target_class)
     ttl = get_dumper("ttl").dumps(obj, schemaview=sv)
     Path(ttl_path).write_text(ttl, encoding="utf-8")

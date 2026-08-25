@@ -20,6 +20,10 @@ async def lookup_user(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(get_current_user),
 ):
+    """
+    Checks if a user exists by email or username and returns their info.
+    Raises NotFoundException if the user does not exist.
+    """
     user = await UserRepository(session).get_by_email(
         user_info
     ) or await UserRepository(session).get_by_username(user_info)
@@ -35,5 +39,6 @@ schemas_router = APIRouter(
 
 @schemas_router.get("/")
 async def get_schemas():
+    """Returns all available schema configurations from the config directory."""
     config_path = Path(__file__).parent.parent.parent / "config"
     return [f.name for f in config_path.iterdir() if f.is_dir()]

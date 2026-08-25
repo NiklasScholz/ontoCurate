@@ -7,10 +7,15 @@ from typing import Union
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, serialize
+from pyoxigraph import Literal, NamedNode, RdfFormat, Triple, parse, serialize
 
 from app.schemas.statement import StatementEdit, StatementResponse
-from app.store.client import curation_graph, data_graph, sparql_select, sparql_update
+from app.store.client import curation_graph, data_graph, sparql_update
+from app.store.queries import (
+    find_original_candidate_statement,
+    load_candidate_statement,
+    load_candidate_statements_bulk,
+)
 from app.store.utils import *
 
 
@@ -33,7 +38,8 @@ def upsert_curator(
 ) -> None:
     """
     Adds curator information into provenance graph for more informative provenance querying.
-    Workspace owners typically do not know the user_id of the curators, so we allow upserting curator information with the user_id, name, email, and username until their account gets deleted when this data is being anonymized.
+    Workspace owners typically do not know the user_id of the curators, so we add the curator information with the user_id, name, email, and username until their account gets deleted. Once the account is deleted, the curator node is anonymized.
+    Requires a seperate method so that we add curator information once user is added to a workspace and not upon their first curation event.
     """
     graph = curation_graph(workspace_id)
     curator = curator_node(user_id)
@@ -62,6 +68,7 @@ def upsert_curator(
         Triple(curator, N_SCHEMA_NAME, Literal(name or username or str(user_id))),
         Triple(curator, N_SCHEMA_EMAIL, Literal(email)),
     ]
+
     if username:
         triples.append(Triple(curator, N_PACO_USERNAME, Literal(username)))
 
@@ -101,7 +108,7 @@ def anonymize_curator(user_id: uuid.UUID) -> None:
 def load_prov(
     provenance_path: Path | None,
 ) -> dict[tuple[str, str, str], dict]:
-    """Return a lookup dict keyed by (subject_uri, predicate_local_name, value)."""
+    """Return a lookup dict with provenance annotations from the confidence_annotation stage, keyed by triple (subject_uri, predicate_local_name, value)."""
     if provenance_path is None or not provenance_path.exists():
         return {}
     data = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -128,13 +135,12 @@ def build_candidate_statement_triples(
     provenance_index: dict | None = None,
     model: str = "",
 ):
-    rdf_type_uri = f"http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-
+    """Builds candidate statement entities and tripels to be inserted in provenance graph."""
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     run_key = run_id or "unknown-run"
     document_key = (
         document_id or "unknown-document"
-    )  # Currently only link to sql db entry, consider adding full document entity later
+    )  # Currently only link to sql db entry, consider adding full document entity later wih metadata.
     workspace_key = workspace_id or "unknown-workspace"
 
     source_document = create_source_document_entity(document_key)
@@ -159,10 +165,6 @@ def build_candidate_statement_triples(
     index_lookup = provenance_index or {}
 
     for index, quad in enumerate(parsed_quads):
-        if quad.predicate.value == rdf_type_uri:
-            key = (quad.subject.value, "type", quad.object.value)
-            if index_lookup.get(key) is None:
-                continue
         fingerprint = sha256(
             f"{workspace_key}|{run_key}|{document_key}|{index}|{quad.subject}|{quad.predicate}|{quad.object}".encode(
                 "utf-8"
@@ -192,37 +194,39 @@ def build_candidate_statement_triples(
             quad.object.value,
         )
         ann = index_lookup.get(key)
-        if ann is not None:
-            candidate_triples.append(
-                Triple(
-                    candidate,
-                    N_PACO_CONFIDENCE,
-                    Literal(str(ann["confidence"]), datatype=N_XSD_FLOAT),
-                )
+        confidence = (
+            ann["confidence"] if ann is not None else 0.0
+        )  # ensure everything has a confidence value even if no span was found.
+
+        candidate_triples.append(
+            Triple(
+                candidate,
+                N_PACO_CONFIDENCE,
+                Literal(str(confidence), datatype=N_XSD_FLOAT),
             )
-            if "span_start" in ann and "span_end" in ann:
-                candidate_triples.extend(
-                    [
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN,
-                            Literal(ann["span_text"], datatype=N_XSD_STRING),
-                        ),
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN_START,
-                            Literal(str(ann["span_start"]), datatype=N_XSD_INTEGER),
-                        ),
-                        Triple(
-                            candidate,
-                            N_PACO_TEXT_SPAN_END,
-                            Literal(str(ann["span_end"]), datatype=N_XSD_INTEGER),
-                        ),
-                    ]
-                )
+        )
+        if ann is not None and "span_start" in ann and "span_end" in ann:
+            candidate_triples.extend(
+                [
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN,
+                        Literal(ann["span_text"], datatype=N_XSD_STRING),
+                    ),
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN_START,
+                        Literal(str(ann["span_start"]), datatype=N_XSD_INTEGER),
+                    ),
+                    Triple(
+                        candidate,
+                        N_PACO_TEXT_SPAN_END,
+                        Literal(str(ann["span_end"]), datatype=N_XSD_INTEGER),
+                    ),
+                ]
+            )
 
         triples.extend(candidate_triples)
-
     return triples
 
 
@@ -237,16 +241,6 @@ def write_candidate_statements_from_ttl(
     """Load Turtle file into the workspace curation graph."""
     graph = curation_graph(workspace_id)
     ttl_text = Path(ttl_path).read_text(encoding="utf-8")
-
-    try:
-        from pyoxigraph import RdfFormat, parse
-    except Exception as exc:
-        raise RuntimeError(
-            f"pyoxigraph parsing is unavailable; cannot import candidate statements: {
-                exc
-            }"
-        )
-
     try:
         parsed_quads = list(parse(input=ttl_text, format=RdfFormat.TURTLE))
     except Exception as exc:
@@ -254,8 +248,8 @@ def write_candidate_statements_from_ttl(
             f"Failed to parse Turtle for candidate-statement import: {exc}"
         )
 
+    # Load provenance annotations for each triple and build candidate statements to be inserted.
     prov_index = load_prov(Path(provenance_path) if provenance_path else None)
-
     triples = build_candidate_statement_triples(
         parsed_quads=parsed_quads,
         workspace_id=workspace_id,
@@ -264,165 +258,9 @@ def write_candidate_statements_from_ttl(
         provenance_index=prov_index,
         model=model or "",
     )
-
+    # Write triples to oxigraph
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
-
-
-def load_candidate_statement(stmt_id: str, graph: str) -> dict:
-
-    # Retrieve the statement via the statement id
-
-    payload = sparql_select(f"""
-        SELECT ?p ?o WHERE {{
-            GRAPH <{graph}> {{
-                <{stmt_id}> ?p ?o
-            }}
-        }}
-        ORDER BY ?p ?o
-        """)
-
-    bindings = payload.get("results", {}).get("bindings", [])
-
-    if not bindings:
-        raise ValueError(f"Statement {stmt_id} not found")
-
-    return _parse_candidate_statement_bindings(stmt_id, bindings)
-
-
-def load_candidate_statements_bulk(stmt_ids: list[str], graph: str) -> dict[str, dict]:
-    """Same as load_candidate_statement, but loads many statements at once."""
-    if not stmt_ids:
-        return {}
-    values_clause = " ".join(f"<{stmt_id}>" for stmt_id in stmt_ids)
-    payload = sparql_select(f"""
-        SELECT ?s ?p ?o WHERE {{
-            GRAPH <{graph}> {{
-                VALUES ?s {{ {values_clause} }}
-                ?s ?p ?o
-            }}
-        }}
-        ORDER BY ?s ?p ?o
-        """)
-
-    bindings_by_subject = {}
-    for binding in payload.get("results", {}).get("bindings", []):
-        bindings_by_subject.setdefault(binding["s"]["value"], []).append(binding)
-
-    result = {}
-    for stmt_id in stmt_ids:
-        bindings = bindings_by_subject.get(stmt_id)
-        if not bindings:
-            raise ValueError(f"Statement {stmt_id} not found")
-        result[stmt_id] = _parse_candidate_statement_bindings(stmt_id, bindings)
-    return result
-
-
-def _parse_candidate_statement_bindings(stmt_id: str, bindings: list) -> dict:
-    props = {b["p"]["value"]: b["o"]["value"] for b in bindings}
-
-    # Get the subject and predicate for the statement
-    old_subject = props.get(PACO_SUBJECT)
-    old_predicate = props.get(PACO_PREDICATE)
-
-    # Get the object binding for the statement (can be either a URI or a literal)
-    old_object_binding = next(
-        (b["o"] for b in bindings if b["p"]["value"] == PACO_OBJECT),
-        None,
-    )
-
-    if old_subject is None or old_predicate is None or old_object_binding is None:
-        raise ValueError(f"Statement {stmt_id} is missing subject/predicate/object")
-
-    old_object_value = old_object_binding.get("value")
-    old_object_type = old_object_binding.get("type")
-
-    if old_object_value is None:
-        raise ValueError(f"Statement {stmt_id} is missing object value")
-
-    if old_object_type == "uri":
-        object_node = NamedNode(old_object_value)
-    else:
-        old_object_datatype = old_object_binding.get("datatype")
-        object_node = Literal(
-            old_object_value,
-            language=old_object_binding.get("xml:lang"),
-            datatype=NamedNode(old_object_datatype) if old_object_datatype else None,
-        )
-
-    # Get confidence score
-    confidence_score = props.get(PACO_CONFIDENCE)
-
-    # Get text span if exists
-    text_span_start = None
-    text_span_end = None
-    if PACO_TEXT_SPAN_START in props:
-        text_span_start = props[PACO_TEXT_SPAN_START]
-    if PACO_TEXT_SPAN_END in props:
-        text_span_end = props[PACO_TEXT_SPAN_END]
-
-    # Get is_current, status, origin, and created_at properties
-    is_current = props.get(PACO_CURRENT)
-    status = props.get(PACO_STATUS)
-    origin = props.get(PACO_ORIGIN)
-    created_at = props.get(PACO_CREATED_AT)
-
-    return {
-        "props": props,
-        "subject": old_subject,
-        "predicate": old_predicate,
-        "object_node": object_node,
-        "confidence_score": confidence_score,
-        "text_span_start": text_span_start,
-        "text_span_end": text_span_end,
-        "is_current": is_current,
-        "status": status,
-        "origin": origin,
-        "created_at": created_at,
-    }
-
-
-def find_original_candidate_statement(
-    stmt_id: str,
-    graph: str,
-) -> str:
-    payload = sparql_select(f"""
-        SELECT ?originalStatement
-        WHERE {{
-            GRAPH <{graph}> {{
-                <{stmt_id}>
-                    <{PROV_DERIVED_FROM}>*
-                    ?originalStatement .
-
-                ?originalStatement
-                    <{RDF_TYPE}>
-                    <{PACO_CANDIDATE}> .
-
-                ?originalStatement
-                    <{PROV_DERIVED_FROM}>
-                    ?sourceDocument .
-
-                ?sourceDocument
-                    <{RDF_TYPE}>
-                    <{PACO_SOURCE_DOCUMENT}> .
-            }}
-        }}
-        """)
-
-    bindings = payload.get("results", {}).get("bindings", [])
-
-    if len(bindings) == 0:
-        raise ValueError(
-            f"No original CandidateStatement found for statement {stmt_id}"
-        )
-
-    if len(bindings) > 1:
-        raise ValueError(
-            f"Expected exactly one original CandidateStatement for {stmt_id}, "
-            f"found {len(bindings)}"
-        )
-
-    return bindings[0]["originalStatement"]["value"]
 
 
 def set_to_not_current(stmt_id: str, graph: str) -> None:
@@ -451,14 +289,14 @@ def write_alignment_results(
     run_id: str | None = None,
     document_ids: list[str] | None = None,
 ) -> None:
-    """Writes owl:sameAs CandidateStatements for proposed entity alignments."""
+    """Writes owl:sameAs CandidateStatements for proposed entity alignments produced between {document_ids}."""
     if not alignments:
         return
 
     run_key = run_id or "unknown-run"
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     doc_ids = document_ids or []
-
+    # get all documents contriuting to the alignment
     if len(doc_ids) == 1:
         doc_key = doc_ids[0]
         alignment_activity = NamedNode(f"{ALIGNMENT_ACTIVITIES}{uuid4()}")
@@ -511,7 +349,11 @@ def write_alignment_results(
                 Triple(alignment_activity, N_PROV_GENERATED, candidate),
             ]
         )
-        for d in doc_ids:
+        for (
+            d
+        ) in (
+            doc_ids
+        ):  # add links to all documents contained in merged ttl used for alignment
             triples.append(
                 Triple(
                     candidate,
@@ -519,7 +361,7 @@ def write_alignment_results(
                     create_source_document_entity(d),
                 )
             )
-
+    # serialize triples and write to oxigraph
     graph = curation_graph(workspace_id)
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
     sparql_update(f"INSERT DATA {{ GRAPH <{graph}> {{\n{triples_text}\n}} }}")
@@ -534,18 +376,13 @@ def write_lookup_results(
 ) -> None:
     """
     Writes owl:sameAs CandidateStatements for proposed entity lookup tuples.
-
     Each lookup tuple contains:
-
         (
             local_entity_uri,
             candidate_entity_uri,
             confidence_score,
         )
-
-    `source` identifies which lookup source produced the candidates
-    The generated statements remain pending until a curator accepts
-    or rejects them.
+    `source` identifies which lookup service produced the candidates.
     """
     if not lookups:
         return
@@ -576,7 +413,6 @@ def write_lookup_results(
     # Record the documents used by the lookup activity.
     for document_id in doc_ids:
         source_document = create_source_document_entity(document_id)
-
         triples.append(
             Triple(
                 lookup_activity,
@@ -637,19 +473,19 @@ def write_lookup_results(
                     create_source_document_entity(document_id),
                 )
             )
-
+    # serialize and write to oxigraph
     graph = curation_graph(workspace_id)
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
     sparql_update(f"INSERT DATA {{GRAPH <{graph}> {{{triples_text}}} }}")
 
 
 def delete_document_data(workspace_id: str, document_id: str) -> None:
-    """Removes everything a document contributed to a workspace from oxigraph"""
+    """Removes everything a document contributed to a workspace from oxigraph. Triggered upon document deletion."""
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
     source_document = create_source_document_entity(document_id)
 
-    # remove data graph triples from the document
+    # remove persisted data graph triples from the document
     sparql_update(f"""
         DELETE {{
             GRAPH <{accepted_graph}> {{ ?s ?p ?o }}
@@ -665,7 +501,7 @@ def delete_document_data(workspace_id: str, document_id: str) -> None:
         }}
     """)
 
-    # remove all activities that are associated with the document
+    # remove all activities that are associated with the document from provenance graph
     sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{ ?activity ?ap ?ao }}
@@ -686,7 +522,7 @@ def delete_document_data(workspace_id: str, document_id: str) -> None:
         }}
     """)
 
-    # Remove all candidate statements associated with the document
+    # Remove all candidate statements associated with the document from provenance graph
     sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{ ?cs ?p ?o }}
@@ -699,7 +535,7 @@ def delete_document_data(workspace_id: str, document_id: str) -> None:
         }}
     """)
 
-    # Remove the source document entity triples
+    # Remove the source document entity triples from the curation graph
     sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{ <{source_document.value}> ?p ?o }}
@@ -717,7 +553,8 @@ def accept_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
 def accept_statements_bulk(
     stmt_ids: list[str], triggered_by: uuid.UUID, workspace_id: str
 ) -> dict[str, str]:
-    """Accept many statements with 2 queries: one SELECT to load candidates and one UPDATE to adapt old statements and add new statements."""
+    """Accept list of statements with 2 queries: one SELECT to load candidates and one UPDATE to adapt old statements and add new statements.
+    Returns mapping of old statement IDs to new accepted statement IDs."""
     if not stmt_ids:
         return {}
 
@@ -748,7 +585,7 @@ def accept_statements_bulk(
         Triple(curator, rdf_type, prov_agent),
     ]
     data_triples = []
-    new_ids: dict[str, str] = {}
+    new_ids = {}
 
     for stmt_id in stmt_ids:
         candidate_statement = candidates[stmt_id]
@@ -861,7 +698,6 @@ def accept_statements_bulk(
             }}
         }}
     """)
-
     return new_ids
 
 
@@ -870,7 +706,6 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     accepted_graph = data_graph(workspace_id)
 
     # Load the candidate statement
-
     candidate_statement = load_candidate_statement(stmt_id, graph)
 
     # Check that the statement is the current version
@@ -908,16 +743,13 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
             """)
 
     # Get the current timestamp in ISO 8601 format with UTC timezone
-
     rejected_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = rejected_at
 
     rejecting_activity_id = f"{REJECT_ACTIVITIES}{uuid4()}"
-
     rejected_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
 
     # Mark the old statement as not current
-
     sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{
@@ -937,7 +769,6 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     """)
 
     # Create the new rejected statement with the same subject/predicate/object but with curation status rejected, and link it to the rejecting activity
-
     rdf_type = NamedNode(RDF_TYPE)
 
     new_statement = NamedNode(rejected_statement_id)
@@ -954,7 +785,6 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = []
-
     triples.extend(
         [
             Triple(rejecting_activity, rdf_type, rejecting_activity_class),
@@ -1012,7 +842,6 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
         )
 
     triples_text = serialize(triples, format=RdfFormat.N_TRIPLES).decode("utf-8")
-
     # write tripples to curation graph
     sparql_update(f"""
         INSERT DATA {{
@@ -1021,7 +850,6 @@ def reject_statement(stmt_id: str, triggered_by: uuid.UUID, workspace_id: str) -
             }}
         }}
     """)
-
     return rejected_statement_id
 
 
@@ -1031,16 +859,19 @@ def edit_statement(
     workspace_id: str,
     edit: StatementEdit,
 ) -> str:
+    """
+    Edits a candidate statement by creating a new candidate statement with the updated subject, predicate, or object.
+    The old statement is marked as not current. If the old statement was accepted, its triple is removed from the accepted data graph.
+    Returns the ID of the new edited statement.
+    """
     graph = curation_graph(workspace_id)
     accepted_graph = data_graph(workspace_id)
 
     # Check that either object_iri or object_value is provided, but not both
-
     if edit.object_iri is not None and edit.object_value is not None:
         raise ValueError("Use either object_iri or object_value, not both")
 
     # Load the candidate statement
-
     candidate_statement = load_candidate_statement(stmt_id, graph)
 
     # Check that the statement is the current version
@@ -1083,7 +914,6 @@ def edit_statement(
     new_predicate = edit.predicate or old_predicate
 
     # Determine the new object node based on the provided edit
-
     if edit.object_iri is not None:
         new_object = NamedNode(edit.object_iri)
     elif edit.object_value is not None:
@@ -1096,7 +926,6 @@ def edit_statement(
         new_object = object_node
 
     # Check whether subject, predicate, or object has changed; if not, raise an error
-
     no_subject_change = edit.subject is None or edit.subject == old_subject
     no_predicate_change = edit.predicate is None or edit.predicate == old_predicate
     no_object_change = (
@@ -1107,7 +936,6 @@ def edit_statement(
         raise ValueError("No changes detected in subject, predicate, or object")
 
     # Check if the new subject, predicate and object are valid IRIs or literals; if not, raise an error
-
     if edit.subject is not None:
         validate_iri(edit.subject, "subject")
 
@@ -1118,16 +946,13 @@ def edit_statement(
         validate_iri(edit.object_iri, "object_iri")
 
     # Get the current timestamp in ISO 8601 format with UTC timezone
-
     edited_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     created_at = edited_at
 
     editing_activity_id = f"{EDIT_ACTIVITIES}{uuid4()}"
-
     edited_statement_id = f"{CANDIDATE_STATEMENTS}{uuid4()}"
 
     # Mark the old statement as not current
-
     sparql_update(f"""
         DELETE {{
             GRAPH <{graph}> {{
@@ -1147,7 +972,6 @@ def edit_statement(
         """)
 
     # Create the new edited statement and link it to the editing activity
-
     rdf_type = NamedNode(RDF_TYPE)
 
     new_statement = NamedNode(edited_statement_id)
@@ -1164,7 +988,6 @@ def edit_statement(
     curator_class = NamedNode(PACO_CURATOR)
 
     triples = []
-
     triples.extend(
         [
             Triple(editing_activity, rdf_type, editing_activity_class),

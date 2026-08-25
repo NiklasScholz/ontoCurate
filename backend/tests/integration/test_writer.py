@@ -12,12 +12,12 @@ from test_utils import (
 
 from app.schemas.statement import StatementEdit
 from app.store.client import curation_graph, data_graph, sparql_select
+from app.store.queries import load_candidate_statement
 from app.store.utils import PACO, PACO_REJECTED, create_source_document_entity
 from app.store.writer import (
     accept_statement,
     delete_document_data,
     edit_statement,
-    load_candidate_statement,
     reject_statement,
     reset_statement,
     write_alignment_results,

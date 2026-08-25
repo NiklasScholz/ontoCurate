@@ -50,7 +50,7 @@ async def get_deduplication(workspace_id: UUID):
     )
 
     statements = zip_current_originals(
-        order_statements(rows), order_statements(originals_rows)
+        order_statements(rows), order_statements(originals_rows, current_only=False)
     )
     return sort_by_relation_count(statements)
 
@@ -92,6 +92,7 @@ async def export_deduplication_graph(
     content = await asyncio.to_thread(
         export_deduplicated_graph, str(workspace_id), format, prefixes
     )
+    # clean up file name to avoid invalid characters replacing with underscores.
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',

@@ -4,11 +4,15 @@ from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.exceptions import ForbiddenException, UnauthorizedException
+from app.core.exceptions import (
+    ForbiddenException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from app.core.security import create_access_token, decode_token, set_auth_cookie
 from app.models.user import User
 from app.repositories.user import UserRepository
-from app.repositories.workspace import WorkspaceMemberRepository
+from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
 
 
 async def get_current_user(
@@ -36,6 +40,8 @@ def require_role(*roles: str):
         current_user: User = Depends(get_current_user),
         session: AsyncSession = Depends(get_session),
     ) -> None:
+        if await WorkspaceRepository(session).get_by_id(workspace_id) is None:
+            raise NotFoundException(f"Workspace {workspace_id} not found")
         role = await WorkspaceMemberRepository(session).get_role(
             workspace_id, current_user.id
         )

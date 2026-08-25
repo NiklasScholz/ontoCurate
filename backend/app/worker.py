@@ -8,7 +8,7 @@ celery_app = Celery("ontocurate")
 celery_app.conf.update(
     broker_url=f"{settings.redis_url}/0",
     result_backend=f"{settings.redis_url}/1",
-    result_expires=3600,
+    result_expires=14400,
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],

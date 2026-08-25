@@ -63,6 +63,16 @@ paco:CreationActivity a owl:Class ;
     rdfs:label "Creation Activity" ;
     rdfs:comment "An activity in which a curator manually creates a new candidate statement." .
 
+paco:ResettingActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Resetting Activity" ;
+    rdfs:comment "An activity in which a curator reverts a candidate statement back to its original pending state." .
+
+paco:LookupActivity a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    rdfs:label "Lookup Activity" ;
+    rdfs:comment "An activity in which an external lookup source (e.g. ORCID, Wikidata) proposes owl:sameAs candidate statements linking local entities to external records." .
+
 #################################################################
 # CURATION STATUS INDIVIDUALS
 #################################################################
@@ -177,6 +187,11 @@ paco:rejectedAt a owl:DatatypeProperty ;
     rdfs:range xsd:dateTime ;
     rdfs:label "rejected at" .
 
+paco:resetAt a owl:DatatypeProperty ;
+    rdfs:domain paco:ResettingActivity ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "Time the candidateStatement was reset to its original state." .
+
 paco:manuallyCreatedAt a owl:DatatypeProperty ;
     rdfs:domain paco:CreationActivity ;
     rdfs:range xsd:dateTime ;
@@ -231,3 +246,13 @@ paco:isDeleted a owl:DatatypeProperty ;
 #   rejectingActivity prov:used previousCandidateStatement .
 #   rejectingActivity prov:wasAssociatedWith curator .
 #   rejectingActivity prov:generated rejectedCandidateStatement .
+#
+# Reset (revert a statement back to its original pending form):
+#   resettingActivity prov:used previousCandidateStatement .
+#   resettingActivity prov:wasAssociatedWith curator .
+#   resettingActivity prov:generated resetCandidateStatement .
+#
+# External lookup (e.g. ORCID, Wikidata):
+#   lookupActivity prov:used sourceDocument .
+#   lookupActivity prov:wasAssociatedWith lookupAgent .
+#   lookupActivity prov:generated candidateStatement .

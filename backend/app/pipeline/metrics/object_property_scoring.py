@@ -1,9 +1,3 @@
-"""Object property confidence scoring.
-Entity confidence helpers, spatial cooccurrence, section containment, outlier penalty.
-"""
-
-from __future__ import annotations
-
 from collections import defaultdict
 
 from rdflib import Graph
@@ -17,7 +11,7 @@ from app.pipeline.utils.turtle_utils import collect_entity_triples
 
 
 def entity_avg_confidence(uri: str, literal_by_subject: dict) -> float | None:
-    """Returns average confidence for all literals of a given entity"""
+    """Returns average confidence for all literals of a given entity."""
     lits = literal_by_subject.get(uri)
     if not lits:
         return None
@@ -51,7 +45,9 @@ def score_spatial_cooccurrence(
     distance_penalty: float,
     min_factor: float,
 ) -> tuple[float, float | None] | None:
-    """Returns avg confidence of both entities scaled by distance between their spans and target median (for reuse during outlier penalisation).
+    """
+    Calculates avg confidence of both entities scaled by distance between their spans
+    and target median (for reuse during outlier penalisation).
     Useful for entities that should occur close to each other (e.g. Author and Organization)
     Returns (confidence, target_median_position) or None if target has no literals.
     """
@@ -74,7 +70,9 @@ def find_entity_in_section(
     source: str,
     section_heading: str,
 ) -> float | None:
-    """Search for any of the entitys literal values inside a named section.
+    """
+    Search for any of the entitys literal values inside a named section.
+    Used when scoring non-primary document entities that could also be primary-document entities but differentiate.
     Returns the absolute span_start position in the source document, or None.
     """
     result = extract_section(source, section_heading)
@@ -100,8 +98,10 @@ def score_entity_hierachy_aware_confidence(
     primary_entity_predicates: list[str],
     fallback_sections: list[str],
 ) -> tuple[float | None, float | None]:
-    """Average-entity confidence that is aware of whether the subject is the primary entity.
-    For non-primary entities the object entitys literal values inside the configured fallback sections (to prevent outlier penalties when taking value from different window)
+    """
+    Average-entity confidence that is aware of whether the subject is the primary entity.
+    For non-primary entities, it checks for the object entity's literal values inside the configured fallback sections
+    (to prevent outlier penalties when taking value from different window)
     Returns (confidence, tgt_median).
     """
     subj_lits = literal_by_subject.get(subject_uri, [])
@@ -139,7 +139,8 @@ def score_section_containment(
     win_distance_penalty: float,
     min_penalty_factor: float,
 ) -> float | None:
-    """Returns target avg literal confidence, penalized if the target entity
+    """
+    Returns target avg literal confidence, penalized if the target entity
     median literal span does not fall inside any of the configured sections.
     (similiar to out-of-window penalty)
     """
@@ -184,7 +185,8 @@ def apply_object_property_outlier_penalty(
     min_outlier_factor: float,
     outlier_predicates: set[str] | None = None,
 ) -> None:
-    """Penalize object property annotations in the same (subject, predicate) group
+    """
+    Penalize object property annotations in the same (subject, predicate) group
     whose target entity's median span is a spatial outlier relative to the group.
     Useful when an author is hallucinated from another reference.
     Only applies to predicates listed in outlier_predicates.
@@ -223,7 +225,8 @@ def annotate_object_properties(
     doc_length: int,
     exclude_predicates: frozenset[str] = frozenset(),
 ) -> None:
-    """Score all object property triples and append annotations in-place.
+    """
+    Score all object property triples and append annotations in-place.
     Strategy is selected per predicate via obj_prop_config['predicates'][predicate]['strategy'].
     Our code currently supports the strategies:
     - average_target_entity_confidence: confidence is the average of all literal confidences of the target entity.
@@ -252,13 +255,12 @@ def annotate_object_properties(
     ):
         config = predicate_cfgs.get(predicate, {})  # get config for current predicate
         strategy = config.get("strategy", default_strategy)
-
         if config.get("apply_outlier_penalty", False):
             outlier_predicates.add(predicate)
 
         confidence = None
         tgt_median = None
-
+        # If new strategies are added, they should be registered here as an entrypoint
         if strategy == "average_target_entity_confidence":
             confidence = score_average_target_entity_confidence(
                 object_uri, literal_by_subject

@@ -46,7 +46,7 @@ class TestWorkspaces:
         resp = await client.delete(f"/workspaces/{workspace_id}")
         assert resp.status_code == 204
         resp = await client.get(f"/workspaces/{workspace_id}")
-        assert resp.status_code == 403
+        assert resp.status_code == 404
         resp = await client.get("/workspaces/")
         assert workspace_id not in {w["id"] for w in resp.json()}
 

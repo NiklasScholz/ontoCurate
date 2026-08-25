@@ -12,7 +12,7 @@ from app.core.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from app.deps import get_current_user
+from app.deps import get_current_user, require_role
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.workspace import WorkspaceMemberRepository, WorkspaceRepository
@@ -55,18 +55,16 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=list[DocumentResponse])
+@router.get(
+    "/",
+    response_model=list[DocumentResponse],
+    dependencies=[Depends(require_role("owner", "editor"))],
+)
 async def list_documents(
     workspace_id: UUID,
-    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    role = await WorkspaceMemberRepository(session).get_role(
-        workspace_id, current_user.id
-    )
-    if not role:
-        raise ForbiddenException(f"You do not have access to workspace {workspace_id}")
-
+    """Retrieves all documents in a workspace along with their extracted and pending triple counts."""
     docs = await DocumentRepository(session).list_by_workspace(workspace_id)
 
     counts = await asyncio.to_thread(
@@ -95,6 +93,7 @@ async def get_document(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Retrieves a document by ID along with its extracted and pending triple counts, and markdown content."""
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
@@ -129,6 +128,7 @@ async def get_document_markdown(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Returns the markdown file for download."""
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
@@ -157,6 +157,7 @@ async def get_document_pdf(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Returns the uploaded PDF file for download. Only available if the document was uploaded as a PDF."""
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
@@ -180,6 +181,7 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Deletes a document and its associated data. Only workspace owners can delete documents."""
     doc = await DocumentRepository(session).get_by_id(document_id)
     if not doc:
         raise NotFoundException(f"Document {document_id} not found")
@@ -231,7 +233,9 @@ async def get_document_statements(
     )
 
     return sort_by_relation_count(
-        zip_current_originals(order_statements(rows), order_statements(originals_rows))
+        zip_current_originals(
+            order_statements(rows), order_statements(originals_rows, current_only=False)
+        )
     )
 
 
@@ -269,12 +273,13 @@ def zip_current_originals(
     current: list[StatementResponseWithOriginal],
     original: list[StatementResponseWithOriginal],
 ) -> list[CurrentAndOriginalStatement]:
+    originals_by_id = {stm.id: stm for stm in original}
     result = []
     for stm in current:
-        matches = [x for x in original if x.id == stm.original]
         result.append(
             CurrentAndOriginalStatement(
-                current=stm, original=matches[0] if len(matches) >= 1 else stm
+                current=stm,
+                original=originals_by_id[stm.original],
             )
         )
     return result
@@ -282,9 +287,14 @@ def zip_current_originals(
 
 def order_statements(
     rows: list[tuple[str, str, str, str, str]],
+    current_only: bool = True,
 ) -> list[StatementResponseWithOriginal]:
+    """
+    Groups flat, pre-sorted SPARQL rows by subject into one StatementResponseWithOriginal
+    per CandidateStatement, optionally filtering out non-current versions.
+    """
     grouped: dict[str, dict[str, list[str]]] = {}
-    originals: dict[str, str] = {}
+    originals = {}
     object_is_uri = {}
     for subject, predicate, obj, original, obj_type in rows:
         grouped.setdefault(subject, {}).setdefault(predicate, []).append(obj)
@@ -309,7 +319,9 @@ def order_statements(
                 )
             return value
 
-        if first(PACO_CURRENT) is None or first(PACO_CURRENT) == "false":
+        if current_only and (
+            first(PACO_CURRENT) is None or first(PACO_CURRENT) == "false"
+        ):
             continue
 
         confidence_str = first(PACO_CONFIDENCE)
@@ -351,7 +363,6 @@ def sort_by_relation_count(
     counts = {}
     for stm in statements:
         counts[stm.original.subject] = counts.get(stm.original.subject, 0) + 1
-
     return sorted(
         statements,
         key=lambda stm: (
@@ -363,7 +374,7 @@ def sort_by_relation_count(
     )
 
 
-async def _get_document_or_403(
+async def get_document_or_403(
     document_id: UUID,
     current_user: User,
     session: AsyncSession,
@@ -387,7 +398,8 @@ async def export_document_provenance(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    doc = await _get_document_or_403(
+    """Exports the provenance of a document in the specified format (turtle, jsonld)"""
+    doc = await get_document_or_403(
         document_id, current_user, session, roles=("owner",)
     )
     graph = curation_graph(str(doc.workspace_id))
@@ -398,6 +410,7 @@ async def export_document_provenance(
     content = await asyncio.to_thread(
         query_export_document_provenance, graph, document_entity, format, prefixes
     )
+    # clean up file name to avoid invalid characters replacing with underscores.
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',
@@ -424,7 +437,8 @@ async def export_document_data(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    doc = await _get_document_or_403(document_id, current_user, session)
+    """Exports the data of a document in the specified format (turtle, jsonld)"""
+    doc = await get_document_or_403(document_id, current_user, session)
     graph = curation_graph(str(doc.workspace_id))
     document_entity = create_source_document_entity(str(document_id)).value
     media_type, extension = EXPORT_FORMAT_MEDIA_TYPES[format]
@@ -433,6 +447,7 @@ async def export_document_data(
     content = await asyncio.to_thread(
         query_export_document_data, graph, document_entity, format, prefixes
     )
+    # clean up file name to avoid invalid characters replacing with underscores.
     filename = (
         re.sub(
             r'[\\/:"*?<>|\r\n]+',

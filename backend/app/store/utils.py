@@ -1,3 +1,5 @@
+"""This module contains all relevant RDF constants utility functions for RDF storing."""
+
 import re
 from pathlib import Path
 
@@ -158,15 +160,6 @@ def create_source_document_entity(document_key: str) -> NamedNode:
     return NamedNode(f"{DOCUMENTS}{document_key}")
 
 
-# Instance-IRI roots. Workspace-agnostic (workspace scoping lives in the named
-# graph, not the IRI) since the ontocurate.app rename, so -- unlike before --
-# a single static prefix can cover every workspace's candidate statements,
-# activities, documents, and users. Activities are split per verb rather than
-# one flat "activities/" root: a CURIE's local part can't contain further
-# slashes, and every activity IRI has a verb segment before its uuid
-# (".../activities/accept/{uuid}"), so a flat root could never actually
-# abbreviate any of them -- splitting is what makes abbreviation possible at
-# all, and the prefix doubles as a hint of the activity's type.
 CANDIDATE_STATEMENTS = "https://ontocurate.app/candidate-statements/"
 ACCEPT_ACTIVITIES = "https://ontocurate.app/activities/accept/"
 REJECT_ACTIVITIES = "https://ontocurate.app/activities/reject/"
@@ -181,11 +174,8 @@ LOOKUP_ACTIVITIES = "https://ontocurate.app/activities/lookup/"
 DOCUMENTS = "https://ontocurate.app/documents/"
 USERS = "https://ontocurate.app/users/"
 
-# Base namespace -> prefix for the platform's own vocabulary and instance
-# IRIs. Domain ontologies (schema.org, dcterms, a workspace's own extraction
-# schema, ...) come from that workspace's LinkML schema instead -- see
-# build_prefix_map.
-BASE_PREFIXES: dict[str, str] = {
+# Namespace -> prefix dictionary for CURIE shortening.
+BASE_PREFIXES = {
     PACO: "paco",
     PROV: "prov",
     SCHEMA: "schema",
@@ -216,11 +206,10 @@ CURATION_ONLY_PREFIXES = set(BASE_PREFIXES.values()) - {
 
 
 def build_prefix_map(schema_path: str | None) -> dict[str, str]:
-    """Merge BASE_PREFIXES with the prefixes declared in a workspace's LinkML
-    extraction schema (its `prefixes:` block), so CURIE-shortening also covers
-    that workspace's own domain ontology and whatever vocabularies it reuses
-    (schema.org, dcterms, foaf, ...). Falls back to BASE_PREFIXES alone if the
-    schema can't be read. The platform's own namespaces always win a collision.
+    """
+    Merge BASE_PREFIXES with the prefixes declared in a workspace's LinkML
+    extraction schema in the `prefixes:` block, so CURIE-shortening also covers
+    that schema-agnostic vocabularies. Our own namespaces always win a collision.
     """
     merged = dict(BASE_PREFIXES)
     if schema_path:
@@ -237,16 +226,19 @@ def build_prefix_map(schema_path: str | None) -> dict[str, str]:
 
 
 def extract_query_prefixes(query: str) -> dict[str, str]:
-    """Parses the PREFIX declarations a client wrote into their own SPARQL
-    query text, returning {namespace: prefix}. This is merged over the workspacep prefix map
-    to ensure users receive results respective to their prefix declarations."""
+    """
+    Parses the PREFIX declarations a user wrote into their own SPARQL
+    query text, returning {namespace: prefix}.
+    """
     prefix_regex = re.compile(r"PREFIX\s+([a-zA-Z][\w-]*):\s*<([^>]*)>", re.IGNORECASE)
     return {namespace: prefix for prefix, namespace in prefix_regex.findall(query)}
 
 
 def shorten_uri(uri: str, prefixes: dict[str, str] = BASE_PREFIXES) -> str:
-    """Abbreviate a URI to a prefix:localName CURIE if its namespace is known,
-    otherwise return it unchanged."""
+    """
+    Abbreviate a URI to a prefix:localName CURIE if its namespace is known,
+    otherwise return it unchanged.
+    """
     for namespace, prefix in prefixes.items():
         if uri.startswith(namespace):
             return f"{prefix}:{uri[len(namespace):]}"
@@ -256,9 +248,11 @@ def shorten_uri(uri: str, prefixes: dict[str, str] = BASE_PREFIXES) -> str:
 def shorten_sparql_results(
     payload: dict, prefixes: dict[str, str] = BASE_PREFIXES
 ) -> dict:
-    """Replace URI-typed binding values, and literal datatypes, in a SPARQL
+    """
+    Replace URI-typed binding values, and literal datatypes, in a SPARQL
     results JSON payload with prefixed CURIEs where possible. Mutates and
-    returns the given payload."""
+    returns the given payload.
+    """
     for binding in payload.get("results", {}).get("bindings", []):
         for value in binding.values():
             if value.get("type") == "uri":
@@ -269,10 +263,10 @@ def shorten_sparql_results(
 
 
 def format_sparql_response(payload: dict) -> dict | bool:
-    """Reshape a SPARQL results JSON payload into a minimal response: a bare
-    boolean for ASK, or {"variables": [...], "rows": [...]} for SELECT --
-    dropping the SPARQL protocol's "head"/"results" envelope, which callers
-    of this API have no use for."""
+    """
+    Reshape a SPARQL results JSON payload into a minimal response: a bare
+    boolean for ASK, or {"variables": [...], "rows": [...]} for SELECT.
+    """
     if "boolean" in payload:
         return payload["boolean"]
     return {

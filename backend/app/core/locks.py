@@ -11,7 +11,8 @@ WORKSPACE_ALIGNMENT_LOCK_TIMEOUT = 600
 
 
 def workspace_alignment_lock(workspace_id: str) -> Lock:
-    """Redis-backed mutex ensuring at most one cross-document alignment runs per
+    """
+    Redis-backed mutex ensuring at most one cross-document alignment runs per
     workspace at a time. Cross-document align relies on other runs having written their entities.
     If both would run concurrently this cannot be ensured.
     """

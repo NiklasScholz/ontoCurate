@@ -85,7 +85,7 @@ def lookup_wikidata_task(self, workspace_id: str, run_id: str) -> str:
                 run_id,
                 len(entities),
             )
-
+            # run lookup
             total_results = await asyncio.to_thread(
                 run_entity_lookup,
                 entities,

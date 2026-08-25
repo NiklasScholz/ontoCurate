@@ -25,8 +25,7 @@ def create_orcid_client() -> httpx.Client:
 
 def search_orcid(query: str, limit: int = 5) -> list[dict]:
     """
-    Search the ORCID public API for researcher records matching the query.
-
+    Search the ORCID public API for records matching the query.
     Args:
         query: ORCID query string (e.g. 'given-names:"Alice" AND
             family-name:"Smith"')
@@ -85,7 +84,7 @@ def search_orcid(query: str, limit: int = 5) -> list[dict]:
 
 def fetch_orcid_record(orcid_id: str) -> dict | None:
     """
-    Fetch a single ORCID person record by ID. Used to verify that extracted ORCID actually exists.
+    Fetch a single ORCID person record by ID. Used to verify that an extracted ORCID actually exists.
     """
     if not orcid_id or not orcid_id.strip():
         return None
@@ -123,32 +122,28 @@ def fetch_orcid_record(orcid_id: str) -> dict | None:
 
 
 def _build_candidate_literals(result: dict) -> dict[str, list[str]]:
-    """Build the literals used to compare an ORCID candidate."""
+    """Build the literals for ORCID entity information used for comparison."""
     given_name = result.get("given_names", "")
     family_name = result.get("family_names", "")
     credit_name = result.get("credit_name", "")
-
     names = [n for n in [credit_name, f"{given_name} {family_name}".strip()] if n]
     names.extend(result.get("other_names", []))
     literals = {
         "name": list(dict.fromkeys(names)),
         "orcid": [result["orcid_id"]],
     }
-
     if given_name:
         literals["givenName"] = [given_name]
     if family_name:
         literals["familyName"] = [family_name]
-
     institution_names = result.get("institution_names", [])
     if institution_names:
         literals["affiliation"] = institution_names
-
     return literals
 
 
 def _result_to_candidate(result: dict) -> dict:
-    """Turn a raw ORCID result (search hit or fetched record) into a candidate dict."""
+    """Turn a raw ORCID result (search hit or fetched record) into a candidate dict used for similarity computation."""
     return {
         "uri": f"https://orcid.org/{result['orcid_id']}",
         "orcid_id": result["orcid_id"],
@@ -169,16 +164,16 @@ def _search_orcid_candidates(
     type_config: dict | None,
     field_names: dict[str, str],
 ) -> list[dict]:
-    """ORCID API search based on entity data without known id"""
+    """ORCID API search based on entity data without known orcid."""
     type_config = type_config or {}
     literals = entity.get("literals", {})
-
     candidates = []
     seen_uris = set()
     seen_queries = set()
 
     for rule in type_config.get("search_queries", []):
         for value_set in resolve_rule_value_sets(literals, rule):
+            # Build ORCID query string from rule value set
             query = " AND ".join(
                 f'{field_names.get(predicate, predicate)}:"{value}"'
                 for predicate, value in value_set.items()
@@ -188,9 +183,7 @@ def _search_orcid_candidates(
                 continue
 
             seen_queries.add(query)
-
             results = search_orcid(query, limit=limit)
-
             for result in results:
                 candidate = _result_to_candidate(result)
                 candidate["fuzzy_match"] = True
@@ -198,10 +191,8 @@ def _search_orcid_candidates(
                     continue
                 seen_uris.add(candidate["uri"])
                 candidates.append(candidate)
-
             if request_delay_seconds > 0:
                 time.sleep(request_delay_seconds)
-
     return candidates[:limit]
 
 
@@ -213,7 +204,7 @@ def generate_orcid_candidates(
     field_names: dict[str, str] | None = None,
 ) -> list[dict]:
     """
-    Generate ORCID candidates for a local entity. If entity carries ORCID from source text, verifies that id resolves to real record.
+    Generate ORCID candidates for a local entity. If entity carries ORCID from source text, verifies that it resolves to real record.
     If not, flags candidate, so confidence score can be reduced.
     Otherwise, it falls backs to orcid api search.
     """
@@ -230,12 +221,14 @@ def generate_orcid_candidates(
                 time.sleep(request_delay_seconds)
         if candidates:
             return candidates
+        # Known ORCIDs could not be resolved
         fallback_candidates = _search_orcid_candidates(
             entity, limit, request_delay_seconds, type_config, field_names
         )
         for candidate in fallback_candidates:
-            candidate["orcid_unresolved"] = True
+            candidate["orcid_unresolved"] = True  # flag for penalty
         return fallback_candidates
+
     return _search_orcid_candidates(
         entity, limit, request_delay_seconds, type_config, field_names
     )

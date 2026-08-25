@@ -21,8 +21,6 @@ class Settings(BaseSettings):
     embedding_model: str = "qwen3-embedding-8b"
     max_text_length: int | None = None
     max_output_tokens: int | None = None
-    # Low temperature favors consistently extracting every entry in a list
-    # over creative variation; ontoGPT/LLMClient's own default is 1.0.
     extraction_temperature: float = 0.3
     wikimedia_user_agent: str = ""
     cors_allow_origins: list[str] = [

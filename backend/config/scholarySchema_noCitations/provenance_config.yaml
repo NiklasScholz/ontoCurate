@@ -31,10 +31,11 @@ datatype_properties:
     - eissn
     - doi
     - identifier
+    - url
 
   windows:
 
-    title_paper:
+    title:
       - strategy: head
         chars: 400
       - strategy: section
@@ -52,13 +53,13 @@ datatype_properties:
 
     name:
       - strategy: head
-        chars: 1000
+        chars: 1200
       - strategy: section
         heading: "References"
       - strategy: section
         heading: "Bibliography"
 
-    given_name:
+    givenName:
       - strategy: head
         chars: 1000
       - strategy: section
@@ -66,7 +67,7 @@ datatype_properties:
       - strategy: section
         heading: "Bibliography"
 
-    family_name:
+    familyName:
       - strategy: head
         chars: 1000
       - strategy: section
@@ -77,14 +78,6 @@ datatype_properties:
     email:
       strategy: head
       chars: 3000
-
-    org_name:
-      - strategy: head
-        chars: 1200
-      - strategy: section
-        heading: "References"
-      - strategy: section
-        heading: "Bibliography"
 
 
 

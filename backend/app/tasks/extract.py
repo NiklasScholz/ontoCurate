@@ -71,8 +71,8 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
 
             md_file = tmp_dir / f"{Path(doc.filename).stem}.md"
             md_file.write_text(doc.source_content, encoding="utf-8")
-
-            _yaml_path, ttl_path = await asyncio.to_thread(
+            # triple extraction
+            _, ttl_path = await asyncio.to_thread(
                 extract_document,
                 input_path=md_file,
                 schema_path=schema_path,
@@ -84,13 +84,14 @@ def extract_document_task(self, document_id: str, run_id: str) -> str:
                 max_output_tokens=settings.max_output_tokens,
                 temperature=settings.extraction_temperature,
             )
-
+            # provenance annotation
             provenance_path = annotate_confidence(
                 md_file,
                 ttl_path,
                 tmp_dir,
                 config_path=Path(workspace.provenance_config_path),
             )
+            # write candidate statements to oxigraph
             await asyncio.to_thread(
                 write_candidate_statements_from_ttl,
                 run_id,

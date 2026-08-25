@@ -105,7 +105,7 @@ Syntactic similarity looks at the **string forms** of configured `comparison_pre
 For semantic similarity we utilize text embeddings from KI Connnect NRW (model: `qwen3-embedding-8b`, configurable via the environment variable `EMBEDDING_MODEL`). To produce embeddigns we concatenate the values of `semantic_text_predicates` that are present in both entities. Then, cosine similarity between the two embedding vectors is produced. 
 
 ### Structural Similarity
-During structural similarity, we measure the predicate overlap, i.e. how many predicates the two entities share, divided by the size of the smaller predicate set. Returns a default value of 0.4 to ensure it does not drag down the score when data is sparse.
+During structural similarity, we measure the predicate overlap, i.e. how many predicates the two entities share, divided by the size of the smaller predicate set. This is reaches a default value of 0.4 as lowest value to ensure it does not drag down the score when data is sparse.
 
 ---
 

@@ -6,8 +6,6 @@ from .extract import extract_document_task
 from .inner_document_align import align_document_task
 from .lookup import lookup_wikidata_task
 
-# from .merge import merge_task
-
 
 def get_document_chain(document_id: str, file_type: str, run_id: str):
     """Per-document chain: (convert) -> extract -> inner-document alignment"""
@@ -43,7 +41,7 @@ def build_pipeline(documents: list[dict], model: str, run_id: str, workspace_id:
 def build_retry_pipeline(
     document_id: str, file_type: str, run_id: str, workspace_id: str
 ):
-    """Chain for retrying a single failed document"""
+    """Chain for retrying a single failed document."""
     return chain(
         get_document_chain(document_id, file_type, run_id),
         align_cross_document_task.si(workspace_id, run_id),

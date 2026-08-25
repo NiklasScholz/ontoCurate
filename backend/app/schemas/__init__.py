@@ -1,1 +1,0 @@
-# contains pydantic database schema
