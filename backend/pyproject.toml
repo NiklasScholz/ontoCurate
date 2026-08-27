@@ -8,6 +8,12 @@ include = ["app*"]
 [project]
 name = "onto-curate-backend"
 version = "0.1.0"
+authors = [
+    {name = "Tara Kneisel", email = "tara.kneisel@rwth-aachen.de"},
+    {name = "Esther Kaltwasser", email = "esther.kaltwasser@rwth-aachen.de"},
+    {name = "Kiran Monteiro Pai", email = "kiran.monteiro.pai@rwth-aachen.de"},
+    {name = "Niklas Scholz", email = "niklas.scholz@rwth-aachen.de"},
+]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
