@@ -118,7 +118,7 @@ pytest tests/ -v
 ---
 
 ## Acknowledgements
-
+This project is a group project developed at RWTH Aachen University in the course "Knowledge Graph Lab". 
 Our Ontology-guided triple extraction is built around [OntoGPT](https://github.com/monarch-initiative/ontogpt):
 
 > [1] Caufield, J. H., Hegde, H., Emonet, V ., Harris, N. L., Joachimiak, M. P ., Matentzoglu, N., Kim, H., Moxon, S. A. T., Reese, J. T., Haendel, M. A., Robinson, P . N.& Mungall, C. J. (2026). OntoGPT (Version v1.1.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19446792
