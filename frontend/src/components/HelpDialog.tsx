@@ -3,8 +3,7 @@ import { ExternalLinkIcon, XIcon } from "lucide-react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { client } from "../client";
 
-const REPO_URL =
-    "https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate";
+const REPO_URL = "https://github.com/NiklasScholz/ontoCurate";
 
 const STEPS = [
     "Create or open a shared workspace with a configured ontology",

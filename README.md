@@ -1,5 +1,5 @@
 ![ontoCurate logo](.docs/logo.png)
-![pipeline](https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate/badges/main/pipeline.svg)
+[![CI](https://github.com/NiklasScholz/ontoCurate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NiklasScholz/ontoCurate/actions/workflows/ci.yml)
 
 ## Table of Contents
 
@@ -30,8 +30,8 @@ OntoCurate is a schema-agnostic ontology-guided knowledge graph extraction and c
 ### 1. Clone the repository
 
 ```bash
-git clone https://git.rwth-aachen.de/i5/teaching/kglab/ss2026/onto-curate.git
-cd onto-curate
+git clone https://github.com/NiklasScholz/ontoCurate.git
+cd ontoCurate
 ```
 
 ### 2. Add secrets credentials
@@ -103,7 +103,7 @@ Afterwards, the following checks run automatically on `git commit` ensuring that
 - **eslint**: lints frontend TypeScript/React files
 
 
-### Testing ![coverage](https://gitlab.git.nrw/rwth-dbis/teaching/kglab/ss2026/onto-curate/badges/main/coverage.svg)
+### Testing
 
 We test all components of our backend, which do not require heavy mocking, using `pytest`. 
  

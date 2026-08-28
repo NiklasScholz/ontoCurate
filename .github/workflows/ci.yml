@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install linters
+        run: pip install --quiet autoflake==2.2.1 isort==5.13.2 black==26.5.1
+      - run: autoflake --check --remove-all-unused-imports -r backend/app/
+      - run: isort --check backend/app/
+      - run: black --check backend/app/
+
+  backend-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: onto
+          POSTGRES_PASSWORD: onto
+          POSTGRES_DB: onto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U onto"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://onto:onto@localhost:5432/onto
+      REDIS_URL: redis://localhost:6379
+      OXIGRAPH_URL: http://localhost:7878
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start Oxigraph
+        # GitHub Actions service containers cannot override the image command,
+        # so Oxigraph is started manually with its `serve` arguments.
+        run: |
+          docker run -d --name oxigraph -p 7878:7878 \
+            ghcr.io/oxigraph/oxigraph:latest serve --bind 0.0.0.0:7878
+      - name: Install backend
+        working-directory: backend
+        run: pip install --quiet -e ".[dev]"
+      - name: Run tests with coverage
+        working-directory: backend
+        run: |
+          coverage run --branch -m pytest tests/ -v
+          coverage report
+          coverage html
+      - name: Coverage summary
+        if: always()
+        working-directory: backend
+        run: |
+          echo '### Backend coverage' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          coverage report >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-html
+          path: backend/htmlcov/
+          retention-days: 1
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci --quiet
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci --quiet
+      - name: Test
+        working-directory: frontend
+        run: npm test
